@@ -7,20 +7,16 @@ generator client {
   provider = "prisma-client-js"
 }
 
+// SQLite has no native enum type, so `role` is a plain string here.
+// Allowed values (enforced in application code, not the DB): ADMIN, HR, MANAGER, EMPLOYEE.
+// Once we move to PostgreSQL, this can become a real Prisma enum if we want DB-level enforcement.
 model User {
-  id           String   @id @default(uuid())
-  email        String   @unique
+  id           String    @id @default(uuid())
+  email        String    @unique
   passwordHash String
   name         String
-  role         Role     @default(ADMIN)
+  role         String    @default("ADMIN")
   dateOfBirth  DateTime?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-}
-
-enum Role {
-  ADMIN
-  HR
-  MANAGER
-  EMPLOYEE
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 }
