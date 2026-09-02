@@ -1,0 +1,9 @@
+{
+  "name": "mitrahr",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/api",
+    "apps/web"
+  ]
+}
