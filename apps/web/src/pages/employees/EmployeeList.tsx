@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { API_BASE, getEmployees } from '../../lib/api';
+import { API_BASE, deleteEmployee, getEmployees } from '../../lib/api';
 import { Employee } from '../../types';
 
 const EMPLOYMENT_TYPE_LABELS: Record<string, string> = {
@@ -16,6 +16,7 @@ export default function EmployeeList() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!token) return;
@@ -24,6 +25,21 @@ export default function EmployeeList() {
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
   }, [token]);
+
+  async function handleDelete(emp: Employee) {
+    if (!token) return;
+    if (!confirm(`Remove ${emp.fullName}? This cannot be undone.`)) return;
+    setError('');
+    setDeletingId(emp.id);
+    try {
+      await deleteEmployee(token, emp.id);
+      setEmployees((prev) => prev.filter((e) => e.id !== emp.id));
+    } catch (err: any) {
+      setError(err.message || 'Failed to delete');
+    } finally {
+      setDeletingId(null);
+    }
+  }
 
   return (
     <div>
@@ -53,6 +69,7 @@ export default function EmployeeList() {
                 <th className="px-4 py-3 font-medium">Designation</th>
                 <th className="px-4 py-3 font-medium">Type</th>
                 <th className="px-4 py-3 font-medium">Status</th>
+                <th className="px-4 py-3 font-medium text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -88,6 +105,20 @@ export default function EmployeeList() {
                     >
                       {emp.status === 'ACTIVE' ? 'Active' : 'Inactive'}
                     </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center justify-end gap-4 text-xs">
+                      <Link to={`/employees/${emp.id}`} className="text-slate-500 hover:text-mitra-accentFrom">
+                        Edit
+                      </Link>
+                      <button
+                        onClick={() => handleDelete(emp)}
+                        disabled={deletingId === emp.id}
+                        className="text-red-500 hover:text-red-700 disabled:opacity-50"
+                      >
+                        {deletingId === emp.id ? 'Removing...' : 'Delete'}
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
