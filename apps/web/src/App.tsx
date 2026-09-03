@@ -3,6 +3,7 @@ import { useAuth } from './context/AuthContext';
 import AppLayout from './layouts/AppLayout';
 import Login from './pages/Login';
 import Home from './pages/Home';
+import Settings from './pages/Settings';
 import EmployeeList from './pages/employees/EmployeeList';
 import EmployeeForm from './pages/employees/EmployeeForm';
 
@@ -31,6 +32,7 @@ export default function App() {
         <Route path="employees" element={<EmployeeList />} />
         <Route path="employees/new" element={<EmployeeForm />} />
         <Route path="employees/:id" element={<EmployeeForm />} />
+        <Route path="settings" element={<Settings />} />
       </Route>
     </Routes>
   );

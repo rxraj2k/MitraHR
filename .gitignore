@@ -3,4 +3,6 @@ dist/
 .env
 apps/api/prisma/dev.db
 apps/api/prisma/dev.db-journal
+apps/api/uploads/employee-photos/*
+!apps/api/uploads/employee-photos/.gitkeep
 .DS_Store

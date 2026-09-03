@@ -21,20 +21,41 @@ model User {
   updatedAt    DateTime  @updatedAt
 }
 
+// Managed lookup list — editable from Settings (add/rename/delete).
+model Department {
+  id        String     @id @default(uuid())
+  name      String     @unique
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  employees Employee[]
+}
+
+// Managed lookup list — editable from Settings (add/rename/delete).
+model Designation {
+  id        String     @id @default(uuid())
+  name      String     @unique
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  employees Employee[]
+}
+
 // Allowed employmentType: INTERN, FULL_TIME, PART_TIME, CONTRACTOR.
 // Allowed status: ACTIVE, INACTIVE.
 // Reporting hierarchy (reportingManagerId) lands in Sprint 2 alongside the org chart UI.
 model Employee {
-  id             String    @id @default(uuid())
+  id             String       @id @default(uuid())
   fullName       String
-  email          String    @unique
+  email          String       @unique
   phone          String?
-  employmentType String    @default("FULL_TIME")
-  department     String?
-  designation    String?
+  photoUrl       String?
+  employmentType String       @default("FULL_TIME")
+  departmentId   String?
+  department     Department?  @relation(fields: [departmentId], references: [id])
+  designationId  String?
+  designation    Designation? @relation(fields: [designationId], references: [id])
   dateOfJoining  DateTime?
   dateOfBirth    DateTime?
-  status         String    @default("ACTIVE")
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  status         String       @default("ACTIVE")
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 }

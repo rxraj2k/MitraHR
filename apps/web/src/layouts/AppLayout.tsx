@@ -21,6 +21,9 @@ export default function AppLayout() {
             <NavLink to="/employees" className={linkClass}>
               Employees
             </NavLink>
+            <NavLink to="/settings" className={linkClass}>
+              Settings
+            </NavLink>
           </nav>
         </div>
         <div className="flex items-center gap-4 text-sm">

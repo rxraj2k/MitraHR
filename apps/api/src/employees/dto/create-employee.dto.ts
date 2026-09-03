@@ -1,4 +1,4 @@
-import { IsDateString, IsEmail, IsIn, IsOptional, IsString, MinLength } from 'class-validator';
+import { IsDateString, IsEmail, IsIn, IsOptional, IsString, IsUUID, MinLength } from 'class-validator';
 
 export const EMPLOYMENT_TYPES = ['INTERN', 'FULL_TIME', 'PART_TIME', 'CONTRACTOR'] as const;
 
@@ -18,12 +18,12 @@ export class CreateEmployeeDto {
   employmentType: string;
 
   @IsOptional()
-  @IsString()
-  department?: string;
+  @IsUUID()
+  departmentId?: string;
 
   @IsOptional()
-  @IsString()
-  designation?: string;
+  @IsUUID()
+  designationId?: string;
 
   @IsOptional()
   @IsDateString()
