@@ -1,7 +1,10 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
+import AppLayout from './layouts/AppLayout';
 import Login from './pages/Login';
-import Dashboard from './pages/Dashboard';
+import Home from './pages/Home';
+import EmployeeList from './pages/employees/EmployeeList';
+import EmployeeForm from './pages/employees/EmployeeForm';
 
 function ProtectedRoute({ children }: { children: JSX.Element }) {
   const { token, loading } = useAuth();
@@ -20,10 +23,15 @@ export default function App() {
         path="/"
         element={
           <ProtectedRoute>
-            <Dashboard />
+            <AppLayout />
           </ProtectedRoute>
         }
-      />
+      >
+        <Route index element={<Home />} />
+        <Route path="employees" element={<EmployeeList />} />
+        <Route path="employees/new" element={<EmployeeForm />} />
+        <Route path="employees/:id" element={<EmployeeForm />} />
+      </Route>
     </Routes>
   );
 }
