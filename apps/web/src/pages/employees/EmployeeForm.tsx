@@ -17,6 +17,7 @@ import {
   uploadEmployeePhoto,
 } from '../../lib/api';
 import { Employee, EmployeeInput, EmployeeSkillEntry, LookupItem } from '../../types';
+import SearchableSelect from '../../components/SearchableSelect';
 
 const EMPTY: EmployeeInput = {
   fullName: '',
@@ -435,21 +436,20 @@ export default function EmployeeForm() {
             <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
               Initial Baseline Skills Assessment
             </h3>
+            <p className="text-xs text-slate-400 mb-2">
+              Type to search the skill list. Don't see one you need? Add, rename, or remove skills from the
+              Settings page — it'll show up here right away.
+            </p>
             <div className="space-y-2">
               {skillRows.map((row, index) => (
                 <div key={index} className="grid grid-cols-[2fr_1.2fr_0.8fr_auto] gap-2 items-center">
-                  <select
+                  <SearchableSelect
+                    options={skills}
                     value={row.skillId}
-                    onChange={(e) => updateSkillRow(index, { skillId: e.target.value })}
-                    className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                  >
-                    <option value="">Select skill —</option>
-                    {skills.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.name}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(skillId) => updateSkillRow(index, { skillId })}
+                    placeholder="Select skill —"
+                    emptyHint="No match — add it from Settings"
+                  />
                   <select
                     value={row.proficiency}
                     onChange={(e) =>
