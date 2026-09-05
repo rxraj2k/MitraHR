@@ -2,12 +2,16 @@ import LookupManager from '../components/LookupManager';
 import {
   createDepartment,
   createDesignation,
+  createSkill,
   deleteDepartment,
   deleteDesignation,
+  deleteSkill,
   getDepartments,
   getDesignations,
+  getSkills,
   updateDepartment,
   updateDesignation,
+  updateSkill,
 } from '../lib/api';
 
 export default function Settings() {
@@ -28,6 +32,13 @@ export default function Settings() {
           create={createDesignation}
           update={updateDesignation}
           remove={deleteDesignation}
+        />
+        <LookupManager
+          title="Skills"
+          getAll={getSkills}
+          create={createSkill}
+          update={updateSkill}
+          remove={deleteSkill}
         />
       </div>
     </div>

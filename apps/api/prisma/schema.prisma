@@ -39,23 +39,82 @@ model Designation {
   employees Employee[]
 }
 
+// Managed lookup list — editable from Settings (add/rename/delete).
+// Used for the "Select Skill" dropdown in Initial Baseline Skills Assessment.
+model Skill {
+  id        String           @id @default(uuid())
+  name      String           @unique
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  employees EmployeeSkill[]
+}
+
+// Simple named counters used to generate sequential, human-friendly IDs
+// (e.g. employeeCode "MITRA-0001") without race conditions.
+model Counter {
+  name  String @id
+  value Int    @default(0)
+}
+
 // Allowed employmentType: INTERN, FULL_TIME, PART_TIME, CONTRACTOR.
 // Allowed status: ACTIVE, INACTIVE.
-// Reporting hierarchy (reportingManagerId) lands in Sprint 2 alongside the org chart UI.
+// Allowed systemRole: ADMINISTRATOR, HR, MANAGER, EMPLOYEE, IT_SUPPORT.
+//   This is captured data only for now — it does not yet grant or restrict
+//   any login access. Access enforcement is planned for the Roles & Permissions sprint.
 model Employee {
   id             String       @id @default(uuid())
+  employeeCode   String?      @unique
   fullName       String
   email          String       @unique
   phone          String?
   photoUrl       String?
   employmentType String       @default("FULL_TIME")
-  departmentId   String?
-  department     Department?  @relation(fields: [departmentId], references: [id])
-  designationId  String?
-  designation    Designation? @relation(fields: [designationId], references: [id])
-  dateOfJoining  DateTime?
-  dateOfBirth    DateTime?
-  status         String       @default("ACTIVE")
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+
+  // Placement & Hierarchy
+  departmentId       String?
+  department         Department? @relation(fields: [departmentId], references: [id])
+  designationId      String?
+  designation        Designation? @relation(fields: [designationId], references: [id])
+  team               String?
+  workLocation       String?
+  reportingManagerId String?
+  reportingManager   Employee?   @relation("ReportingManager", fields: [reportingManagerId], references: [id])
+  directReports      Employee[]  @relation("ReportingManager")
+
+  // Skills & Security
+  systemRole String? @default("EMPLOYEE")
+  skills     EmployeeSkill[]
+  documents  EmployeeDocument[]
+
+  dateOfJoining DateTime?
+  dateOfBirth   DateTime?
+  status        String    @default("ACTIVE")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+// Allowed proficiency: BEGINNER, INTERMEDIATE, ADVANCED, EXPERT.
+model EmployeeSkill {
+  id               String   @id @default(uuid())
+  employeeId       String
+  employee         Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  skillId          String
+  skill            Skill    @relation(fields: [skillId], references: [id])
+  proficiency      String
+  yearsExperience  Float
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@unique([employeeId, skillId])
+}
+
+// Uploaded employee documents (ID proof, academic certificates, PAN card, etc).
+model EmployeeDocument {
+  id           String   @id @default(uuid())
+  employeeId   String
+  employee     Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  documentType String
+  fileName     String
+  fileUrl      String
+  uploadedAt   DateTime @default(now())
 }

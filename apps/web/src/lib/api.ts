@@ -1,4 +1,4 @@
-import { Employee, EmployeeInput, LookupItem } from '../types';
+import { Employee, EmployeeInput, EmployeeSkillEntry, LookupItem } from '../types';
 
 export const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 
@@ -77,6 +77,48 @@ export async function uploadEmployeePhoto(token: string, id: string, file: File)
   return res.json();
 }
 
+export function replaceEmployeeSkills(
+  token: string,
+  id: string,
+  skills: EmployeeSkillEntry[],
+): Promise<Employee> {
+  const payload = {
+    skills: skills
+      .filter((s) => s.skillId && s.proficiency && s.yearsExperience !== '')
+      .map((s) => ({
+        skillId: s.skillId,
+        proficiency: s.proficiency,
+        yearsExperience: Number(s.yearsExperience),
+      })),
+  };
+  return authFetch(token, `/employees/${id}/skills`, { method: 'PUT', body: JSON.stringify(payload) });
+}
+
+export async function uploadEmployeeDocument(
+  token: string,
+  id: string,
+  documentType: string,
+  file: File,
+): Promise<Employee> {
+  const formData = new FormData();
+  formData.append('documentType', documentType);
+  formData.append('file', file);
+  const res = await fetch(`${API_BASE}/employees/${id}/documents`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: formData,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ message: 'Document upload failed' }));
+    throw new Error(err.message || 'Document upload failed');
+  }
+  return res.json();
+}
+
+export function deleteEmployeeDocument(token: string, id: string, documentId: string): Promise<Employee> {
+  return authFetch(token, `/employees/${id}/documents/${documentId}`, { method: 'DELETE' });
+}
+
 // --- Departments ---
 
 export function getDepartments(token: string): Promise<LookupItem[]> {
@@ -105,4 +147,19 @@ export function updateDesignation(token: string, id: string, name: string): Prom
 }
 export function deleteDesignation(token: string, id: string): Promise<void> {
   return authFetch(token, `/designations/${id}`, { method: 'DELETE' });
+}
+
+// --- Skills ---
+
+export function getSkills(token: string): Promise<LookupItem[]> {
+  return authFetch(token, '/skills');
+}
+export function createSkill(token: string, name: string): Promise<LookupItem> {
+  return authFetch(token, '/skills', { method: 'POST', body: JSON.stringify({ name }) });
+}
+export function updateSkill(token: string, id: string, name: string): Promise<LookupItem> {
+  return authFetch(token, `/skills/${id}`, { method: 'PATCH', body: JSON.stringify({ name }) });
+}
+export function deleteSkill(token: string, id: string): Promise<void> {
+  return authFetch(token, `/skills/${id}`, { method: 'DELETE' });
 }
