@@ -14,7 +14,7 @@ const INCLUDE = {
   documents: { orderBy: { uploadedAt: 'desc' as const } },
 };
 
-const EMPLOYEE_CODE_PREFIX = 'MITRA-';
+const EMPLOYEE_CODE_PREFIX = 'OM-';
 const EMPLOYEE_CODE_PAD = 4;
 
 @Injectable()
