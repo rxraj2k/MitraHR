@@ -1,8 +1,11 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { fetchMe } from '../lib/api';
 
+export type SessionKind = 'STAFF' | 'EMPLOYEE';
+
 interface AuthUser {
-  sub: string;
+  id: string;
+  kind: SessionKind;
   email: string;
   name: string;
   role: string;
@@ -12,6 +15,7 @@ interface AuthContextType {
   user: AuthUser | null;
   token: string | null;
   loading: boolean;
+  isStaff: boolean;
   setToken: (token: string | null) => void;
   logout: () => void;
 }
@@ -46,8 +50,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .finally(() => setLoading(false));
   }, [token]);
 
+  const isStaff = user?.kind === 'STAFF';
+
   return (
-    <AuthContext.Provider value={{ user, token, loading, setToken, logout }}>
+    <AuthContext.Provider value={{ user, token, loading, isStaff, setToken, logout }}>
       {children}
     </AuthContext.Provider>
   );

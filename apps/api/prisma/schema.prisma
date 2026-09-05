@@ -85,6 +85,7 @@ model Employee {
   systemRole String? @default("EMPLOYEE")
   skills     EmployeeSkill[]
   documents  EmployeeDocument[]
+  otps       EmployeeOtp[]
 
   dateOfJoining DateTime?
   dateOfBirth   DateTime?
@@ -117,4 +118,18 @@ model EmployeeDocument {
   fileName     String
   fileUrl      String
   uploadedAt   DateTime @default(now())
+}
+
+// One-time login codes for employee self-service (OTP-only, no password).
+// A row is consumed on successful verify; expired/old rows are cleaned up
+// on each new request so only the latest code for an employee is valid.
+model EmployeeOtp {
+  id         String    @id @default(uuid())
+  employeeId String
+  employee   Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  codeHash   String
+  expiresAt  DateTime
+  attempts   Int       @default(0)
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
 }

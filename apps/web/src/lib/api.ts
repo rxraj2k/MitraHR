@@ -23,6 +23,32 @@ export async function fetchMe(token: string) {
   return res.json();
 }
 
+export async function requestEmployeeOtp(email: string): Promise<{ message: string }> {
+  const res = await fetch(`${API_BASE}/auth/employee/otp/request`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ message: 'Could not send a login code' }));
+    throw new Error(err.message || 'Could not send a login code');
+  }
+  return res.json();
+}
+
+export async function verifyEmployeeOtp(email: string, code: string) {
+  const res = await fetch(`${API_BASE}/auth/employee/otp/verify`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, code }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ message: 'Invalid or expired code' }));
+    throw new Error(err.message || 'Invalid or expired code');
+  }
+  return res.json();
+}
+
 async function authFetch(token: string, path: string, options: RequestInit = {}) {
   const res = await fetch(`${API_BASE}${path}`, {
     ...options,
@@ -60,6 +86,10 @@ export function updateEmployee(token: string, id: string, data: Partial<Employee
 
 export function deleteEmployee(token: string, id: string): Promise<void> {
   return authFetch(token, `/employees/${id}`, { method: 'DELETE' });
+}
+
+export function updateMyProfile(token: string, data: { phone?: string }): Promise<Employee> {
+  return authFetch(token, '/employees/me', { method: 'PATCH', body: JSON.stringify(data) });
 }
 
 export async function uploadEmployeePhoto(token: string, id: string, file: File): Promise<Employee> {

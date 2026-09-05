@@ -21,7 +21,7 @@ const SEARCH_FIELD_OPTIONS: { value: SearchField; label: string }[] = [
 ];
 
 export default function EmployeeList() {
-  const { token } = useAuth();
+  const { token, isStaff } = useAuth();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -76,12 +76,14 @@ export default function EmployeeList() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-semibold text-slate-800">Employees</h1>
-        <Link
-          to="/employees/new"
-          className="rounded-lg bg-gradient-to-r from-mitra-accentFrom to-mitra-accentTo text-white text-sm font-medium px-4 py-2"
-        >
-          + Onboard Employee
-        </Link>
+        {isStaff && (
+          <Link
+            to="/employees/new"
+            className="rounded-lg bg-gradient-to-r from-mitra-accentFrom to-mitra-accentTo text-white text-sm font-medium px-4 py-2"
+          >
+            + Onboard Employee
+          </Link>
+        )}
       </div>
 
       <div className="flex items-center gap-2 mb-4">
@@ -123,7 +125,7 @@ export default function EmployeeList() {
                 <th className="px-4 py-3 font-medium">Designation</th>
                 <th className="px-4 py-3 font-medium">Type</th>
                 <th className="px-4 py-3 font-medium">Status</th>
-                <th className="px-4 py-3 font-medium text-right">Actions</th>
+                {isStaff && <th className="px-4 py-3 font-medium text-right">Actions</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -169,20 +171,22 @@ export default function EmployeeList() {
                       {emp.status === 'ACTIVE' ? 'Active' : 'Inactive'}
                     </span>
                   </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center justify-end gap-4 text-xs">
-                      <Link to={`/employees/${emp.id}`} className="text-slate-500 hover:text-mitra-accentFrom">
-                        Edit
-                      </Link>
-                      <button
-                        onClick={() => handleDelete(emp)}
-                        disabled={deletingId === emp.id}
-                        className="text-red-500 hover:text-red-700 disabled:opacity-50"
-                      >
-                        {deletingId === emp.id ? 'Removing...' : 'Delete'}
-                      </button>
-                    </div>
-                  </td>
+                  {isStaff && (
+                    <td className="px-4 py-3">
+                      <div className="flex items-center justify-end gap-4 text-xs">
+                        <Link to={`/employees/${emp.id}`} className="text-slate-500 hover:text-mitra-accentFrom">
+                          Edit
+                        </Link>
+                        <button
+                          onClick={() => handleDelete(emp)}
+                          disabled={deletingId === emp.id}
+                          className="text-red-500 hover:text-red-700 disabled:opacity-50"
+                        >
+                          {deletingId === emp.id ? 'Removing...' : 'Delete'}
+                        </button>
+                      </div>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>

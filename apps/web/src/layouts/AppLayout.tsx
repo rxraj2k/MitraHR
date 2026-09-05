@@ -17,7 +17,7 @@ function navLinkClass({ isActive }: { isActive: boolean }) {
 }
 
 export default function AppLayout() {
-  const { user, logout } = useAuth();
+  const { user, isStaff, logout } = useAuth();
 
   return (
     <div className="min-h-screen flex bg-slate-50">
@@ -34,11 +34,13 @@ export default function AppLayout() {
             </NavLink>
           ))}
         </nav>
-        <div className="px-3 pb-4 pt-4 border-t border-white/10">
-          <NavLink to="/settings" className={navLinkClass}>
-            Settings
-          </NavLink>
-        </div>
+        {isStaff && (
+          <div className="px-3 pb-4 pt-4 border-t border-white/10">
+            <NavLink to="/settings" className={navLinkClass}>
+              Settings
+            </NavLink>
+          </div>
+        )}
       </aside>
 
       <div className="flex-1 flex flex-col min-w-0">
