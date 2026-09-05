@@ -23,6 +23,9 @@ const EMPTY: EmployeeInput = {
   fullName: '',
   email: '',
   phone: '',
+  emergencyContactName: '',
+  emergencyContactPhone: '',
+  address: '',
   employmentType: 'FULL_TIME',
   departmentId: '',
   designationId: '',
@@ -91,6 +94,9 @@ export default function EmployeeForm() {
           fullName: emp.fullName,
           email: emp.email,
           phone: emp.phone || '',
+          emergencyContactName: emp.emergencyContactName || '',
+          emergencyContactPhone: emp.emergencyContactPhone || '',
+          address: emp.address || '',
           employmentType: emp.employmentType,
           departmentId: emp.departmentId || '',
           designationId: emp.designationId || '',
@@ -289,6 +295,34 @@ export default function EmployeeForm() {
                 </select>
               </div>
             )}
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm text-slate-600 mb-1">Emergency contact name</label>
+              <input
+                value={form.emergencyContactName}
+                onChange={(e) => update('emergencyContactName', e.target.value)}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-slate-600 mb-1">Emergency contact number</label>
+              <input
+                value={form.emergencyContactPhone}
+                onChange={(e) => update('emergencyContactPhone', e.target.value)}
+                placeholder="Different from personal phone"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm text-slate-600 mb-1">Address</label>
+            <textarea
+              value={form.address}
+              onChange={(e) => update('address', e.target.value)}
+              rows={2}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>

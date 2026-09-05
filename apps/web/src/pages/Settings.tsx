@@ -1,4 +1,5 @@
 import LookupManager from '../components/LookupManager';
+import AdminManager from '../components/AdminManager';
 import {
   createDepartment,
   createDesignation,
@@ -40,6 +41,7 @@ export default function Settings() {
           update={updateSkill}
           remove={deleteSkill}
         />
+        <AdminManager />
       </div>
     </div>
   );

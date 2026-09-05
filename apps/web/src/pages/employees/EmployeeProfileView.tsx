@@ -133,6 +133,14 @@ export default function EmployeeProfileView() {
           <Field label="Date of joining" value={employee.dateOfJoining ? employee.dateOfJoining.slice(0, 10) : ''} />
         </div>
 
+        {isOwnProfile && (
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="Emergency contact name" value={employee.emergencyContactName || ''} />
+            <Field label="Emergency contact number" value={employee.emergencyContactPhone || ''} />
+          </div>
+        )}
+        {isOwnProfile && employee.address && <Field label="Address" value={employee.address} />}
+
         <div>
           <p className="text-xs text-slate-400 mb-1">Phone</p>
           {isOwnProfile ? (

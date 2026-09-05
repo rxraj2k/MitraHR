@@ -7,6 +7,9 @@ export class UpdateEmployeeDto {
   @IsOptional() @IsString() @MinLength(1) fullName?: string;
   @IsOptional() @IsEmail() email?: string;
   @IsOptional() @IsString() phone?: string;
+  @IsOptional() @IsString() emergencyContactName?: string;
+  @IsOptional() @IsString() emergencyContactPhone?: string;
+  @IsOptional() @IsString() address?: string;
   @IsOptional() @IsIn(EMPLOYMENT_TYPES) employmentType?: string;
 
   // Placement & Hierarchy

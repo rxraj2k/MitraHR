@@ -3,7 +3,10 @@ import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { RequestOtpDto } from './dto/request-otp.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
+import { InviteAdminDto } from './dto/invite-admin.dto';
+import { SetPasswordDto } from './dto/set-password.dto';
 import { JwtAuthGuard } from './jwt-auth.guard';
+import { StaffOnlyGuard } from './staff-only.guard';
 
 @Controller('auth')
 export class AuthController {
@@ -24,6 +27,24 @@ export class AuthController {
   @HttpCode(200)
   async verifyOtp(@Body() dto: VerifyOtpDto) {
     return this.authService.verifyEmployeeOtp(dto.email, dto.code);
+  }
+
+  @UseGuards(JwtAuthGuard, StaffOnlyGuard)
+  @Get('admin/users')
+  async listAdmins() {
+    return this.authService.listAdmins();
+  }
+
+  @UseGuards(JwtAuthGuard, StaffOnlyGuard)
+  @Post('admin/invite')
+  async inviteAdmin(@Body() dto: InviteAdminDto) {
+    return this.authService.inviteAdmin(dto.name, dto.email);
+  }
+
+  @Post('admin/set-password')
+  @HttpCode(200)
+  async setPassword(@Body() dto: SetPasswordDto) {
+    return this.authService.setPassword(dto.token, dto.password);
   }
 
   @UseGuards(JwtAuthGuard)

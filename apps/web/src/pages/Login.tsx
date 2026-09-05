@@ -115,7 +115,7 @@ export default function Login() {
         <div className="bg-white/5 border border-white/10 rounded-2xl p-6 backdrop-blur">
           <div className="flex gap-1 rounded-lg bg-black/20 p-1 mb-5">
             <TabButton active={mode === 'staff'} onClick={() => switchMode('staff')}>
-              Staff Sign In
+              Admin Sign In
             </TabButton>
             <TabButton active={mode === 'employee'} onClick={() => switchMode('employee')}>
               Employee Sign In

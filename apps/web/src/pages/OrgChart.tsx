@@ -150,7 +150,7 @@ export default function OrgChart() {
     <div>
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-800">Org Chart</h1>
+          <h1 className="text-2xl font-semibold text-slate-800">Team Topology</h1>
           <p className="text-sm text-slate-500 mt-1">
             Click any card to open that employee's profile. Use the − / + button to collapse or expand a team.
           </p>

@@ -1,4 +1,4 @@
-import { Employee, EmployeeInput, EmployeeSkillEntry, LookupItem } from '../types';
+import { AdminAccount, Employee, EmployeeInput, EmployeeSkillEntry, LookupItem } from '../types';
 
 export const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 
@@ -192,4 +192,27 @@ export function updateSkill(token: string, id: string, name: string): Promise<Lo
 }
 export function deleteSkill(token: string, id: string): Promise<void> {
   return authFetch(token, `/skills/${id}`, { method: 'DELETE' });
+}
+
+// --- Admins (staff accounts) ---
+
+export function getAdmins(token: string): Promise<AdminAccount[]> {
+  return authFetch(token, '/auth/admin/users');
+}
+
+export function inviteAdmin(token: string, name: string, email: string): Promise<AdminAccount> {
+  return authFetch(token, '/auth/admin/invite', { method: 'POST', body: JSON.stringify({ name, email }) });
+}
+
+export async function setPassword(token: string, password: string) {
+  const res = await fetch(`${API_BASE}/auth/admin/set-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token, password }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ message: 'Could not set password' }));
+    throw new Error(err.message || 'Could not set password');
+  }
+  return res.json();
 }

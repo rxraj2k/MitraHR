@@ -11,14 +11,16 @@ generator client {
 // plain strings here, with allowed values enforced in application code (DTOs).
 // Allowed roles: ADMIN, HR, MANAGER, EMPLOYEE.
 model User {
-  id           String    @id @default(uuid())
-  email        String    @unique
-  passwordHash String
-  name         String
-  role         String    @default("ADMIN")
-  dateOfBirth  DateTime?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  id                   String    @id @default(uuid())
+  email                String    @unique
+  passwordHash         String?
+  name                 String
+  role                 String    @default("ADMIN")
+  dateOfBirth          DateTime?
+  inviteTokenHash      String?   @unique
+  inviteTokenExpiresAt DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 }
 
 // Managed lookup list — editable from Settings (add/rename/delete).
@@ -62,13 +64,16 @@ model Counter {
 //   This is captured data only for now — it does not yet grant or restrict
 //   any login access. Access enforcement is planned for the Roles & Permissions sprint.
 model Employee {
-  id             String       @id @default(uuid())
-  employeeCode   String?      @unique
-  fullName       String
-  email          String       @unique
-  phone          String?
-  photoUrl       String?
-  employmentType String       @default("FULL_TIME")
+  id                    String       @id @default(uuid())
+  employeeCode          String?      @unique
+  fullName              String
+  email                 String       @unique
+  phone                 String?
+  emergencyContactName  String?
+  emergencyContactPhone String?
+  address               String?
+  photoUrl              String?
+  employmentType        String       @default("FULL_TIME")
 
   // Placement & Hierarchy
   departmentId       String?

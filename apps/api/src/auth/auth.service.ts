@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
 import * as crypto from 'crypto';
@@ -8,6 +8,7 @@ import { MailService } from '../mail/mail.service';
 const OTP_TTL_MINUTES = 10;
 const OTP_RESEND_COOLDOWN_SECONDS = 30;
 const OTP_MAX_ATTEMPTS = 5;
+const INVITE_TTL_DAYS = 7;
 
 @Injectable()
 export class AuthService {
@@ -18,11 +19,14 @@ export class AuthService {
   ) {}
 
   // --- Staff (password) login — Admin today; HR/Manager/IT Support once
-  // multi-admin invites exist. ---
+  // multi-admin invites need finer-grained roles. ---
 
   async validateUser(email: string, password: string) {
     const user = await this.prisma.user.findUnique({ where: { email } });
     if (!user) throw new UnauthorizedException('Invalid email or password');
+    if (!user.passwordHash) {
+      throw new UnauthorizedException('This account has not set a password yet — check your invite email');
+    }
     const passwordMatches = await bcrypt.compare(password, user.passwordHash);
     if (!passwordMatches) throw new UnauthorizedException('Invalid email or password');
     return user;
@@ -35,6 +39,84 @@ export class AuthService {
       accessToken: this.jwtService.sign(payload),
       user: { id: user.id, email: user.email, name: user.name, role: user.role, kind: 'STAFF' as const },
     };
+  }
+
+  // --- Multi-admin invites — an existing admin adds a new one by email;
+  // they get a "set your password" link instead of a shared password. ---
+
+  private hashToken(token: string) {
+    return crypto.createHash('sha256').update(token).digest('hex');
+  }
+
+  private appUrl() {
+    return process.env.APP_URL || process.env.CORS_ORIGIN || 'http://localhost:5173';
+  }
+
+  async inviteAdmin(name: string, email: string) {
+    const existing = await this.prisma.user.findUnique({ where: { email } });
+    if (existing && existing.passwordHash) {
+      throw new BadRequestException('An active account with this email already exists');
+    }
+
+    const token = crypto.randomBytes(32).toString('hex');
+    const inviteTokenHash = this.hashToken(token);
+    const inviteTokenExpiresAt = new Date(Date.now() + INVITE_TTL_DAYS * 24 * 60 * 60 * 1000);
+
+    const user = existing
+      ? await this.prisma.user.update({
+          where: { id: existing.id },
+          data: { name, inviteTokenHash, inviteTokenExpiresAt },
+        })
+      : await this.prisma.user.create({
+          data: { name, email, role: 'ADMIN', passwordHash: null, inviteTokenHash, inviteTokenExpiresAt },
+        });
+
+    const link = `${this.appUrl()}/set-password?token=${token}`;
+    await this.mailService.sendMail({
+      to: email,
+      subject: "You've been added as an admin on MitraHR",
+      text: `Hi ${name},\n\nYou've been added as an admin on MitraHR. Set your password to activate your account:\n\n${link}\n\nThis link expires in ${INVITE_TTL_DAYS} days. If you weren't expecting this, you can ignore it.`,
+    });
+
+    return { id: user.id, name: user.name, email: user.email, role: user.role, status: 'INVITED' as const };
+  }
+
+  async setPassword(token: string, password: string) {
+    const inviteTokenHash = this.hashToken(token);
+    const user = await this.prisma.user.findUnique({ where: { inviteTokenHash } });
+    if (!user || !user.inviteTokenExpiresAt || user.inviteTokenExpiresAt.getTime() < Date.now()) {
+      throw new UnauthorizedException('This invite link is invalid or has expired');
+    }
+
+    const passwordHash = await bcrypt.hash(password, 10);
+    const updated = await this.prisma.user.update({
+      where: { id: user.id },
+      data: { passwordHash, inviteTokenHash: null, inviteTokenExpiresAt: null },
+    });
+
+    const payload = {
+      sub: updated.id,
+      kind: 'STAFF' as const,
+      email: updated.email,
+      role: updated.role,
+      name: updated.name,
+    };
+    return {
+      accessToken: this.jwtService.sign(payload),
+      user: { id: updated.id, email: updated.email, name: updated.name, role: updated.role, kind: 'STAFF' as const },
+    };
+  }
+
+  async listAdmins() {
+    const users = await this.prisma.user.findMany({ orderBy: { createdAt: 'asc' } });
+    return users.map((u) => ({
+      id: u.id,
+      name: u.name,
+      email: u.email,
+      role: u.role,
+      status: u.passwordHash ? ('ACTIVE' as const) : ('INVITED' as const),
+      createdAt: u.createdAt,
+    }));
   }
 
   // --- Employee OTP login — no password; read-only access scoped to the

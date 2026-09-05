@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import AppLayout from './layouts/AppLayout';
 import Login from './pages/Login';
+import SetPassword from './pages/SetPassword';
 import Home from './pages/Home';
 import Settings from './pages/Settings';
 import EmployeeList from './pages/employees/EmployeeList';
@@ -31,6 +32,7 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/set-password" element={<SetPassword />} />
       <Route
         path="/"
         element={

@@ -18,6 +18,18 @@ export class CreateEmployeeDto {
   @IsString()
   phone?: string;
 
+  @IsOptional()
+  @IsString()
+  emergencyContactName?: string;
+
+  @IsOptional()
+  @IsString()
+  emergencyContactPhone?: string;
+
+  @IsOptional()
+  @IsString()
+  address?: string;
+
   @IsIn(EMPLOYMENT_TYPES)
   employmentType: string;
 

@@ -36,6 +36,9 @@ export interface Employee {
   fullName: string;
   email: string;
   phone?: string | null;
+  emergencyContactName?: string | null;
+  emergencyContactPhone?: string | null;
+  address?: string | null;
   photoUrl?: string | null;
   employmentType: EmploymentType;
 
@@ -63,6 +66,9 @@ export interface EmployeeInput {
   fullName: string;
   email: string;
   phone?: string;
+  emergencyContactName?: string;
+  emergencyContactPhone?: string;
+  address?: string;
   employmentType: EmploymentType;
   departmentId?: string;
   designationId?: string;
@@ -73,4 +79,15 @@ export interface EmployeeInput {
   dateOfJoining?: string;
   dateOfBirth?: string;
   status?: EmployeeStatus;
+}
+
+export type AdminStatus = 'ACTIVE' | 'INVITED';
+
+export interface AdminAccount {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  status: AdminStatus;
+  createdAt: string;
 }

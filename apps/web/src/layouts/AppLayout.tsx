@@ -6,7 +6,7 @@ import { useAuth } from '../context/AuthContext';
 const NAV_ITEMS = [
   { to: '/', label: 'Home', end: true },
   { to: '/employees', label: 'Employees', end: false },
-  { to: '/org-chart', label: 'Org Chart', end: false },
+  { to: '/org-chart', label: 'Team Topology', end: false },
 ];
 
 function navLinkClass({ isActive }: { isActive: boolean }) {
