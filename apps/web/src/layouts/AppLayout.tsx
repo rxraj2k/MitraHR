@@ -3,7 +3,11 @@ import { useAuth } from '../context/AuthContext';
 
 // Sidebar nav is deliberately data-driven — future sprints add a module by
 // adding one line here, not by restructuring the layout again.
-const NAV_ITEMS = [{ to: '/', label: 'Home', end: true }, { to: '/employees', label: 'Employees', end: false }];
+const NAV_ITEMS = [
+  { to: '/', label: 'Home', end: true },
+  { to: '/employees', label: 'Employees', end: false },
+  { to: '/org-chart', label: 'Org Chart', end: false },
+];
 
 function navLinkClass({ isActive }: { isActive: boolean }) {
   return [

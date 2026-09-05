@@ -1,3 +1,82 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Org chart — pure-CSS connector lines for a recursive tree.
+   Root nodes get the "org-root" class (no incoming connector).
+   Every other <li> draws a horizontal half-bar to its siblings plus a
+   vertical stub down into its own node; each parent's children <ul>
+   draws the trunk line down from the parent into that shared bar. */
+.org-tree,
+.org-tree ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.org-tree {
+  display: inline-flex;
+}
+
+.org-tree ul {
+  display: flex;
+  position: relative;
+  padding-top: 28px;
+}
+
+.org-tree li {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  padding: 28px 14px 0 14px;
+}
+
+.org-tree > li {
+  padding-top: 0;
+}
+
+.org-tree li:not(.org-root)::before,
+.org-tree li:not(.org-root)::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  width: 50%;
+  height: 28px;
+  border-top: 2px solid #cbd5e1;
+}
+.org-tree li:not(.org-root)::before {
+  left: 0;
+}
+.org-tree li:not(.org-root)::after {
+  left: 50%;
+  border-left: 2px solid #cbd5e1;
+}
+
+/* trim the bar past the outer edges of a sibling row */
+.org-tree li:not(.org-root):first-child::before {
+  border-top: none;
+}
+.org-tree li:not(.org-root):last-child::after {
+  border-top: none;
+}
+
+/* a lone child hangs straight down from its parent — no fork needed */
+.org-tree li:not(.org-root):only-child {
+  padding-top: 0;
+}
+.org-tree li:not(.org-root):only-child::before,
+.org-tree li:not(.org-root):only-child::after {
+  display: none;
+}
+
+/* trunk from a parent node down into its row of children */
+.org-tree li > ul::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  border-left: 2px solid #cbd5e1;
+  width: 0;
+  height: 28px;
+}
