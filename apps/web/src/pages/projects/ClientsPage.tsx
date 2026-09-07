@@ -113,7 +113,7 @@ export default function ClientsPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-slate-800">Clients</h1>
+        <h1 className="text-2xl font-semibold text-slate-800">Client Management</h1>
         <button
           onClick={() => setShowAdd((v) => !v)}
           className="rounded-lg bg-gradient-to-r from-mitra-accentFrom to-mitra-accentTo text-white text-sm font-medium px-4 py-2"

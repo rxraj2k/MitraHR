@@ -8,8 +8,8 @@ const STAFF_NAV_ITEMS = [
   { to: '/employees', label: 'Employees', end: false },
   { to: '/org-chart', label: 'Team Topology', end: false },
   { to: '/leave', label: 'Leaves & Attendance', end: false },
-  { to: '/clients', label: 'Clients', end: false },
-  { to: '/projects', label: 'Projects', end: false },
+  { to: '/clients', label: 'Client Management', end: false },
+  { to: '/projects', label: 'Project Management', end: false },
 ];
 
 const EMPLOYEE_NAV_ITEMS = [
