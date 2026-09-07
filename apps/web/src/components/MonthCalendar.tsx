@@ -35,10 +35,22 @@ function hasAnyData(day: AttendanceDay) {
   );
 }
 
+// The color a day cell leads with — absence is the thing that most needs
+// attention, so it wins; then leave; then an all-present working day is
+// green; holidays/weekends get their own neutral tones.
+function cellStyle(day: AttendanceDay): string {
+  if (day.holiday) return 'bg-indigo-50 border-indigo-100';
+  if (day.isWeekend) return 'bg-slate-50 border-slate-100';
+  if (day.absent.length > 0) return 'bg-red-50 border-red-200';
+  if (day.onLeave.length > 0) return 'bg-amber-50 border-amber-200';
+  if (day.present.length > 0) return 'bg-green-50 border-green-200';
+  return 'bg-white border-slate-200';
+}
+
 // Full 7-column month grid — one cell per day. Holidays/weekends are
-// greyed out by default, but still clickable when someone checked in
-// anyway (shown as "Present on Holiday" / "Present on Week-Off") or has
-// approved leave spanning that day.
+// neutral by default, but still clickable when someone checked in anyway
+// (shown as "Present on Holiday" / "Present on Week-Off") or has approved
+// leave spanning that day.
 export default function MonthCalendar({ year, month, days, onPrev, onNext }: Props) {
   const [selected, setSelected] = useState<string | null>(null);
 
@@ -52,6 +64,20 @@ export default function MonthCalendar({ year, month, days, onPrev, onNext }: Pro
     while (arr.length % 7 !== 0) arr.push(null);
     return arr;
   }, [days, firstWeekday]);
+
+  const totals = useMemo(() => {
+    let present = 0;
+    let leave = 0;
+    let absent = 0;
+    let holidays = 0;
+    for (const d of days) {
+      present += d.present.length + d.presentOnHoliday.length + d.presentOnWeekend.length;
+      leave += d.onLeave.length;
+      absent += d.absent.length;
+      if (d.holiday) holidays++;
+    }
+    return { present, leave, absent, holidays };
+  }, [days]);
 
   const selectedDay = days.find((d) => d.date === selected) || null;
 
@@ -70,6 +96,25 @@ export default function MonthCalendar({ year, month, days, onPrev, onNext }: Pro
         </div>
       </div>
 
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+        <div className="rounded-lg bg-green-50 border border-green-200 p-3">
+          <p className="text-xs text-green-600 font-medium">Total Present</p>
+          <p className="text-xl font-semibold text-green-800">{totals.present}</p>
+        </div>
+        <div className="rounded-lg bg-amber-50 border border-amber-200 p-3">
+          <p className="text-xs text-amber-600 font-medium">Total On Leave</p>
+          <p className="text-xl font-semibold text-amber-800">{totals.leave}</p>
+        </div>
+        <div className="rounded-lg bg-red-50 border border-red-200 p-3">
+          <p className="text-xs text-red-500 font-medium">Total Absent</p>
+          <p className="text-xl font-semibold text-red-700">{totals.absent}</p>
+        </div>
+        <div className="rounded-lg bg-indigo-50 border border-indigo-100 p-3">
+          <p className="text-xs text-indigo-500 font-medium">Holidays</p>
+          <p className="text-xl font-semibold text-indigo-800">{totals.holidays}</p>
+        </div>
+      </div>
+
       <div className="grid grid-cols-7 gap-1.5 text-xs text-slate-400 mb-1">
         {WEEKDAY_LABELS.map((w) => (
           <div key={w} className="text-center font-medium">
@@ -81,7 +126,6 @@ export default function MonthCalendar({ year, month, days, onPrev, onNext }: Pro
       <div className="grid grid-cols-7 gap-1.5">
         {cells.map((day, i) => {
           if (!day) return <div key={i} className="rounded-lg min-h-[84px] bg-transparent" />;
-          const nonWorking = day.isWeekend || !!day.holiday;
           const clickable = hasAnyData(day);
           const isToday = day.date === todayIso;
           const isSelected = day.date === selected;
@@ -92,31 +136,37 @@ export default function MonthCalendar({ year, month, days, onPrev, onNext }: Pro
               disabled={!clickable}
               className={[
                 'rounded-lg min-h-[84px] p-1.5 text-left border transition-colors',
-                nonWorking ? 'bg-slate-50 border-slate-100' : 'bg-white border-slate-200',
-                clickable ? 'hover:border-mitra-accentFrom cursor-pointer' : 'cursor-default',
+                cellStyle(day),
+                clickable ? 'hover:brightness-95 cursor-pointer' : 'cursor-default',
                 isSelected ? 'ring-2 ring-mitra-accentFrom' : '',
                 isToday ? 'border-mitra-navy' : '',
               ].join(' ')}
             >
-              <div className={`text-xs font-medium ${nonWorking ? 'text-slate-400' : 'text-slate-700'}`}>
-                {parseInt(day.date.slice(8, 10), 10)}
-              </div>
+              <div className="text-xs font-medium text-slate-600">{parseInt(day.date.slice(8, 10), 10)}</div>
               {day.holiday && (
                 <div className="text-[10px] text-indigo-500 mt-1 leading-tight line-clamp-2">{day.holiday.name}</div>
               )}
-              {!day.holiday && day.isWeekend && <div className="text-[10px] text-slate-300 mt-1">Weekend</div>}
+              {!day.holiday && day.isWeekend && <div className="text-[10px] text-slate-400 mt-1">Week-Off</div>}
               <div className="mt-1 space-y-0.5">
                 {day.present.length > 0 && (
-                  <div className="text-[10px] text-green-600">● {day.present.length} present</div>
+                  <div className="text-[10px] font-medium text-green-700">{day.present.length} present</div>
                 )}
                 {day.presentOnHoliday.length > 0 && (
-                  <div className="text-[10px] text-emerald-600">● {day.presentOnHoliday.length} present (holiday)</div>
+                  <div className="text-[10px] font-medium text-emerald-700">
+                    {day.presentOnHoliday.length} present (holiday)
+                  </div>
                 )}
                 {day.presentOnWeekend.length > 0 && (
-                  <div className="text-[10px] text-emerald-600">● {day.presentOnWeekend.length} present (week-off)</div>
+                  <div className="text-[10px] font-medium text-emerald-700">
+                    {day.presentOnWeekend.length} present (week-off)
+                  </div>
                 )}
-                {day.onLeave.length > 0 && <div className="text-[10px] text-amber-600">● {day.onLeave.length} leave</div>}
-                {day.absent.length > 0 && <div className="text-[10px] text-red-500">● {day.absent.length} absent</div>}
+                {day.onLeave.length > 0 && (
+                  <div className="text-[10px] font-medium text-amber-700">{day.onLeave.length} on leave</div>
+                )}
+                {day.absent.length > 0 && (
+                  <div className="text-[10px] font-medium text-red-600">{day.absent.length} absent</div>
+                )}
               </div>
             </button>
           );
