@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useAutoRefresh } from '../hooks/useAutoRefresh';
 import { getAttendanceCalendar } from '../lib/api';
 import { AttendanceDay } from '../types';
 
@@ -62,13 +63,18 @@ export default function PersonalMonthCalendar({ employeeId }: Props) {
   const [days, setDays] = useState<AttendanceDay[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  function load() {
     if (!token || !employeeId) return;
-    setLoading(true);
     getAttendanceCalendar(token, year, month, employeeId)
       .then((res) => setDays(res.days))
       .finally(() => setLoading(false));
+  }
+  useEffect(() => {
+    setLoading(true);
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, employeeId, year, month]);
+  useAutoRefresh(load);
 
   const firstWeekday = new Date(Date.UTC(year, month - 1, 1)).getUTCDay();
   const cells = useMemo(() => {

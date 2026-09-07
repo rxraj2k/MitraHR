@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useAutoRefresh } from '../hooks/useAutoRefresh';
 import { checkIn, getAttendanceToday } from '../lib/api';
 
 // A small daily "mark yourself present" widget. Shown to any session with
@@ -20,6 +21,7 @@ export default function AttendanceCheckIn() {
   }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(load, [token]);
+  useAutoRefresh(load);
 
   async function handleCheckIn() {
     if (!token) return;

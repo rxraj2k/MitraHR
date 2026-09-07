@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { useAutoRefresh } from '../../hooks/useAutoRefresh';
 import AttendanceCheckIn from '../../components/AttendanceCheckIn';
 import MyLeavePanel from '../../components/MyLeavePanel';
 import MonthCalendar from '../../components/MonthCalendar';
@@ -68,12 +69,22 @@ export default function AdminLeave() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(load, [token]);
 
-  useEffect(() => {
+  function loadCalendar() {
     if (!token) return;
     getAttendanceCalendar(token, calYear, calMonth)
       .then((res) => setCalendarDays(res.days))
       .catch(() => {});
-  }, [token, calYear, calMonth]);
+  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(loadCalendar, [token, calYear, calMonth]);
+
+  // Keep both sections fresh without a manual reload: a request submitted
+  // or decided in another open session (employee vs. admin tab) shows up
+  // here on the next tick or when this tab regains focus.
+  useAutoRefresh(() => {
+    load();
+    loadCalendar();
+  });
 
   async function handleDecide(id: string, status: 'APPROVED' | 'REJECTED') {
     if (!token) return;
@@ -81,6 +92,7 @@ export default function AdminLeave() {
     try {
       await decideLeaveRequest(token, id, status, notes[id]);
       load();
+      loadCalendar();
     } catch (err: any) {
       setError(err.message);
     }
@@ -96,6 +108,7 @@ export default function AdminLeave() {
       setOnBehalf({ employeeId: '', leaveTypeId: '', startDate: '', endDate: '', dayPart: 'FULL', reason: '' });
       setOnBehalfMessage('Leave request submitted.');
       load();
+      loadCalendar();
     } catch (err: any) {
       setOnBehalfMessage(err.message);
     } finally {

@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useAutoRefresh } from '../hooks/useAutoRefresh';
 import { cancelLeaveRequest, createLeaveRequest, getLeaveBalances, getLeaveRequests, getLeaveTypes } from '../lib/api';
 import { LeaveBalance, LeaveRequest, LeaveType } from '../types';
 
@@ -54,6 +55,7 @@ export default function MyLeavePanel({ employeeId, title = 'My Leaves' }: Props)
   }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(load, [token, employeeId]);
+  useAutoRefresh(load);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
