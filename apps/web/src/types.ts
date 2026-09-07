@@ -154,6 +154,74 @@ export interface LeaveRequest {
   createdAt: string;
 }
 
+// --- Projects & Clients ---
+
+export type ClientStatus = 'ACTIVE' | 'INACTIVE';
+
+export interface Client {
+  id: string;
+  name: string;
+  industry?: string | null;
+  contactName?: string | null;
+  contactEmail?: string | null;
+  contactPhone?: string | null;
+  timezone?: string | null;
+  status: ClientStatus;
+  notes?: string | null;
+  createdAt: string;
+  _count?: { projects: number };
+}
+
+export type ProjectStatus = 'ACTIVE' | 'ON_HOLD' | 'COMPLETED' | 'CANCELLED';
+export type ContractType = 'T_AND_M' | 'FIXED_PRICE' | 'RETAINER' | 'MANAGED_SERVICE';
+
+export interface ProjectClientRef {
+  id: string;
+  name: string;
+}
+
+export interface ProjectAssignment {
+  id: string;
+  projectId: string;
+  employeeId: string;
+  employee: EmployeeRef;
+  roleOnProject?: string | null;
+  allocationPercent: number;
+  startDate: string;
+  endDate?: string | null;
+}
+
+export interface Project {
+  id: string;
+  name: string;
+  clientId: string;
+  client: ProjectClientRef | Client;
+  description?: string | null;
+  status: ProjectStatus;
+  contractType?: ContractType | null;
+  startDate?: string | null;
+  endDate?: string | null;
+  projectManagerId?: string | null;
+  projectManager?: EmployeeRef | null;
+  createdAt: string;
+  assignments?: ProjectAssignment[];
+  _count?: { assignments: number };
+}
+
+export interface MyProjectAssignment {
+  id: string;
+  roleOnProject?: string | null;
+  allocationPercent: number;
+  startDate: string;
+  endDate?: string | null;
+  project: {
+    id: string;
+    name: string;
+    status: ProjectStatus;
+    client: ProjectClientRef;
+  };
+}
+
 // --- Attendance ---
 
 export type CompOffStatus = 'PENDING' | 'APPROVED' | 'REJECTED';

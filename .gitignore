@@ -8,3 +8,6 @@ apps/api/uploads/employee-photos/*
 apps/api/uploads/employee-documents/*
 !apps/api/uploads/employee-documents/.gitkeep
 .DS_Store
+*.tsbuildinfo
+apps/web/vite.config.js
+apps/web/vite.config.d.ts

@@ -2,6 +2,7 @@ import {
   AdminAccount,
   AttendanceDay,
   AttendanceToday,
+  Client,
   CompOffEntry,
   Employee,
   EmployeeInput,
@@ -11,6 +12,9 @@ import {
   LeaveRequest,
   LeaveType,
   LookupItem,
+  MyProjectAssignment,
+  Project,
+  ProjectAssignment,
 } from '../types';
 
 export const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000';
@@ -379,6 +383,77 @@ export function decideCompOffEntry(
     method: 'PATCH',
     body: JSON.stringify({ status, decisionNote }),
   });
+}
+
+// --- Clients ---
+
+export function getClients(token: string): Promise<Client[]> {
+  return authFetch(token, '/clients');
+}
+export function getClient(token: string, id: string): Promise<Client> {
+  return authFetch(token, `/clients/${id}`);
+}
+export function createClient(token: string, data: Partial<Client>): Promise<Client> {
+  return authFetch(token, '/clients', { method: 'POST', body: JSON.stringify(data) });
+}
+export function updateClient(token: string, id: string, data: Partial<Client>): Promise<Client> {
+  return authFetch(token, `/clients/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+}
+export function deleteClient(token: string, id: string): Promise<void> {
+  return authFetch(token, `/clients/${id}`, { method: 'DELETE' });
+}
+
+// --- Projects ---
+
+export function getProjects(
+  token: string,
+  params?: { clientId?: string; status?: string },
+): Promise<Project[]> {
+  const qs = new URLSearchParams();
+  if (params?.clientId) qs.set('clientId', params.clientId);
+  if (params?.status) qs.set('status', params.status);
+  const s = qs.toString();
+  return authFetch(token, `/projects${s ? `?${s}` : ''}`);
+}
+export function getProject(token: string, id: string): Promise<Project> {
+  return authFetch(token, `/projects/${id}`);
+}
+export function createProject(token: string, data: Partial<Project>): Promise<Project> {
+  return authFetch(token, '/projects', { method: 'POST', body: JSON.stringify(data) });
+}
+export function updateProject(token: string, id: string, data: Partial<Project>): Promise<Project> {
+  return authFetch(token, `/projects/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+}
+export function deleteProject(token: string, id: string): Promise<void> {
+  return authFetch(token, `/projects/${id}`, { method: 'DELETE' });
+}
+export function getMyProjects(token: string, employeeId?: string): Promise<MyProjectAssignment[]> {
+  const qs = employeeId ? `?employeeId=${employeeId}` : '';
+  return authFetch(token, `/projects/my${qs}`);
+}
+
+// --- Project Assignments ---
+
+export function addProjectAssignment(
+  token: string,
+  projectId: string,
+  data: { employeeId: string; roleOnProject?: string; allocationPercent?: number; startDate?: string },
+): Promise<ProjectAssignment> {
+  return authFetch(token, `/projects/${projectId}/assignments`, { method: 'POST', body: JSON.stringify(data) });
+}
+export function updateProjectAssignment(
+  token: string,
+  projectId: string,
+  assignmentId: string,
+  data: { roleOnProject?: string; allocationPercent?: number; endDate?: string | null },
+): Promise<ProjectAssignment> {
+  return authFetch(token, `/projects/${projectId}/assignments/${assignmentId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  });
+}
+export function removeProjectAssignment(token: string, projectId: string, assignmentId: string): Promise<void> {
+  return authFetch(token, `/projects/${projectId}/assignments/${assignmentId}`, { method: 'DELETE' });
 }
 
 // --- Attendance ---

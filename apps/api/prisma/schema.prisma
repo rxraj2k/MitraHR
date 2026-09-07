@@ -100,6 +100,8 @@ model Employee {
   leaveRequests LeaveRequest[]
   compOffLedgers CompOffLedger[]
   attendanceRecords AttendanceRecord[]
+  projectAssignments ProjectAssignment[]
+  managedProjects    Project[]            @relation("ProjectManager")
   linkedUser User?
 
   dateOfJoining DateTime?
@@ -252,4 +254,61 @@ model CompOffLedger {
   decisionNote String?
   decidedAt    DateTime?
   createdAt    DateTime  @default(now())
+}
+
+// Allowed status: ACTIVE, INACTIVE.
+model Client {
+  id           String    @id @default(uuid())
+  name         String    @unique
+  industry     String?
+  contactName  String?
+  contactEmail String?
+  contactPhone String?
+  timezone     String?
+  status       String    @default("ACTIVE")
+  notes        String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  projects     Project[]
+}
+
+// Allowed status: ACTIVE, ON_HOLD, COMPLETED, CANCELLED.
+// contractType is informational only for now (no billing/invoicing logic
+// yet — that is a possible future sprint): T&M, FIXED_PRICE, RETAINER,
+// MANAGED_SERVICE.
+model Project {
+  id               String              @id @default(uuid())
+  name             String
+  clientId         String
+  client           Client              @relation(fields: [clientId], references: [id])
+  description      String?
+  status           String              @default("ACTIVE")
+  contractType     String?
+  startDate        DateTime?
+  endDate          DateTime?
+  projectManagerId String?
+  projectManager   Employee?           @relation("ProjectManager", fields: [projectManagerId], references: [id])
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  assignments      ProjectAssignment[]
+
+  @@unique([clientId, name])
+}
+
+// One row per employee staffed on a project. A null endDate means still
+// actively assigned. allocationPercent lets one employee be split across
+// multiple concurrent projects (e.g. 50/50) — used by the Sprint 6
+// bench/utilization view later.
+model ProjectAssignment {
+  id                String    @id @default(uuid())
+  projectId         String
+  project           Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  employeeId        String
+  employee          Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  roleOnProject     String?
+  allocationPercent Float     @default(100)
+  startDate         DateTime  @default(now())
+  endDate           DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 }
