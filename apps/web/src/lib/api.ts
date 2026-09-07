@@ -2,6 +2,7 @@ import {
   AdminAccount,
   AttendanceDay,
   AttendanceToday,
+  CompOffEntry,
   Employee,
   EmployeeInput,
   EmployeeSkillEntry,
@@ -331,6 +332,53 @@ export function getLeaveCalendar(
   month: number,
 ): Promise<{ requests: LeaveRequest[]; holidays: Holiday[] }> {
   return authFetch(token, `/leave-requests/calendar?year=${year}&month=${month}`);
+}
+
+export async function uploadLeaveAttachment(token: string, id: string, file: File): Promise<LeaveRequest> {
+  const formData = new FormData();
+  formData.append('file', file);
+  const res = await fetch(`${API_BASE}/leave-requests/${id}/attachment`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: formData,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ message: 'Attachment upload failed' }));
+    throw new Error(err.message || 'Attachment upload failed');
+  }
+  return res.json();
+}
+
+// --- Compensatory Off ---
+
+export function getCompOffEntries(
+  token: string,
+  params?: { employeeId?: string; status?: string },
+): Promise<CompOffEntry[]> {
+  const qs = new URLSearchParams();
+  if (params?.employeeId) qs.set('employeeId', params.employeeId);
+  if (params?.status) qs.set('status', params.status);
+  const s = qs.toString();
+  return authFetch(token, `/comp-off${s ? `?${s}` : ''}`);
+}
+
+export function createCompOffEntry(
+  token: string,
+  data: { workedDate: string; reason: string; daysEarned?: number; employeeId?: string },
+): Promise<CompOffEntry> {
+  return authFetch(token, '/comp-off', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export function decideCompOffEntry(
+  token: string,
+  id: string,
+  status: 'APPROVED' | 'REJECTED',
+  decisionNote?: string,
+): Promise<CompOffEntry> {
+  return authFetch(token, `/comp-off/${id}/decide`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status, decisionNote }),
+  });
 }
 
 // --- Attendance ---

@@ -1,8 +1,18 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useRef, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useAutoRefresh } from '../hooks/useAutoRefresh';
-import { cancelLeaveRequest, createLeaveRequest, getLeaveBalances, getLeaveRequests, getLeaveTypes } from '../lib/api';
-import { LeaveBalance, LeaveRequest, LeaveType } from '../types';
+import {
+  API_BASE,
+  cancelLeaveRequest,
+  createCompOffEntry,
+  createLeaveRequest,
+  getCompOffEntries,
+  getLeaveBalances,
+  getLeaveRequests,
+  getLeaveTypes,
+  uploadLeaveAttachment,
+} from '../lib/api';
+import { CompOffEntry, LeaveBalance, LeaveRequest, LeaveType } from '../types';
 
 const STATUS_STYLES: Record<string, string> = {
   PENDING: 'bg-amber-100 text-amber-700',
@@ -27,28 +37,49 @@ const CARD_STYLES = [
   { bg: 'bg-fuchsia-50', border: 'border-fuchsia-200', label: 'text-fuchsia-600', value: 'text-fuchsia-900', sub: 'text-fuchsia-500' },
 ];
 
-// Self-contained "my leave" experience — balances, a request form, and
-// history with cancel. Used both as the OTP employee's own page and,
-// embedded, as an Admin's personal leave section when their User account
-// is linked to an Employee record.
+function accrualDescription(lt: LeaveType) {
+  if (lt.isCompOff) return 'Earned by logging extra days worked, approved by admin';
+  if (lt.accrualMethod === 'NONE' || lt.annualQuota == null) return 'Unlimited, no balance tracked';
+  if (lt.accrualMethod === 'UPFRONT') return `Full ${lt.annualQuota} day${lt.annualQuota === 1 ? '' : 's'} available from day one`;
+  return `${lt.annualQuota} days/year, credited 1/12th per completed month`;
+}
+
+// Self-contained "my leave" experience — balances, a request form, comp-off
+// tracking, policy reference, and history with cancel. Used both as the OTP
+// employee's own page and, embedded, as an Admin's personal leave section
+// when their User account is linked to an Employee record.
 export default function MyLeavePanel({ employeeId, title = 'My Leaves' }: Props) {
   const { token } = useAuth();
   const [balances, setBalances] = useState<LeaveBalance[]>([]);
   const [requests, setRequests] = useState<LeaveRequest[]>([]);
   const [leaveTypes, setLeaveTypes] = useState<LeaveType[]>([]);
+  const [compOffEntries, setCompOffEntries] = useState<CompOffEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState({ leaveTypeId: '', startDate: '', endDate: '', dayPart: 'FULL', reason: '' });
+  const [attachFile, setAttachFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [attachingId, setAttachingId] = useState<string | null>(null);
+
+  const [compOffForm, setCompOffForm] = useState({ workedDate: '', reason: '', daysEarned: '1' });
+  const [compOffSubmitting, setCompOffSubmitting] = useState(false);
+  const [compOffMessage, setCompOffMessage] = useState('');
 
   function load() {
     if (!token || !employeeId) return;
     setLoading(true);
-    Promise.all([getLeaveBalances(token, employeeId), getLeaveRequests(token, { employeeId }), getLeaveTypes(token)])
-      .then(([b, r, t]) => {
+    Promise.all([
+      getLeaveBalances(token, employeeId),
+      getLeaveRequests(token, { employeeId }),
+      getLeaveTypes(token),
+      getCompOffEntries(token, { employeeId }),
+    ])
+      .then(([b, r, t, c]) => {
         setBalances(b);
         setRequests(r);
         setLeaveTypes(t.filter((lt) => lt.active));
+        setCompOffEntries(c);
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
@@ -63,8 +94,17 @@ export default function MyLeavePanel({ employeeId, title = 'My Leaves' }: Props)
     setError('');
     setSubmitting(true);
     try {
-      await createLeaveRequest(token, { ...form, employeeId });
+      const created = await createLeaveRequest(token, { ...form, employeeId });
+      if (attachFile) {
+        try {
+          await uploadLeaveAttachment(token, created.id, attachFile);
+        } catch (attachErr: any) {
+          setError(`Request submitted, but the attachment failed to upload: ${attachErr.message}`);
+        }
+      }
       setForm({ leaveTypeId: '', startDate: '', endDate: '', dayPart: 'FULL', reason: '' });
+      setAttachFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
       load();
     } catch (err: any) {
       setError(err.message);
@@ -81,6 +121,40 @@ export default function MyLeavePanel({ employeeId, title = 'My Leaves' }: Props)
       load();
     } catch (err: any) {
       setError(err.message);
+    }
+  }
+
+  async function handleAttachExisting(id: string, file: File) {
+    if (!token) return;
+    setAttachingId(id);
+    try {
+      await uploadLeaveAttachment(token, id, file);
+      load();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setAttachingId(null);
+    }
+  }
+
+  async function handleCompOffSubmit(e: FormEvent) {
+    e.preventDefault();
+    if (!token) return;
+    setCompOffMessage('');
+    setCompOffSubmitting(true);
+    try {
+      await createCompOffEntry(token, {
+        workedDate: compOffForm.workedDate,
+        reason: compOffForm.reason,
+        daysEarned: Number(compOffForm.daysEarned) || 1,
+      });
+      setCompOffForm({ workedDate: '', reason: '', daysEarned: '1' });
+      setCompOffMessage('Logged — pending admin approval.');
+      load();
+    } catch (err: any) {
+      setCompOffMessage(err.message);
+    } finally {
+      setCompOffSubmitting(false);
     }
   }
 
@@ -175,6 +249,18 @@ export default function MyLeavePanel({ employeeId, title = 'My Leaves' }: Props)
             />
           </div>
           <div className="md:col-span-2">
+            <label className="block text-xs text-slate-500 mb-1">
+              Supporting document <span className="text-slate-400">(optional — e.g. medical certificate)</span>
+            </label>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*,application/pdf"
+              onChange={(e) => setAttachFile(e.target.files?.[0] || null)}
+              className="w-full text-xs text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-100 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-slate-600 hover:file:bg-slate-200"
+            />
+          </div>
+          <div className="md:col-span-2">
             <button
               type="submit"
               disabled={submitting}
@@ -199,6 +285,7 @@ export default function MyLeavePanel({ employeeId, title = 'My Leaves' }: Props)
                   <th className="pb-2 font-medium">Dates</th>
                   <th className="pb-2 font-medium">Days</th>
                   <th className="pb-2 font-medium">Status</th>
+                  <th className="pb-2 font-medium">Document</th>
                   <th className="pb-2 font-medium"></th>
                 </tr>
               </thead>
@@ -215,6 +302,34 @@ export default function MyLeavePanel({ employeeId, title = 'My Leaves' }: Props)
                     <td className="py-2">
                       <span className={`px-2 py-0.5 rounded-full text-xs ${STATUS_STYLES[r.status]}`}>{r.status}</span>
                     </td>
+                    <td className="py-2">
+                      {r.attachmentUrl ? (
+                        <a
+                          href={`${API_BASE}${r.attachmentUrl}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-mitra-accentFrom hover:underline text-xs"
+                        >
+                          View
+                        </a>
+                      ) : r.status === 'CANCELLED' ? (
+                        <span className="text-slate-300 text-xs">—</span>
+                      ) : (
+                        <label className="text-xs text-slate-400 hover:text-mitra-accentFrom cursor-pointer">
+                          {attachingId === r.id ? 'Uploading...' : 'Attach'}
+                          <input
+                            type="file"
+                            accept="image/*,application/pdf"
+                            className="hidden"
+                            disabled={attachingId === r.id}
+                            onChange={(e) => {
+                              const f = e.target.files?.[0];
+                              if (f) handleAttachExisting(r.id, f);
+                            }}
+                          />
+                        </label>
+                      )}
+                    </td>
                     <td className="py-2 text-right">
                       {r.status === 'PENDING' && (
                         <button onClick={() => handleCancel(r.id)} className="text-red-500 hover:text-red-700 text-xs">
@@ -228,6 +343,116 @@ export default function MyLeavePanel({ employeeId, title = 'My Leaves' }: Props)
             </table>
           </div>
         )}
+      </div>
+
+      <div className="bg-white border border-slate-200 rounded-xl p-6">
+        <h3 className="text-sm font-semibold text-slate-800 mb-1">Compensatory Off</h3>
+        <p className="text-xs text-slate-500 mb-4">
+          Worked an extra weekend or holiday? Log it here — once an admin approves it, the day is added to your
+          Compensatory Off balance above and you can request it back as time off.
+        </p>
+        {compOffMessage && <div className="text-sm text-slate-600 mb-3">{compOffMessage}</div>}
+        <form onSubmit={handleCompOffSubmit} className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Date Worked</label>
+            <input
+              type="date"
+              required
+              max={new Date().toISOString().slice(0, 10)}
+              value={compOffForm.workedDate}
+              onChange={(e) => setCompOffForm({ ...compOffForm, workedDate: e.target.value })}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Days Earned</label>
+            <select
+              value={compOffForm.daysEarned}
+              onChange={(e) => setCompOffForm({ ...compOffForm, daysEarned: e.target.value })}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            >
+              <option value="1">Full day</option>
+              <option value="0.5">Half day</option>
+            </select>
+          </div>
+          <div className="md:col-span-2">
+            <label className="block text-xs text-slate-500 mb-1">Reason</label>
+            <input
+              required
+              minLength={1}
+              value={compOffForm.reason}
+              onChange={(e) => setCompOffForm({ ...compOffForm, reason: e.target.value })}
+              placeholder="e.g. Weekend production deployment"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            />
+          </div>
+          <div className="md:col-span-4">
+            <button
+              type="submit"
+              disabled={compOffSubmitting}
+              className="rounded-lg bg-gradient-to-r from-mitra-accentFrom to-mitra-accentTo text-white text-sm font-medium px-4 py-2 disabled:opacity-50"
+            >
+              {compOffSubmitting ? 'Logging...' : 'Log Day Worked'}
+            </button>
+          </div>
+        </form>
+
+        {compOffEntries.length === 0 ? (
+          <p className="text-slate-500 text-sm">No comp-off entries yet.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs text-slate-500 border-b border-slate-100">
+                  <th className="pb-2 font-medium">Date Worked</th>
+                  <th className="pb-2 font-medium">Days</th>
+                  <th className="pb-2 font-medium">Reason</th>
+                  <th className="pb-2 font-medium">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {compOffEntries.map((c) => (
+                  <tr key={c.id}>
+                    <td className="py-2">{c.workedDate.slice(0, 10)}</td>
+                    <td className="py-2">{c.daysEarned}</td>
+                    <td className="py-2 text-slate-500 max-w-[200px] truncate" title={c.reason}>
+                      {c.reason}
+                    </td>
+                    <td className="py-2">
+                      <span className={`px-2 py-0.5 rounded-full text-xs ${STATUS_STYLES[c.status]}`}>{c.status}</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      <div className="bg-white border border-slate-200 rounded-xl p-6">
+        <h3 className="text-sm font-semibold text-slate-800 mb-4">Leave Policy</h3>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-xs text-slate-500 border-b border-slate-100">
+                <th className="pb-2 font-medium">Type</th>
+                <th className="pb-2 font-medium">Paid</th>
+                <th className="pb-2 font-medium">How it works</th>
+                <th className="pb-2 font-medium">Carry Forward</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {leaveTypes.map((lt) => (
+                <tr key={lt.id}>
+                  <td className="py-2 font-medium text-slate-700">{lt.name}</td>
+                  <td className="py-2 text-slate-500">{lt.isPaid ? 'Paid' : 'Unpaid'}</td>
+                  <td className="py-2 text-slate-500">{accrualDescription(lt)}</td>
+                  <td className="py-2 text-slate-500">{lt.carryForwardAllowed ? 'Yes' : 'No, resets yearly'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

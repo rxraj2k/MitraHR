@@ -17,6 +17,13 @@ export class LeaveRequestsService {
   // are null for unlimited types (e.g. Loss of Pay). Resets every calendar
   // year for now — carryForwardAllowed is stored on the type but rollover
   // across a year boundary isn't implemented yet.
+  //
+  // Compensatory Off (isCompOff) types are the one exception: they aren't
+  // accrued by a formula and don't reset by calendar year — "accrued" is the
+  // running total of that employee's APPROVED CompOffLedger days (earned by
+  // logging an extra day worked), and "used" is all-time approved requests
+  // against this type, since an earned comp-off day shouldn't expire just
+  // because a year boundary passed.
   async computeBalance(employeeId: string, leaveTypeId: string, asOf: Date = new Date()) {
     const [employee, leaveType] = await Promise.all([
       this.prisma.employee.findUnique({ where: { id: employeeId } }),
@@ -24,6 +31,30 @@ export class LeaveRequestsService {
     ]);
     if (!employee) throw new NotFoundException('Employee not found');
     if (!leaveType) throw new NotFoundException('Leave type not found');
+
+    if (leaveType.isCompOff) {
+      const [earnedAgg, usedAgg] = await Promise.all([
+        this.prisma.compOffLedger.aggregate({
+          _sum: { daysEarned: true },
+          where: { employeeId, status: 'APPROVED' },
+        }),
+        this.prisma.leaveRequest.aggregate({
+          _sum: { totalDays: true },
+          where: { employeeId, leaveTypeId, status: 'APPROVED' },
+        }),
+      ]);
+      const accrued = Math.round((earnedAgg._sum.daysEarned || 0) * 100) / 100;
+      const used = Math.round((usedAgg._sum.totalDays || 0) * 100) / 100;
+      return {
+        leaveTypeId,
+        leaveTypeName: leaveType.name,
+        isPaid: leaveType.isPaid,
+        annualQuota: null,
+        accrued,
+        used,
+        remaining: Math.round((accrued - used) * 100) / 100,
+      };
+    }
 
     const yearStart = new Date(Date.UTC(asOf.getUTCFullYear(), 0, 1));
     const yearEnd = new Date(Date.UTC(asOf.getUTCFullYear(), 11, 31, 23, 59, 59));
@@ -86,7 +117,7 @@ export class LeaveRequestsService {
     }
     if (dayPart !== 'FULL') totalDays = 0.5;
 
-    if (leaveType.annualQuota != null) {
+    if (leaveType.isCompOff || leaveType.annualQuota != null) {
       const balance = await this.computeBalance(employeeId, input.leaveTypeId, start);
       if (balance.remaining != null && totalDays > balance.remaining) {
         throw new BadRequestException(
@@ -149,6 +180,28 @@ export class LeaveRequestsService {
       throw new BadRequestException('This request cannot be cancelled');
     }
     return this.prisma.leaveRequest.update({ where: { id }, data: { status: 'CANCELLED' } });
+  }
+
+  // Attach an optional supporting document (e.g. a medical certificate) to
+  // an existing request. The owning employee or any staff member may do
+  // this at any time (not just at creation), since a doctor's note often
+  // arrives after the request was already submitted.
+  async addAttachment(
+    id: string,
+    requester: { kind: string; sub: string },
+    fileName: string,
+    fileUrl: string,
+  ) {
+    const request = await this.prisma.leaveRequest.findUnique({ where: { id } });
+    if (!request) throw new NotFoundException('Leave request not found');
+    if (requester.kind === 'EMPLOYEE' && request.employeeId !== requester.sub) {
+      throw new ForbiddenException('Not your leave request');
+    }
+    return this.prisma.leaveRequest.update({
+      where: { id },
+      data: { attachmentName: fileName, attachmentUrl: fileUrl },
+      include: { leaveType: true },
+    });
   }
 
   async calendar(year: number, month: number) {

@@ -8,6 +8,7 @@ export interface UpsertLeaveTypeInput {
   accrualMethod: string;
   isPaid: boolean;
   carryForwardAllowed: boolean;
+  isCompOff?: boolean;
   active?: boolean;
 }
 

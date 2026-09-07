@@ -108,6 +108,7 @@ export interface LeaveType {
   accrualMethod: AccrualMethod;
   isPaid: boolean;
   carryForwardAllowed: boolean;
+  isCompOff: boolean;
   active: boolean;
 }
 
@@ -145,6 +146,8 @@ export interface LeaveRequest {
   dayPart: DayPart;
   totalDays: number;
   reason?: string | null;
+  attachmentName?: string | null;
+  attachmentUrl?: string | null;
   status: LeaveRequestStatus;
   decisionNote?: string | null;
   decidedAt?: string | null;
@@ -152,6 +155,21 @@ export interface LeaveRequest {
 }
 
 // --- Attendance ---
+
+export type CompOffStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+
+export interface CompOffEntry {
+  id: string;
+  employeeId: string;
+  employee?: LeaveRequestEmployeeRef;
+  workedDate: string;
+  daysEarned: number;
+  reason: string;
+  status: CompOffStatus;
+  decisionNote?: string | null;
+  decidedAt?: string | null;
+  createdAt: string;
+}
 
 export interface AttendanceToday {
   checkedIn: boolean;

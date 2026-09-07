@@ -84,6 +84,10 @@ const LEAVE_TYPES = [
   { name: 'Loss of Pay', code: 'LOP', annualQuota: null, accrualMethod: 'NONE', isPaid: false, carryForwardAllowed: false },
   { name: 'Maternity Leave', code: 'MATERNITY', annualQuota: 182, accrualMethod: 'UPFRONT', isPaid: true, carryForwardAllowed: false },
   { name: 'Paternity Leave', code: 'PATERNITY', annualQuota: 7, accrualMethod: 'UPFRONT', isPaid: true, carryForwardAllowed: false },
+  // Balance for this one isn't accrued by annualQuota/accrualMethod — it's
+  // earned entry-by-entry via approved Comp-Off Ledger rows (Log a Day
+  // Worked). annualQuota/accrualMethod are placeholders here and ignored.
+  { name: 'Compensatory Off', code: 'COMP_OFF', annualQuota: null, accrualMethod: 'NONE', isPaid: true, carryForwardAllowed: true, isCompOff: true },
 ];
 
 // 2026 US + India holidays (add 2027+ from Settings > Holidays as the year approaches).

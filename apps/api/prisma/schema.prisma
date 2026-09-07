@@ -26,6 +26,7 @@ model User {
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
   decidedLeaveRequests LeaveRequest[] @relation("LeaveDecidedBy")
+  decidedCompOffEntries CompOffLedger[] @relation("CompOffDecidedBy")
 }
 
 // Managed lookup list — editable from Settings (add/rename/delete).
@@ -97,6 +98,7 @@ model Employee {
   documents  EmployeeDocument[]
   otps       EmployeeOtp[]
   leaveRequests LeaveRequest[]
+  compOffLedgers CompOffLedger[]
   attendanceRecords AttendanceRecord[]
   linkedUser User?
 
@@ -161,6 +163,10 @@ model LeaveType {
   accrualMethod       String         @default("MONTHLY")
   isPaid              Boolean        @default(true)
   carryForwardAllowed Boolean        @default(false)
+  // When true, this type's balance is NOT accrued by annualQuota/accrualMethod —
+  // it is earned entry-by-entry via approved CompOffLedger rows instead (see
+  // LeaveRequestsService.computeBalance). annualQuota/accrualMethod are ignored.
+  isCompOff           Boolean        @default(false)
   active              Boolean        @default(true)
   createdAt           DateTime       @default(now())
   updatedAt           DateTime       @updatedAt
@@ -197,6 +203,10 @@ model LeaveRequest {
   dayPart      String    @default("FULL")
   totalDays    Float
   reason       String?
+  // Optional supporting document (e.g. a medical certificate) uploaded after
+  // the request is created via POST /leave-requests/:id/attachment.
+  attachmentName String?
+  attachmentUrl  String?
   status       String    @default("PENDING")
   decidedById  String?
   decidedBy    User?     @relation("LeaveDecidedBy", fields: [decidedById], references: [id])
@@ -222,4 +232,24 @@ model AttendanceRecord {
   createdAt  DateTime @default(now())
 
   @@unique([employeeId, date])
+}
+
+// Employee-logged extra day worked (a weekend/holiday shift, or approved
+// overtime), submitted for admin approval. Once APPROVED, the day counts
+// toward that employee's "Compensatory Off" leave-type balance (a LeaveType
+// row with isCompOff=true) — see LeaveRequestsService.computeBalance, which
+// sums approved daysEarned here as the accrued side of that balance.
+model CompOffLedger {
+  id           String    @id @default(uuid())
+  employeeId   String
+  employee     Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  workedDate   DateTime
+  daysEarned   Float     @default(1)
+  reason       String
+  status       String    @default("PENDING")
+  decidedById  String?
+  decidedBy    User?     @relation("CompOffDecidedBy", fields: [decidedById], references: [id])
+  decisionNote String?
+  decidedAt    DateTime?
+  createdAt    DateTime  @default(now())
 }

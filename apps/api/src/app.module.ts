@@ -9,6 +9,7 @@ import { SkillsModule } from './skills/skills.module';
 import { MailModule } from './mail/mail.module';
 import { LeaveModule } from './leave/leave.module';
 import { AttendanceModule } from './attendance/attendance.module';
+import { CompOffModule } from './comp-off/comp-off.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { AttendanceModule } from './attendance/attendance.module';
     MailModule,
     LeaveModule,
     AttendanceModule,
+    CompOffModule,
   ],
 })
 export class AppModule {}

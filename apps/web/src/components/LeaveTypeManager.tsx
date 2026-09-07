@@ -12,6 +12,7 @@ interface FormState {
   accrualMethod: AccrualMethod;
   isPaid: boolean;
   carryForwardAllowed: boolean;
+  isCompOff: boolean;
   active: boolean;
 }
 
@@ -22,6 +23,7 @@ const EMPTY: FormState = {
   accrualMethod: 'MONTHLY',
   isPaid: true,
   carryForwardAllowed: false,
+  isCompOff: false,
   active: true,
 };
 
@@ -33,6 +35,7 @@ function toPayload(f: FormState) {
     accrualMethod: f.accrualMethod,
     isPaid: f.isPaid,
     carryForwardAllowed: f.carryForwardAllowed,
+    isCompOff: f.isCompOff,
     active: f.active,
   };
 }
@@ -78,6 +81,7 @@ export default function LeaveTypeManager() {
       accrualMethod: item.accrualMethod,
       isPaid: item.isPaid,
       carryForwardAllowed: item.carryForwardAllowed,
+      isCompOff: item.isCompOff,
       active: item.active,
     });
   }
@@ -110,8 +114,9 @@ export default function LeaveTypeManager() {
     <div className="bg-white border border-slate-200 rounded-xl p-6 md:col-span-2">
       <h2 className="text-lg font-semibold text-slate-800 mb-1">Leave Types</h2>
       <p className="text-xs text-slate-500 mb-4">
-        Annual quota is total days/year. Leave it blank for unlimited (e.g. Loss of Pay). Can't delete a type
-        already used on a request — mark it inactive instead.
+        Annual quota is total days/year. Leave it blank for unlimited (e.g. Loss of Pay). "Comp-off" types are
+        earned via approved entries on the Comp-Off tracker instead of a quota. Can't delete a type already used
+        on a request — mark it inactive instead.
       </p>
       {error && <div className="text-sm text-red-600 mb-3">{error}</div>}
 
@@ -127,6 +132,7 @@ export default function LeaveTypeManager() {
                 <th className="pb-2 font-medium">Accrual</th>
                 <th className="pb-2 font-medium">Paid</th>
                 <th className="pb-2 font-medium">Carry Fwd</th>
+                <th className="pb-2 font-medium">Comp-off</th>
                 <th className="pb-2 font-medium">Active</th>
                 <th className="pb-2 font-medium"></th>
               </tr>
@@ -149,14 +155,16 @@ export default function LeaveTypeManager() {
                         value={editForm.annualQuota}
                         onChange={(e) => setEditForm({ ...editForm, annualQuota: e.target.value })}
                         placeholder="unlimited"
-                        className="w-20 rounded border border-slate-300 px-2 py-1 text-sm"
+                        disabled={editForm.isCompOff}
+                        className="w-20 rounded border border-slate-300 px-2 py-1 text-sm disabled:bg-slate-50 disabled:text-slate-400"
                       />
                     </td>
                     <td className="py-2 pr-2">
                       <select
                         value={editForm.accrualMethod}
                         onChange={(e) => setEditForm({ ...editForm, accrualMethod: e.target.value as AccrualMethod })}
-                        className="rounded border border-slate-300 px-2 py-1 text-sm"
+                        disabled={editForm.isCompOff}
+                        className="rounded border border-slate-300 px-2 py-1 text-sm disabled:bg-slate-50 disabled:text-slate-400"
                       >
                         {ACCRUAL_METHODS.map((m) => (
                           <option key={m} value={m}>
@@ -182,6 +190,13 @@ export default function LeaveTypeManager() {
                     <td className="py-2 pr-2">
                       <input
                         type="checkbox"
+                        checked={editForm.isCompOff}
+                        onChange={(e) => setEditForm({ ...editForm, isCompOff: e.target.checked })}
+                      />
+                    </td>
+                    <td className="py-2 pr-2">
+                      <input
+                        type="checkbox"
                         checked={editForm.active}
                         onChange={(e) => setEditForm({ ...editForm, active: e.target.checked })}
                       />
@@ -201,10 +216,11 @@ export default function LeaveTypeManager() {
                       {item.name}
                       {!item.active && <span className="ml-2 text-xs text-slate-400">(inactive)</span>}
                     </td>
-                    <td className="py-2">{item.annualQuota == null ? 'Unlimited' : item.annualQuota}</td>
-                    <td className="py-2 text-slate-500">{item.accrualMethod}</td>
+                    <td className="py-2">{item.isCompOff ? 'Earned' : item.annualQuota == null ? 'Unlimited' : item.annualQuota}</td>
+                    <td className="py-2 text-slate-500">{item.isCompOff ? '—' : item.accrualMethod}</td>
                     <td className="py-2">{item.isPaid ? 'Yes' : 'No'}</td>
                     <td className="py-2">{item.carryForwardAllowed ? 'Yes' : 'No'}</td>
+                    <td className="py-2">{item.isCompOff ? 'Yes' : 'No'}</td>
                     <td className="py-2">{item.active ? 'Yes' : 'No'}</td>
                     <td className="py-2 text-right whitespace-nowrap">
                       <button
@@ -242,7 +258,8 @@ export default function LeaveTypeManager() {
             value={newForm.annualQuota}
             onChange={(e) => setNewForm({ ...newForm, annualQuota: e.target.value })}
             placeholder="unlimited"
-            className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+            disabled={newForm.isCompOff}
+            className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm disabled:bg-slate-50 disabled:text-slate-400"
           />
         </div>
         <div>
@@ -250,7 +267,8 @@ export default function LeaveTypeManager() {
           <select
             value={newForm.accrualMethod}
             onChange={(e) => setNewForm({ ...newForm, accrualMethod: e.target.value as AccrualMethod })}
-            className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+            disabled={newForm.isCompOff}
+            className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm disabled:bg-slate-50 disabled:text-slate-400"
           >
             {ACCRUAL_METHODS.map((m) => (
               <option key={m} value={m}>
@@ -274,6 +292,14 @@ export default function LeaveTypeManager() {
             onChange={(e) => setNewForm({ ...newForm, carryForwardAllowed: e.target.checked })}
           />
           Carry fwd
+        </label>
+        <label className="flex items-center gap-1 text-xs text-slate-500">
+          <input
+            type="checkbox"
+            checked={newForm.isCompOff}
+            onChange={(e) => setNewForm({ ...newForm, isCompOff: e.target.checked })}
+          />
+          Comp-off (earned type)
         </label>
         <div className="col-span-2 md:col-span-6">
           <button

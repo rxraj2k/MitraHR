@@ -29,6 +29,12 @@ class UpsertLeaveTypeDto {
   @IsBoolean()
   carryForwardAllowed: boolean;
 
+  // When true, this type's balance is earned via approved CompOffLedger
+  // entries instead of the annualQuota/accrualMethod formula.
+  @IsOptional()
+  @IsBoolean()
+  isCompOff?: boolean;
+
   @IsOptional()
   @IsBoolean()
   active?: boolean;

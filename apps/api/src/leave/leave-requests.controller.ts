@@ -1,9 +1,29 @@
-import { Body, Controller, ForbiddenException, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  ForbiddenException,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  Req,
+  UploadedFile,
+  UseGuards,
+  UseInterceptors,
+} from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import { extname, join } from 'path';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { StaffOnlyGuard } from '../auth/staff-only.guard';
 import { LeaveRequestsService } from './leave-requests.service';
 import { CreateLeaveRequestDto } from './dto/create-leave-request.dto';
 import { DecideLeaveRequestDto } from './dto/decide-leave-request.dto';
+
+const ATTACHMENT_DIR = join(process.cwd(), 'uploads', 'leave-attachments');
+const ALLOWED_ATTACHMENT_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'application/pdf'];
 
 // Employees (OTP sessions) can submit/cancel/view their own requests and
 // balances. Staff can do the same for anyone, plus approve/reject. The
@@ -53,6 +73,38 @@ export class LeaveRequestsController {
   @Patch(':id/cancel')
   cancel(@Req() req: any, @Param('id') id: string) {
     return this.leaveRequestsService.cancel(id, req.user);
+  }
+
+  // Owner (the employee this request belongs to) or any staff member may
+  // attach a supporting document — e.g. a doctor's note for sick leave —
+  // at any point, not just when the request is first submitted. Ownership
+  // for employee sessions is enforced in the service.
+  @Post(':id/attachment')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: diskStorage({
+        destination: (_req, _file, cb) => cb(null, ATTACHMENT_DIR),
+        filename: (_req, file, cb) => {
+          cb(null, `${Date.now()}-${Math.round(Math.random() * 1e9)}${extname(file.originalname)}`);
+        },
+      }),
+      fileFilter: (_req, file, cb) => {
+        if (!ALLOWED_ATTACHMENT_TYPES.includes(file.mimetype)) {
+          return cb(new BadRequestException('Only JPEG, PNG, WEBP, GIF, or PDF files are allowed'), false);
+        }
+        cb(null, true);
+      },
+      limits: { fileSize: 10 * 1024 * 1024 },
+    }),
+  )
+  uploadAttachment(@Req() req: any, @Param('id') id: string, @UploadedFile() file: Express.Multer.File) {
+    if (!file) throw new BadRequestException('No file uploaded');
+    return this.leaveRequestsService.addAttachment(
+      id,
+      req.user,
+      file.originalname,
+      `/uploads/leave-attachments/${file.filename}`,
+    );
   }
 
   @UseGuards(StaffOnlyGuard)
