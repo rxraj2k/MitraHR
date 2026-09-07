@@ -1,16 +1,18 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import AttendanceCheckIn from '../../components/AttendanceCheckIn';
 import MyLeavePanel from '../../components/MyLeavePanel';
+import MonthCalendar from '../../components/MonthCalendar';
 import SearchableSelect from '../../components/SearchableSelect';
 import {
   createLeaveRequest,
   decideLeaveRequest,
+  getAttendanceCalendar,
   getEmployees,
-  getLeaveCalendar,
   getLeaveRequests,
   getLeaveTypes,
 } from '../../lib/api';
-import { Employee, Holiday, LeaveRequest, LeaveType } from '../../types';
+import { AttendanceDay, Employee, LeaveRequest, LeaveType } from '../../types';
 
 const STATUS_STYLES: Record<string, string> = {
   PENDING: 'bg-amber-100 text-amber-700',
@@ -18,14 +20,6 @@ const STATUS_STYLES: Record<string, string> = {
   REJECTED: 'bg-red-100 text-red-700',
   CANCELLED: 'bg-slate-100 text-slate-500',
 };
-
-function monthLabel(year: number, month: number) {
-  return new Date(Date.UTC(year, month - 1, 1)).toLocaleDateString('en-US', {
-    month: 'long',
-    year: 'numeric',
-    timeZone: 'UTC',
-  });
-}
 
 function dateRange(start: string, end: string) {
   const s = start.slice(0, 10);
@@ -57,10 +51,7 @@ export default function AdminLeave() {
   const now = new Date();
   const [calYear, setCalYear] = useState(now.getUTCFullYear());
   const [calMonth, setCalMonth] = useState(now.getUTCMonth() + 1);
-  const [calendar, setCalendar] = useState<{ requests: LeaveRequest[]; holidays: Holiday[] }>({
-    requests: [],
-    holidays: [],
-  });
+  const [calendarDays, setCalendarDays] = useState<AttendanceDay[]>([]);
 
   function load() {
     if (!token) return;
@@ -79,8 +70,8 @@ export default function AdminLeave() {
 
   useEffect(() => {
     if (!token) return;
-    getLeaveCalendar(token, calYear, calMonth)
-      .then(setCalendar)
+    getAttendanceCalendar(token, calYear, calMonth)
+      .then((res) => setCalendarDays(res.days))
       .catch(() => {});
   }, [token, calYear, calMonth]);
 
@@ -136,9 +127,14 @@ export default function AdminLeave() {
 
   return (
     <div className="space-y-10">
-      <h1 className="text-2xl font-semibold text-slate-800">Leave</h1>
+      <h1 className="text-2xl font-semibold text-slate-800">Leaves & Attendance</h1>
 
-      {user?.employeeId && <MyLeavePanel employeeId={user.employeeId} title="My Leave" />}
+      {user?.employeeId && (
+        <div className="space-y-6">
+          <AttendanceCheckIn />
+          <MyLeavePanel employeeId={user.employeeId} title="My Leave" />
+        </div>
+      )}
 
       <div className="bg-white border border-slate-200 rounded-xl p-6">
         <h2 className="text-lg font-semibold text-slate-800 mb-4">Log Leave for an Employee</h2>
@@ -305,45 +301,9 @@ export default function AdminLeave() {
       </div>
 
       <div className="bg-white border border-slate-200 rounded-xl p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-slate-800">Team Calendar</h2>
-          <div className="flex items-center gap-3 text-sm">
-            <button onClick={prevMonth} className="text-slate-500 hover:text-slate-800">
-              ←
-            </button>
-            <span className="font-medium text-slate-700">{monthLabel(calYear, calMonth)}</span>
-            <button onClick={nextMonth} className="text-slate-500 hover:text-slate-800">
-              →
-            </button>
-          </div>
-        </div>
-        {calendar.holidays.length > 0 && (
-          <div className="mb-4">
-            <p className="text-xs text-slate-500 mb-1">Holidays this month</p>
-            <ul className="text-sm text-slate-600 space-y-0.5">
-              {calendar.holidays.map((h) => (
-                <li key={h.id}>
-                  {h.date.slice(0, 10)} — {h.name} <span className="text-xs text-slate-400">({h.region})</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-        {calendar.requests.length === 0 ? (
-          <p className="text-slate-500 text-sm">No one is on approved leave this month.</p>
-        ) : (
-          <ul className="text-sm divide-y divide-slate-100">
-            {calendar.requests.map((r) => (
-              <li key={r.id} className="py-2 flex justify-between">
-                <span>{r.employee?.fullName}</span>
-                <span className="text-slate-500">
-                  {r.leaveType.name} · {dateRange(r.startDate, r.endDate)}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
+        <MonthCalendar year={calYear} month={calMonth} days={calendarDays} onPrev={prevMonth} onNext={nextMonth} />
       </div>
+
     </div>
   );
 }

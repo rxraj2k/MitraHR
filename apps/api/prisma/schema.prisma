@@ -97,6 +97,7 @@ model Employee {
   documents  EmployeeDocument[]
   otps       EmployeeOtp[]
   leaveRequests LeaveRequest[]
+  attendanceRecords AttendanceRecord[]
   linkedUser User?
 
   dateOfJoining DateTime?
@@ -203,4 +204,22 @@ model LeaveRequest {
   decidedAt    DateTime?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
+}
+
+// One row per employee per calendar day they marked themselves present.
+// There is deliberately no "ABSENT" row — absence for a past working day
+// is computed (see AttendanceService.calendar): no record, no approved
+// leave covering that day, not a weekend/holiday, and the day has already
+// passed. markedBy is 'SELF' for a normal check-in, or the staff User id
+// when an admin logs/corrects it on someone's behalf.
+model AttendanceRecord {
+  id         String   @id @default(uuid())
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  date       DateTime
+  markedAt   DateTime @default(now())
+  markedBy   String   @default("SELF")
+  createdAt  DateTime @default(now())
+
+  @@unique([employeeId, date])
 }

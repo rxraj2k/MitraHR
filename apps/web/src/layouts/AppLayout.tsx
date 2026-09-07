@@ -7,14 +7,14 @@ const STAFF_NAV_ITEMS = [
   { to: '/', label: 'Home', end: true },
   { to: '/employees', label: 'Employees', end: false },
   { to: '/org-chart', label: 'Team Topology', end: false },
-  { to: '/leave', label: 'Leave', end: false },
+  { to: '/leave', label: 'Leaves & Attendance', end: false },
 ];
 
 const EMPLOYEE_NAV_ITEMS = [
   { to: '/', label: 'Home', end: true },
   { to: '/employees', label: 'Employees', end: false },
   { to: '/org-chart', label: 'Team Topology', end: false },
-  { to: '/my-leave', label: 'My Leave', end: false },
+  { to: '/my-leave', label: 'My Leave & Attendance', end: false },
 ];
 
 function navLinkClass({ isActive }: { isActive: boolean }) {

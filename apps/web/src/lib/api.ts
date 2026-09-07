@@ -1,5 +1,7 @@
 import {
   AdminAccount,
+  AttendanceDay,
+  AttendanceToday,
   Employee,
   EmployeeInput,
   EmployeeSkillEntry,
@@ -329,4 +331,18 @@ export function getLeaveCalendar(
   month: number,
 ): Promise<{ requests: LeaveRequest[]; holidays: Holiday[] }> {
   return authFetch(token, `/leave-requests/calendar?year=${year}&month=${month}`);
+}
+
+// --- Attendance ---
+
+export function checkIn(token: string, data?: { employeeId?: string; date?: string }): Promise<any> {
+  return authFetch(token, '/attendance/check-in', { method: 'POST', body: JSON.stringify(data || {}) });
+}
+
+export function getAttendanceToday(token: string): Promise<AttendanceToday> {
+  return authFetch(token, '/attendance/today');
+}
+
+export function getAttendanceCalendar(token: string, year: number, month: number): Promise<{ days: AttendanceDay[] }> {
+  return authFetch(token, `/attendance/calendar?year=${year}&month=${month}`);
 }

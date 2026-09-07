@@ -150,3 +150,24 @@ export interface LeaveRequest {
   decidedAt?: string | null;
   createdAt: string;
 }
+
+// --- Attendance ---
+
+export interface AttendanceToday {
+  checkedIn: boolean;
+  markedAt: string | null;
+}
+
+export interface EmployeeRef {
+  id: string;
+  fullName: string;
+}
+
+export interface AttendanceDay {
+  date: string;
+  isWeekend: boolean;
+  holiday: { name: string; region: string } | null;
+  present: EmployeeRef[];
+  onLeave: EmployeeRef[];
+  absent: EmployeeRef[];
+}
