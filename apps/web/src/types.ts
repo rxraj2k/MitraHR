@@ -89,5 +89,64 @@ export interface AdminAccount {
   email: string;
   role: string;
   status: AdminStatus;
+  employeeId?: string | null;
+  createdAt: string;
+}
+
+// --- Leave Management ---
+
+export type AccrualMethod = 'MONTHLY' | 'UPFRONT' | 'NONE';
+export type LeaveRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
+export type DayPart = 'FULL' | 'FIRST_HALF' | 'SECOND_HALF';
+export type HolidayRegion = 'US' | 'INDIA' | 'COMPANY';
+
+export interface LeaveType {
+  id: string;
+  name: string;
+  code?: string | null;
+  annualQuota?: number | null;
+  accrualMethod: AccrualMethod;
+  isPaid: boolean;
+  carryForwardAllowed: boolean;
+  active: boolean;
+}
+
+export interface Holiday {
+  id: string;
+  name: string;
+  date: string;
+  region: HolidayRegion;
+}
+
+export interface LeaveBalance {
+  leaveTypeId: string;
+  leaveTypeName: string;
+  isPaid: boolean;
+  annualQuota: number | null;
+  accrued: number | null;
+  used: number;
+  remaining: number | null;
+}
+
+export interface LeaveRequestEmployeeRef {
+  id: string;
+  fullName: string;
+  employeeCode?: string | null;
+}
+
+export interface LeaveRequest {
+  id: string;
+  employeeId: string;
+  employee?: LeaveRequestEmployeeRef;
+  leaveTypeId: string;
+  leaveType: LeaveType;
+  startDate: string;
+  endDate: string;
+  dayPart: DayPart;
+  totalDays: number;
+  reason?: string | null;
+  status: LeaveRequestStatus;
+  decisionNote?: string | null;
+  decidedAt?: string | null;
   createdAt: string;
 }

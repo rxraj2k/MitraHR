@@ -1,4 +1,14 @@
-import { AdminAccount, Employee, EmployeeInput, EmployeeSkillEntry, LookupItem } from '../types';
+import {
+  AdminAccount,
+  Employee,
+  EmployeeInput,
+  EmployeeSkillEntry,
+  Holiday,
+  LeaveBalance,
+  LeaveRequest,
+  LeaveType,
+  LookupItem,
+} from '../types';
 
 export const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 
@@ -200,8 +210,16 @@ export function getAdmins(token: string): Promise<AdminAccount[]> {
   return authFetch(token, '/auth/admin/users');
 }
 
-export function inviteAdmin(token: string, name: string, email: string): Promise<AdminAccount> {
-  return authFetch(token, '/auth/admin/invite', { method: 'POST', body: JSON.stringify({ name, email }) });
+export function inviteAdmin(
+  token: string,
+  name: string,
+  email: string,
+  employeeId?: string,
+): Promise<AdminAccount> {
+  return authFetch(token, '/auth/admin/invite', {
+    method: 'POST',
+    body: JSON.stringify({ name, email, employeeId: employeeId || undefined }),
+  });
 }
 
 export async function setPassword(token: string, password: string) {
@@ -215,4 +233,100 @@ export async function setPassword(token: string, password: string) {
     throw new Error(err.message || 'Could not set password');
   }
   return res.json();
+}
+
+// --- Leave Types ---
+
+export function getLeaveTypes(token: string): Promise<LeaveType[]> {
+  return authFetch(token, '/leave-types');
+}
+export function createLeaveType(
+  token: string,
+  data: Omit<LeaveType, 'id' | 'active'> & { active?: boolean },
+): Promise<LeaveType> {
+  return authFetch(token, '/leave-types', { method: 'POST', body: JSON.stringify(data) });
+}
+export function updateLeaveType(token: string, id: string, data: Omit<LeaveType, 'id'>): Promise<LeaveType> {
+  return authFetch(token, `/leave-types/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+}
+export function deleteLeaveType(token: string, id: string): Promise<void> {
+  return authFetch(token, `/leave-types/${id}`, { method: 'DELETE' });
+}
+
+// --- Holidays ---
+
+export function getHolidays(token: string): Promise<Holiday[]> {
+  return authFetch(token, '/holidays');
+}
+export function createHoliday(
+  token: string,
+  data: { name: string; date: string; region: string },
+): Promise<Holiday> {
+  return authFetch(token, '/holidays', { method: 'POST', body: JSON.stringify(data) });
+}
+export function updateHoliday(
+  token: string,
+  id: string,
+  data: { name: string; date: string; region: string },
+): Promise<Holiday> {
+  return authFetch(token, `/holidays/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+}
+export function deleteHoliday(token: string, id: string): Promise<void> {
+  return authFetch(token, `/holidays/${id}`, { method: 'DELETE' });
+}
+
+// --- Leave Requests ---
+
+export function getLeaveBalances(token: string, employeeId?: string): Promise<LeaveBalance[]> {
+  const qs = employeeId ? `?employeeId=${employeeId}` : '';
+  return authFetch(token, `/leave-requests/balances${qs}`);
+}
+
+export function getLeaveRequests(
+  token: string,
+  params?: { employeeId?: string; status?: string },
+): Promise<LeaveRequest[]> {
+  const qs = new URLSearchParams();
+  if (params?.employeeId) qs.set('employeeId', params.employeeId);
+  if (params?.status) qs.set('status', params.status);
+  const s = qs.toString();
+  return authFetch(token, `/leave-requests${s ? `?${s}` : ''}`);
+}
+
+export function createLeaveRequest(
+  token: string,
+  data: {
+    leaveTypeId: string;
+    startDate: string;
+    endDate: string;
+    dayPart?: string;
+    reason?: string;
+    employeeId?: string;
+  },
+): Promise<LeaveRequest> {
+  return authFetch(token, '/leave-requests', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export function cancelLeaveRequest(token: string, id: string): Promise<LeaveRequest> {
+  return authFetch(token, `/leave-requests/${id}/cancel`, { method: 'PATCH' });
+}
+
+export function decideLeaveRequest(
+  token: string,
+  id: string,
+  status: 'APPROVED' | 'REJECTED',
+  decisionNote?: string,
+): Promise<LeaveRequest> {
+  return authFetch(token, `/leave-requests/${id}/decide`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status, decisionNote }),
+  });
+}
+
+export function getLeaveCalendar(
+  token: string,
+  year: number,
+  month: number,
+): Promise<{ requests: LeaveRequest[]; holidays: Holiday[] }> {
+  return authFetch(token, `/leave-requests/calendar?year=${year}&month=${month}`);
 }

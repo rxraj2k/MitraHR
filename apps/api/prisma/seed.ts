@@ -78,6 +78,39 @@ const SKILLS = [
   'Endpoint Security (EDR/XDR)',
 ];
 
+
+const LEAVE_TYPES = [
+  { name: 'Paid Leave', code: 'PL', annualQuota: 12, accrualMethod: 'MONTHLY', isPaid: true, carryForwardAllowed: false },
+  { name: 'Loss of Pay', code: 'LOP', annualQuota: null, accrualMethod: 'NONE', isPaid: false, carryForwardAllowed: false },
+  { name: 'Maternity Leave', code: 'MATERNITY', annualQuota: 182, accrualMethod: 'UPFRONT', isPaid: true, carryForwardAllowed: false },
+  { name: 'Paternity Leave', code: 'PATERNITY', annualQuota: 7, accrualMethod: 'UPFRONT', isPaid: true, carryForwardAllowed: false },
+];
+
+// 2026 US + India holidays (add 2027+ from Settings > Holidays as the year approaches).
+const HOLIDAYS_2026: Array<{ name: string; date: string; region: string }> = [
+  { name: "New Year's Day", date: '2026-01-01', region: 'US' },
+  { name: 'Martin Luther King Jr. Day', date: '2026-01-19', region: 'US' },
+  { name: "Washington's Birthday (Presidents' Day)", date: '2026-02-16', region: 'US' },
+  { name: 'Memorial Day', date: '2026-05-25', region: 'US' },
+  { name: 'Juneteenth', date: '2026-06-19', region: 'US' },
+  { name: 'Independence Day (observed)', date: '2026-07-03', region: 'US' },
+  { name: 'Labor Day', date: '2026-09-07', region: 'US' },
+  { name: 'Columbus Day', date: '2026-10-12', region: 'US' },
+  { name: 'Veterans Day', date: '2026-11-11', region: 'US' },
+  { name: 'Thanksgiving Day', date: '2026-11-26', region: 'US' },
+  { name: 'Christmas Day', date: '2026-12-25', region: 'US' },
+  { name: 'Republic Day', date: '2026-01-26', region: 'INDIA' },
+  { name: 'Holi', date: '2026-03-04', region: 'INDIA' },
+  { name: 'Ram Navami', date: '2026-03-26', region: 'INDIA' },
+  { name: 'Good Friday', date: '2026-04-03', region: 'INDIA' },
+  { name: 'Buddha Purnima', date: '2026-05-01', region: 'INDIA' },
+  { name: 'Independence Day', date: '2026-08-15', region: 'INDIA' },
+  { name: 'Gandhi Jayanti', date: '2026-10-02', region: 'INDIA' },
+  { name: 'Dussehra', date: '2026-10-20', region: 'INDIA' },
+  { name: 'Diwali', date: '2026-11-08', region: 'INDIA' },
+  { name: "Guru Nanak's Birthday", date: '2026-11-24', region: 'INDIA' },
+];
+
 async function main() {
   const email = 'admin@mitrahr.local';
   const existingAdmin = await prisma.user.findUnique({ where: { email } });
@@ -107,6 +140,21 @@ async function main() {
     await prisma.skill.upsert({ where: { name }, update: {}, create: { name } });
   }
   console.log(`Skills ready: ${SKILLS.length} skills seeded`);
+
+
+  for (const lt of LEAVE_TYPES) {
+    await prisma.leaveType.upsert({ where: { name: lt.name }, update: {}, create: lt });
+  }
+  console.log(`Leave types ready: ${LEAVE_TYPES.map((l) => l.name).join(', ')}`);
+
+  for (const h of HOLIDAYS_2026) {
+    await prisma.holiday.upsert({
+      where: { date_region_name: { date: new Date(h.date), region: h.region, name: h.name } },
+      update: {},
+      create: { name: h.name, date: new Date(h.date), region: h.region },
+    });
+  }
+  console.log(`Holidays ready: ${HOLIDAYS_2026.length} for 2026 (US + India)`);
 
   await prisma.counter.upsert({
     where: { name: 'employeeCode' },

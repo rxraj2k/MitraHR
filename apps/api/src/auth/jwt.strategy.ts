@@ -3,7 +3,7 @@ import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 
 // "STAFF" = password-login account (Admin today; HR/Manager/IT Support once
-// multi-admin invites land) — sub is a User id.
+// multi-admin invites need finer-grained roles) — sub is a User id.
 // "EMPLOYEE" = OTP-login session — sub is an Employee id, role is that
 // employee's systemRole (defaults to EMPLOYEE), used for read-only access.
 export type SessionKind = 'STAFF' | 'EMPLOYEE';
@@ -14,6 +14,10 @@ export interface JwtPayload {
   email: string;
   role: string;
   name: string;
+  // Set for STAFF sessions whose User is linked to an Employee record
+  // (e.g. an Admin who is also staff on the org chart) — lets them use
+  // employee-facing features like "My Leave" for their own record.
+  employeeId?: string | null;
 }
 
 @Injectable()

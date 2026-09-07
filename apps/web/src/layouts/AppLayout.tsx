@@ -3,10 +3,18 @@ import { useAuth } from '../context/AuthContext';
 
 // Sidebar nav is deliberately data-driven — future sprints add a module by
 // adding one line here, not by restructuring the layout again.
-const NAV_ITEMS = [
+const STAFF_NAV_ITEMS = [
   { to: '/', label: 'Home', end: true },
   { to: '/employees', label: 'Employees', end: false },
   { to: '/org-chart', label: 'Team Topology', end: false },
+  { to: '/leave', label: 'Leave', end: false },
+];
+
+const EMPLOYEE_NAV_ITEMS = [
+  { to: '/', label: 'Home', end: true },
+  { to: '/employees', label: 'Employees', end: false },
+  { to: '/org-chart', label: 'Team Topology', end: false },
+  { to: '/my-leave', label: 'My Leave', end: false },
 ];
 
 function navLinkClass({ isActive }: { isActive: boolean }) {
@@ -18,6 +26,7 @@ function navLinkClass({ isActive }: { isActive: boolean }) {
 
 export default function AppLayout() {
   const { user, isStaff, logout } = useAuth();
+  const navItems = isStaff ? STAFF_NAV_ITEMS : EMPLOYEE_NAV_ITEMS;
 
   return (
     <div className="min-h-screen flex bg-slate-50">
@@ -28,7 +37,7 @@ export default function AppLayout() {
           </span>
         </div>
         <nav className="flex-1 px-3 space-y-1">
-          {NAV_ITEMS.map((item) => (
+          {navItems.map((item) => (
             <NavLink key={item.to} to={item.to} end={item.end} className={navLinkClass}>
               {item.label}
             </NavLink>

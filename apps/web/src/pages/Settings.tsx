@@ -1,5 +1,7 @@
 import LookupManager from '../components/LookupManager';
 import AdminManager from '../components/AdminManager';
+import LeaveTypeManager from '../components/LeaveTypeManager';
+import HolidayManager from '../components/HolidayManager';
 import {
   createDepartment,
   createDesignation,
@@ -42,6 +44,8 @@ export default function Settings() {
           remove={deleteSkill}
         />
         <AdminManager />
+        <HolidayManager />
+        <LeaveTypeManager />
       </div>
     </div>
   );

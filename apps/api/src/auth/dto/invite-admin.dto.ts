@@ -1,4 +1,4 @@
-import { IsEmail, IsString, MinLength } from 'class-validator';
+import { IsEmail, IsOptional, IsString, MinLength } from 'class-validator';
 
 export class InviteAdminDto {
   @IsString()
@@ -7,4 +7,10 @@ export class InviteAdminDto {
 
   @IsEmail()
   email: string;
+
+  // Optional: link this admin to their own Employee record so they can
+  // submit their own leave requests etc. while logged in as staff.
+  @IsOptional()
+  @IsString()
+  employeeId?: string;
 }

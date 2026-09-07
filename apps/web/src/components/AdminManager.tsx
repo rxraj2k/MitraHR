@@ -1,7 +1,8 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { getAdmins, inviteAdmin } from '../lib/api';
-import { AdminAccount } from '../types';
+import { getAdmins, getEmployees, inviteAdmin } from '../lib/api';
+import { AdminAccount, Employee } from '../types';
+import SearchableSelect from './SearchableSelect';
 
 export default function AdminManager() {
   const { token } = useAuth();
@@ -9,6 +10,8 @@ export default function AdminManager() {
   const [loading, setLoading] = useState(true);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [employeeId, setEmployeeId] = useState('');
+  const [employees, setEmployees] = useState<Employee[]>([]);
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
   const [inviting, setInviting] = useState(false);
@@ -19,6 +22,9 @@ export default function AdminManager() {
       .then(setAdmins)
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
+    getEmployees(token)
+      .then(setEmployees)
+      .catch(() => {});
   }
 
   useEffect(load, [token]);
@@ -30,10 +36,11 @@ export default function AdminManager() {
     setInfo('');
     setInviting(true);
     try {
-      await inviteAdmin(token, name, email);
+      await inviteAdmin(token, name, email, employeeId || undefined);
       setInfo(`Invite sent to ${email}.`);
       setName('');
       setEmail('');
+      setEmployeeId('');
       load();
     } catch (err: any) {
       setError(err.message || 'Failed to send invite');
@@ -58,6 +65,11 @@ export default function AdminManager() {
               <div>
                 <p className="text-slate-700 font-medium">{a.name}</p>
                 <p className="text-slate-400 text-xs">{a.email}</p>
+                {a.employeeId && (
+                  <p className="text-slate-400 text-xs">
+                    Linked: {employees.find((e) => e.id === a.employeeId)?.fullName || 'employee'}
+                  </p>
+                )}
               </div>
               <span
                 className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
@@ -88,6 +100,17 @@ export default function AdminManager() {
           placeholder="Email address"
           className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
         />
+        <div>
+          <label className="block text-xs text-slate-500 mb-1">
+            Link to their Employee record (optional, lets them use My Leave)
+          </label>
+          <SearchableSelect
+            options={employees.map((e) => ({ id: e.id, name: e.fullName }))}
+            value={employeeId}
+            onChange={setEmployeeId}
+            placeholder="Search employee..."
+          />
+        </div>
         <button
           type="submit"
           disabled={inviting}

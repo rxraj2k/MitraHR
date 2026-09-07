@@ -34,10 +34,24 @@ export class AuthService {
 
   async login(email: string, password: string) {
     const user = await this.validateUser(email, password);
-    const payload = { sub: user.id, kind: 'STAFF' as const, email: user.email, role: user.role, name: user.name };
+    const payload = {
+      sub: user.id,
+      kind: 'STAFF' as const,
+      email: user.email,
+      role: user.role,
+      name: user.name,
+      employeeId: user.employeeId ?? null,
+    };
     return {
       accessToken: this.jwtService.sign(payload),
-      user: { id: user.id, email: user.email, name: user.name, role: user.role, kind: 'STAFF' as const },
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        kind: 'STAFF' as const,
+        employeeId: user.employeeId ?? null,
+      },
     };
   }
 
@@ -52,7 +66,7 @@ export class AuthService {
     return process.env.APP_URL || process.env.CORS_ORIGIN || 'http://localhost:5173';
   }
 
-  async inviteAdmin(name: string, email: string) {
+  async inviteAdmin(name: string, email: string, employeeId?: string) {
     const existing = await this.prisma.user.findUnique({ where: { email } });
     if (existing && existing.passwordHash) {
       throw new BadRequestException('An active account with this email already exists');
@@ -65,10 +79,18 @@ export class AuthService {
     const user = existing
       ? await this.prisma.user.update({
           where: { id: existing.id },
-          data: { name, inviteTokenHash, inviteTokenExpiresAt },
+          data: { name, inviteTokenHash, inviteTokenExpiresAt, employeeId: employeeId || null },
         })
       : await this.prisma.user.create({
-          data: { name, email, role: 'ADMIN', passwordHash: null, inviteTokenHash, inviteTokenExpiresAt },
+          data: {
+            name,
+            email,
+            role: 'ADMIN',
+            passwordHash: null,
+            inviteTokenHash,
+            inviteTokenExpiresAt,
+            employeeId: employeeId || null,
+          },
         });
 
     const link = `${this.appUrl()}/set-password?token=${token}`;
@@ -100,10 +122,18 @@ export class AuthService {
       email: updated.email,
       role: updated.role,
       name: updated.name,
+      employeeId: updated.employeeId ?? null,
     };
     return {
       accessToken: this.jwtService.sign(payload),
-      user: { id: updated.id, email: updated.email, name: updated.name, role: updated.role, kind: 'STAFF' as const },
+      user: {
+        id: updated.id,
+        email: updated.email,
+        name: updated.name,
+        role: updated.role,
+        kind: 'STAFF' as const,
+        employeeId: updated.employeeId ?? null,
+      },
     };
   }
 
@@ -115,6 +145,7 @@ export class AuthService {
       email: u.email,
       role: u.role,
       status: u.passwordHash ? ('ACTIVE' as const) : ('INVITED' as const),
+      employeeId: u.employeeId ?? null,
       createdAt: u.createdAt,
     }));
   }

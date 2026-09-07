@@ -9,6 +9,10 @@ interface AuthUser {
   email: string;
   name: string;
   role: string;
+  // The Employee record this session corresponds to: always set for an
+  // EMPLOYEE (OTP) session (same as id); set for a STAFF session only when
+  // that admin has been linked to their own Employee record.
+  employeeId?: string | null;
 }
 
 interface AuthContextType {

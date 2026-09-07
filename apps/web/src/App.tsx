@@ -9,6 +9,8 @@ import EmployeeList from './pages/employees/EmployeeList';
 import EmployeeForm from './pages/employees/EmployeeForm';
 import EmployeeDetail from './pages/employees/EmployeeDetail';
 import OrgChart from './pages/OrgChart';
+import MyLeave from './pages/leave/MyLeave';
+import AdminLeave from './pages/leave/AdminLeave';
 
 function ProtectedRoute({ children }: { children: JSX.Element }) {
   const { token, loading } = useAuth();
@@ -53,6 +55,15 @@ export default function App() {
         />
         <Route path="employees/:id" element={<EmployeeDetail />} />
         <Route path="org-chart" element={<OrgChart />} />
+        <Route
+          path="leave"
+          element={
+            <StaffOnlyRoute>
+              <AdminLeave />
+            </StaffOnlyRoute>
+          }
+        />
+        <Route path="my-leave" element={<MyLeave />} />
         <Route
           path="settings"
           element={

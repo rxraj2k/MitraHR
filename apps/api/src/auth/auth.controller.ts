@@ -38,7 +38,7 @@ export class AuthController {
   @UseGuards(JwtAuthGuard, StaffOnlyGuard)
   @Post('admin/invite')
   async inviteAdmin(@Body() dto: InviteAdminDto) {
-    return this.authService.inviteAdmin(dto.name, dto.email);
+    return this.authService.inviteAdmin(dto.name, dto.email, dto.employeeId);
   }
 
   @Post('admin/set-password')
@@ -50,6 +50,13 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   @Get('me')
   async me(@Req() req: any) {
-    return { id: req.user.sub, kind: req.user.kind, email: req.user.email, name: req.user.name, role: req.user.role };
+    return {
+      id: req.user.sub,
+      kind: req.user.kind,
+      email: req.user.email,
+      name: req.user.name,
+      role: req.user.role,
+      employeeId: req.user.kind === 'EMPLOYEE' ? req.user.sub : req.user.employeeId ?? null,
+    };
   }
 }

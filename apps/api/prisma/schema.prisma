@@ -19,8 +19,13 @@ model User {
   dateOfBirth          DateTime?
   inviteTokenHash      String?   @unique
   inviteTokenExpiresAt DateTime?
+  // Optional link to this admin's own Employee record (they're staff on
+  // the org chart too), so they can submit their own leave requests etc.
+  employeeId           String?   @unique
+  linkedEmployee        Employee? @relation(fields: [employeeId], references: [id])
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
+  decidedLeaveRequests LeaveRequest[] @relation("LeaveDecidedBy")
 }
 
 // Managed lookup list — editable from Settings (add/rename/delete).
@@ -91,6 +96,8 @@ model Employee {
   skills     EmployeeSkill[]
   documents  EmployeeDocument[]
   otps       EmployeeOtp[]
+  leaveRequests LeaveRequest[]
+  linkedUser User?
 
   dateOfJoining DateTime?
   dateOfBirth   DateTime?
@@ -137,4 +144,63 @@ model EmployeeOtp {
   attempts   Int       @default(0)
   consumedAt DateTime?
   createdAt  DateTime  @default(now())
+}
+
+// Managed lookup list — editable from Settings (add/rename/delete).
+// accrualMethod: MONTHLY (1/12 of annualQuota credited per completed month
+//   since joining or since Jan 1, whichever is later, capped at annualQuota),
+//   UPFRONT (full annualQuota available from Jan 1 / date of joining),
+//   NONE (no balance tracked/enforced — e.g. Loss of Pay).
+// annualQuota is null for unlimited types (e.g. Loss of Pay).
+model LeaveType {
+  id                  String         @id @default(uuid())
+  name                String         @unique
+  code                String?        @unique
+  annualQuota         Float?
+  accrualMethod       String         @default("MONTHLY")
+  isPaid              Boolean        @default(true)
+  carryForwardAllowed Boolean        @default(false)
+  active              Boolean        @default(true)
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+  requests            LeaveRequest[]
+}
+
+// Company-observed non-working days. region is informational (US / INDIA /
+// COMPANY) so the two calendars can be told apart in the UI, but every row
+// here counts as a non-working day for leave-day calculations regardless
+// of region.
+model Holiday {
+  id        String   @id @default(uuid())
+  name      String
+  date      DateTime
+  region    String   @default("US")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([date, region, name])
+}
+
+// Allowed status: PENDING, APPROVED, REJECTED, CANCELLED.
+// Allowed dayPart: FULL, FIRST_HALF, SECOND_HALF (half-day only valid when
+//   startDate == endDate).
+// totalDays excludes weekends and Holiday rows between startDate/endDate.
+model LeaveRequest {
+  id           String    @id @default(uuid())
+  employeeId   String
+  employee     Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  leaveTypeId  String
+  leaveType    LeaveType @relation(fields: [leaveTypeId], references: [id])
+  startDate    DateTime
+  endDate      DateTime
+  dayPart      String    @default("FULL")
+  totalDays    Float
+  reason       String?
+  status       String    @default("PENDING")
+  decidedById  String?
+  decidedBy    User?     @relation("LeaveDecidedBy", fields: [decidedById], references: [id])
+  decisionNote String?
+  decidedAt    DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 }
