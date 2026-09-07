@@ -132,7 +132,7 @@ export default function AdminLeave() {
       {user?.employeeId && (
         <div className="space-y-6">
           <AttendanceCheckIn />
-          <MyLeavePanel employeeId={user.employeeId} title="My Leave" />
+          <MyLeavePanel employeeId={user.employeeId} title="My Leaves" />
         </div>
       )}
 
@@ -199,8 +199,10 @@ export default function AdminLeave() {
             />
           </div>
           <div>
-            <label className="block text-xs text-slate-500 mb-1">Reason (optional)</label>
+            <label className="block text-xs text-slate-500 mb-1">Reason</label>
             <input
+              required
+              minLength={1}
               value={onBehalf.reason}
               onChange={(e) => setOnBehalf({ ...onBehalf, reason: e.target.value })}
               className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"

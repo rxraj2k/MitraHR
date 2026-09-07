@@ -163,11 +163,19 @@ export interface EmployeeRef {
   fullName: string;
 }
 
+export interface LeaveDayEntry extends EmployeeRef {
+  leaveTypeName: string;
+  reason: string | null;
+  dayPart: DayPart;
+}
+
 export interface AttendanceDay {
   date: string;
   isWeekend: boolean;
   holiday: { name: string; region: string } | null;
   present: EmployeeRef[];
-  onLeave: EmployeeRef[];
+  onLeave: LeaveDayEntry[];
   absent: EmployeeRef[];
+  presentOnHoliday: EmployeeRef[];
+  presentOnWeekend: EmployeeRef[];
 }

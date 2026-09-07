@@ -15,11 +15,22 @@ interface Props {
   title?: string;
 }
 
+// Cycled by card index so it scales to however many leave types Settings
+// ends up with, rather than hardcoding colors per leave type name.
+const CARD_STYLES = [
+  { bg: 'bg-blue-50', border: 'border-blue-200', label: 'text-blue-600', value: 'text-blue-900', sub: 'text-blue-500' },
+  { bg: 'bg-violet-50', border: 'border-violet-200', label: 'text-violet-600', value: 'text-violet-900', sub: 'text-violet-500' },
+  { bg: 'bg-rose-50', border: 'border-rose-200', label: 'text-rose-600', value: 'text-rose-900', sub: 'text-rose-500' },
+  { bg: 'bg-amber-50', border: 'border-amber-200', label: 'text-amber-600', value: 'text-amber-900', sub: 'text-amber-500' },
+  { bg: 'bg-teal-50', border: 'border-teal-200', label: 'text-teal-600', value: 'text-teal-900', sub: 'text-teal-500' },
+  { bg: 'bg-fuchsia-50', border: 'border-fuchsia-200', label: 'text-fuchsia-600', value: 'text-fuchsia-900', sub: 'text-fuchsia-500' },
+];
+
 // Self-contained "my leave" experience — balances, a request form, and
 // history with cancel. Used both as the OTP employee's own page and,
 // embedded, as an Admin's personal leave section when their User account
 // is linked to an Employee record.
-export default function MyLeavePanel({ employeeId, title = 'My Leave' }: Props) {
+export default function MyLeavePanel({ employeeId, title = 'My Leaves' }: Props) {
   const { token } = useAuth();
   const [balances, setBalances] = useState<LeaveBalance[]>([]);
   const [requests, setRequests] = useState<LeaveRequest[]>([]);
@@ -81,22 +92,25 @@ export default function MyLeavePanel({ employeeId, title = 'My Leave' }: Props) 
         <p className="text-slate-500 text-sm">Loading...</p>
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {balances.map((b) => (
-            <div key={b.leaveTypeId} className="bg-white border border-slate-200 rounded-xl p-4">
-              <p className="text-xs text-slate-500">{b.leaveTypeName}</p>
-              <p className="text-2xl font-semibold text-slate-800 mt-1">{b.remaining == null ? '—' : b.remaining}</p>
-              <p className="text-xs text-slate-400 mt-1">
-                {b.remaining == null ? 'Unlimited' : `of ${b.accrued} accrued · ${b.used} used`}
-              </p>
-            </div>
-          ))}
+          {balances.map((b, i) => {
+            const style = CARD_STYLES[i % CARD_STYLES.length];
+            return (
+              <div key={b.leaveTypeId} className={`${style.bg} border ${style.border} rounded-xl p-4`}>
+                <p className={`text-xs font-medium ${style.label}`}>{b.leaveTypeName}</p>
+                <p className={`text-2xl font-semibold ${style.value} mt-1`}>{b.remaining == null ? '—' : b.remaining}</p>
+                <p className={`text-xs ${style.sub} mt-1`}>
+                  {b.remaining == null ? 'Unlimited' : `of ${b.accrued} accrued · ${b.used} used`}
+                </p>
+              </div>
+            );
+          })}
         </div>
       )}
 
       {error && <div className="text-sm text-red-600">{error}</div>}
 
       <div className="bg-white border border-slate-200 rounded-xl p-6">
-        <h3 className="text-sm font-semibold text-slate-800 mb-4">Request Leave</h3>
+        <h3 className="text-sm font-semibold text-slate-800 mb-4">Request Leaves</h3>
         <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-xs text-slate-500 mb-1">Leave Type</label>
@@ -148,9 +162,11 @@ export default function MyLeavePanel({ employeeId, title = 'My Leave' }: Props) 
             />
           </div>
           <div className="md:col-span-2">
-            <label className="block text-xs text-slate-500 mb-1">Reason (optional)</label>
+            <label className="block text-xs text-slate-500 mb-1">Reason</label>
             <textarea
               rows={2}
+              required
+              minLength={1}
               value={form.reason}
               onChange={(e) => setForm({ ...form, reason: e.target.value })}
               className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
@@ -169,7 +185,7 @@ export default function MyLeavePanel({ employeeId, title = 'My Leave' }: Props) 
       </div>
 
       <div className="bg-white border border-slate-200 rounded-xl p-6">
-        <h3 className="text-sm font-semibold text-slate-800 mb-4">My Requests</h3>
+        <h3 className="text-sm font-semibold text-slate-800 mb-4">My Leave Requests</h3>
         {requests.length === 0 ? (
           <p className="text-slate-500 text-sm">No leave requests yet.</p>
         ) : (

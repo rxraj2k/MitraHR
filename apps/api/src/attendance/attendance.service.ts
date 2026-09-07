@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { toISODate } from '../leave/leave-balance.util';
 
@@ -7,13 +7,24 @@ export interface EmployeeRef {
   fullName: string;
 }
 
+export interface LeaveDayEntry extends EmployeeRef {
+  leaveTypeName: string;
+  reason: string | null;
+  dayPart: string;
+}
+
 export interface DayBreakdown {
   date: string;
   isWeekend: boolean;
   holiday: { name: string; region: string } | null;
   present: EmployeeRef[];
-  onLeave: EmployeeRef[];
+  onLeave: LeaveDayEntry[];
   absent: EmployeeRef[];
+  // Checked in despite it being a non-working day — the calendar shows
+  // these as "Present on Holiday" / "Present on Week-Off" rather than
+  // silently dropping them, which is what happened before this existed.
+  presentOnHoliday: EmployeeRef[];
+  presentOnWeekend: EmployeeRef[];
 }
 
 @Injectable()
@@ -44,27 +55,42 @@ export class AttendanceService {
     return { checkedIn: !!record, markedAt: record?.markedAt ?? null };
   }
 
-  // Full company breakdown for a month: for every active employee and every
-  // day, exactly one of holiday/weekend, onLeave, present, absent, or
-  // "not yet known" (today/future with no record) applies.
-  async calendar(year: number, month: number): Promise<{ days: DayBreakdown[] }> {
+  // Full breakdown for a month. Pass employeeId to scope every bucket down
+  // to just that one employee (used for a personal calendar) — the shape
+  // stays the same either way so the frontend has one code path.
+  async calendar(year: number, month: number, employeeId?: string): Promise<{ days: DayBreakdown[] }> {
     const start = new Date(Date.UTC(year, month - 1, 1));
     const end = new Date(Date.UTC(year, month, 0));
     const daysInMonth = end.getUTCDate();
     const todayIso = toISODate(new Date());
 
+    const employeeWhere: any = { status: 'ACTIVE' };
+    if (employeeId) employeeWhere.id = employeeId;
+
     const [employees, holidays, leaveRequests, attendance] = await Promise.all([
       this.prisma.employee.findMany({
-        where: { status: 'ACTIVE' },
+        where: employeeWhere,
         select: { id: true, fullName: true, dateOfJoining: true },
       }),
       this.prisma.holiday.findMany({ where: { date: { gte: start, lte: end } } }),
       this.prisma.leaveRequest.findMany({
-        where: { status: 'APPROVED', startDate: { lte: end }, endDate: { gte: start } },
-        select: { employeeId: true, startDate: true, endDate: true },
+        where: {
+          status: 'APPROVED',
+          startDate: { lte: end },
+          endDate: { gte: start },
+          ...(employeeId ? { employeeId } : {}),
+        },
+        select: {
+          employeeId: true,
+          startDate: true,
+          endDate: true,
+          reason: true,
+          dayPart: true,
+          leaveType: { select: { name: true } },
+        },
       }),
       this.prisma.attendanceRecord.findMany({
-        where: { date: { gte: start, lte: end } },
+        where: { date: { gte: start, lte: end }, ...(employeeId ? { employeeId } : {}) },
         select: { employeeId: true, date: true },
       }),
     ]);
@@ -86,30 +112,46 @@ export class AttendanceService {
       const dow = date.getUTCDay();
       const isWeekend = dow === 0 || dow === 6;
       const holiday = holidayByDate.get(iso) || null;
-      const present: EmployeeRef[] = [];
-      const onLeave: EmployeeRef[] = [];
-      const absent: EmployeeRef[] = [];
+      const presentIds = presentByDate.get(iso) || new Set<string>();
 
-      if (!isWeekend && !holiday) {
-        const presentIds = presentByDate.get(iso) || new Set<string>();
-        for (const emp of employees) {
-          if (emp.dateOfJoining && toISODate(emp.dateOfJoining) > iso) continue; // not yet joined
-          const onApprovedLeave = leaveRequests.some(
-            (r) => r.employeeId === emp.id && toISODate(r.startDate) <= iso && toISODate(r.endDate) >= iso,
-          );
-          if (onApprovedLeave) {
-            onLeave.push({ id: emp.id, fullName: emp.fullName });
-          } else if (presentIds.has(emp.id)) {
-            present.push({ id: emp.id, fullName: emp.fullName });
-          } else if (iso < todayIso) {
-            absent.push({ id: emp.id, fullName: emp.fullName });
-          }
-          // else: today/future, not yet marked — deliberately left out of
-          // every bucket until the day actually happens.
+      const present: EmployeeRef[] = [];
+      const onLeave: LeaveDayEntry[] = [];
+      const absent: EmployeeRef[] = [];
+      const presentOnHoliday: EmployeeRef[] = [];
+      const presentOnWeekend: EmployeeRef[] = [];
+
+      for (const emp of employees) {
+        if (emp.dateOfJoining && toISODate(emp.dateOfJoining) > iso) continue; // not yet joined
+
+        const leaveMatch = leaveRequests.find(
+          (r) => r.employeeId === emp.id && toISODate(r.startDate) <= iso && toISODate(r.endDate) >= iso,
+        );
+        if (leaveMatch) {
+          onLeave.push({
+            id: emp.id,
+            fullName: emp.fullName,
+            leaveTypeName: leaveMatch.leaveType.name,
+            reason: leaveMatch.reason,
+            dayPart: leaveMatch.dayPart,
+          });
+          continue;
         }
+
+        if (presentIds.has(emp.id)) {
+          if (isWeekend) presentOnWeekend.push({ id: emp.id, fullName: emp.fullName });
+          else if (holiday) presentOnHoliday.push({ id: emp.id, fullName: emp.fullName });
+          else present.push({ id: emp.id, fullName: emp.fullName });
+          continue;
+        }
+
+        if (!isWeekend && !holiday && iso < todayIso) {
+          absent.push({ id: emp.id, fullName: emp.fullName });
+        }
+        // else: a non-working day with no check-in (unremarkable), or
+        // today/future not yet marked — left out of every bucket.
       }
 
-      days.push({ date: iso, isWeekend, holiday, present, onLeave, absent });
+      days.push({ date: iso, isWeekend, holiday, present, onLeave, absent, presentOnHoliday, presentOnWeekend });
     }
 
     return { days };

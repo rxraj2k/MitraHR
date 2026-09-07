@@ -1,4 +1,4 @@
-import { IsDateString, IsIn, IsOptional, IsString } from 'class-validator';
+import { IsDateString, IsIn, IsOptional, IsString, MinLength } from 'class-validator';
 
 export class CreateLeaveRequestDto {
   @IsString()
@@ -14,9 +14,9 @@ export class CreateLeaveRequestDto {
   @IsIn(['FULL', 'FIRST_HALF', 'SECOND_HALF'])
   dayPart?: string;
 
-  @IsOptional()
   @IsString()
-  reason?: string;
+  @MinLength(1, { message: 'A reason is required' })
+  reason: string;
 
   // Staff-only: submit a request on behalf of this employee. Ignored (the
   // session's own id is used instead) when an employee submits their own.

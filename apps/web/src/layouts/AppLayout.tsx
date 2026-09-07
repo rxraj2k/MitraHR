@@ -14,7 +14,7 @@ const EMPLOYEE_NAV_ITEMS = [
   { to: '/', label: 'Home', end: true },
   { to: '/employees', label: 'Employees', end: false },
   { to: '/org-chart', label: 'Team Topology', end: false },
-  { to: '/my-leave', label: 'My Leave & Attendance', end: false },
+  { to: '/my-leave', label: 'My Leaves & Attendance', end: false },
 ];
 
 function navLinkClass({ isActive }: { isActive: boolean }) {

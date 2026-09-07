@@ -33,10 +33,14 @@ export class AttendanceController {
   }
 
   @Get('calendar')
-  calendar(@Query('year') year?: string, @Query('month') month?: string) {
+  calendar(
+    @Query('year') year?: string,
+    @Query('month') month?: string,
+    @Query('employeeId') employeeId?: string,
+  ) {
     const now = new Date();
     const y = year ? parseInt(year, 10) : now.getUTCFullYear();
     const m = month ? parseInt(month, 10) : now.getUTCMonth() + 1;
-    return this.attendanceService.calendar(y, m);
+    return this.attendanceService.calendar(y, m, employeeId);
   }
 }

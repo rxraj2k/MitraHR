@@ -343,6 +343,12 @@ export function getAttendanceToday(token: string): Promise<AttendanceToday> {
   return authFetch(token, '/attendance/today');
 }
 
-export function getAttendanceCalendar(token: string, year: number, month: number): Promise<{ days: AttendanceDay[] }> {
-  return authFetch(token, `/attendance/calendar?year=${year}&month=${month}`);
+export function getAttendanceCalendar(
+  token: string,
+  year: number,
+  month: number,
+  employeeId?: string,
+): Promise<{ days: AttendanceDay[] }> {
+  const qs = employeeId ? `&employeeId=${employeeId}` : '';
+  return authFetch(token, `/attendance/calendar?year=${year}&month=${month}${qs}`);
 }
