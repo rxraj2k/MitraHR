@@ -1,27 +1,36 @@
 import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import {
+  BriefcaseIcon,
+  BuildingIcon,
+  CalendarCheckIcon,
+  HomeIcon,
+  SettingsIcon,
+  ShareNetworkIcon,
+  UsersIcon,
+} from '../components/icons';
 
 // Sidebar nav is deliberately data-driven — future sprints add a module by
 // adding one line here, not by restructuring the layout again.
 const STAFF_NAV_ITEMS = [
-  { to: '/', label: 'Home', end: true },
-  { to: '/employees', label: 'Employees', end: false },
-  { to: '/org-chart', label: 'Team Topology', end: false },
-  { to: '/leave', label: 'Leaves & Attendance', end: false },
-  { to: '/clients', label: 'Client Management', end: false },
-  { to: '/projects', label: 'Project Management', end: false },
+  { to: '/', label: 'Home', end: true, icon: HomeIcon },
+  { to: '/employees', label: 'Employees', end: false, icon: UsersIcon },
+  { to: '/org-chart', label: 'Team Topology', end: false, icon: ShareNetworkIcon },
+  { to: '/leave', label: 'Leaves & Attendance', end: false, icon: CalendarCheckIcon },
+  { to: '/clients', label: 'Client Management', end: false, icon: BuildingIcon },
+  { to: '/projects', label: 'Project Management', end: false, icon: BriefcaseIcon },
 ];
 
 const EMPLOYEE_NAV_ITEMS = [
-  { to: '/', label: 'Home', end: true },
-  { to: '/employees', label: 'Employees', end: false },
-  { to: '/org-chart', label: 'Team Topology', end: false },
-  { to: '/my-leave', label: 'My Leaves & Attendance', end: false },
+  { to: '/', label: 'Home', end: true, icon: HomeIcon },
+  { to: '/employees', label: 'Employees', end: false, icon: UsersIcon },
+  { to: '/org-chart', label: 'Team Topology', end: false, icon: ShareNetworkIcon },
+  { to: '/my-leave', label: 'My Leaves & Attendance', end: false, icon: CalendarCheckIcon },
 ];
 
 function navLinkClass({ isActive }: { isActive: boolean }) {
   return [
-    'block rounded-lg px-3 py-2 text-sm transition-colors',
+    'flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors',
     isActive ? 'bg-white/10 text-white font-medium' : 'text-slate-300 hover:bg-white/5 hover:text-white',
   ].join(' ');
 }
@@ -39,16 +48,21 @@ export default function AppLayout() {
           </span>
         </div>
         <nav className="flex-1 px-3 space-y-1">
-          {navItems.map((item) => (
-            <NavLink key={item.to} to={item.to} end={item.end} className={navLinkClass}>
-              {item.label}
-            </NavLink>
-          ))}
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            return (
+              <NavLink key={item.to} to={item.to} end={item.end} className={navLinkClass}>
+                <Icon className="w-5 h-5 flex-shrink-0" />
+                <span>{item.label}</span>
+              </NavLink>
+            );
+          })}
         </nav>
         {isStaff && (
           <div className="px-3 pb-4 pt-4 border-t border-white/10">
             <NavLink to="/settings" className={navLinkClass}>
-              Settings
+              <SettingsIcon className="w-5 h-5 flex-shrink-0" />
+              <span>Settings</span>
             </NavLink>
           </div>
         )}
