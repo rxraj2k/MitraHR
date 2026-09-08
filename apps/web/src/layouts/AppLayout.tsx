@@ -62,7 +62,7 @@ export default function AppLayout() {
           <div className="px-3 pb-4 pt-4 border-t border-white/10">
             <NavLink to="/settings" className={navLinkClass}>
               <SettingsIcon className="w-5 h-5 flex-shrink-0" />
-              <span>Settings</span>
+              <span>Master Data</span>
             </NavLink>
           </div>
         )}
