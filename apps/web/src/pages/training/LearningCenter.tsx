@@ -13,6 +13,7 @@ import {
   getMyTraining,
   getTrainingCourses,
   getTrainingProgress,
+  removeTrainingAssignment,
   updateTrainingAssignmentStatus,
   updateTrainingCourse,
 } from '../../lib/api';
@@ -61,24 +62,37 @@ const EMPTY_COURSE: CourseForm = {
   resources: [{ label: '', url: '' }],
 };
 
-function EmployeeTrainingDetail({ employeeId }: { employeeId: string }) {
+function EmployeeTrainingDetail({ employeeId, onChanged }: { employeeId: string; onChanged?: () => void }) {
   const { token } = useAuth();
   const [items, setItems] = useState<EmployeeTraining[] | null>(null);
   const [error, setError] = useState('');
 
-  useEffect(() => {
+  function load() {
     if (!token) return;
     getMyTraining(token, employeeId)
       .then(setItems)
       .catch((err) => setError(err.message));
-  }, [token, employeeId]);
+  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(load, [token, employeeId]);
 
   async function handleChange(id: string, status: TrainingStatus) {
     if (!token) return;
     try {
       await updateTrainingAssignmentStatus(token, id, status);
-      const refreshed = await getMyTraining(token, employeeId);
-      setItems(refreshed);
+      load();
+    } catch (err: any) {
+      setError(err.message);
+    }
+  }
+
+  async function handleUnassign(id: string, title: string) {
+    if (!token) return;
+    if (!confirm(`Unassign "${title}" from this employee? Their progress on it will be lost.`)) return;
+    try {
+      await removeTrainingAssignment(token, id);
+      load();
+      onChanged?.();
     } catch (err: any) {
       setError(err.message);
     }
@@ -101,7 +115,7 @@ function EmployeeTrainingDetail({ employeeId }: { employeeId: string }) {
                 {item.course.title}
               </td>
               <td className="py-2 text-right whitespace-nowrap">
-                <div className="flex gap-1.5 justify-end">
+                <div className="flex gap-1.5 justify-end items-center">
                   {STATUS_OPTIONS.map((s) => (
                     <button
                       key={s.key}
@@ -113,6 +127,12 @@ function EmployeeTrainingDetail({ employeeId }: { employeeId: string }) {
                       {s.label}
                     </button>
                   ))}
+                  <button
+                    onClick={() => handleUnassign(item.id, item.course.title)}
+                    className="text-xs text-red-500 hover:text-red-700 ml-1"
+                  >
+                    Unassign
+                  </button>
                 </div>
               </td>
             </tr>
@@ -132,6 +152,7 @@ function TeamProgressTab() {
   const [error, setError] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [assigningId, setAssigningId] = useState<string | null>(null);
+  const [unassigningId, setUnassigningId] = useState<string | null>(null);
 
   const [pickCourseId, setPickCourseId] = useState('');
   const [pickEmployeeId, setPickEmployeeId] = useState('');
@@ -165,6 +186,27 @@ function TeamProgressTab() {
       setError(err.message);
     } finally {
       setAssigningId(null);
+    }
+  }
+
+  async function handleUnassignAll(employeeId: string, fullName: string) {
+    if (!token) return;
+    if (
+      !confirm(
+        `Unassign ALL courses currently assigned to ${fullName}? This clears their entire curriculum and any progress on it — use this to undo a curriculum assigned to the wrong person.`,
+      )
+    )
+      return;
+    setUnassigningId(employeeId);
+    setError('');
+    try {
+      const assignments = await getMyTraining(token, employeeId);
+      await Promise.all(assignments.map((a) => removeTrainingAssignment(token, a.id)));
+      load();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setUnassigningId(null);
     }
   }
 
@@ -282,19 +324,30 @@ function TeamProgressTab() {
                       </td>
                       <td className="py-2 text-slate-500">{r.inProgress}</td>
                       <td className="py-2 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                        <button
-                          onClick={() => handleAssignStandard(r.id)}
-                          disabled={assigningId === r.id}
-                          className="text-xs text-mitra-accentFrom hover:underline disabled:opacity-50"
-                        >
-                          {assigningId === r.id ? 'Assigning...' : 'Assign Standard Curriculum'}
-                        </button>
+                        <div className="flex items-center justify-end gap-3">
+                          <button
+                            onClick={() => handleAssignStandard(r.id)}
+                            disabled={assigningId === r.id}
+                            className="text-xs text-mitra-accentFrom hover:underline disabled:opacity-50"
+                          >
+                            {assigningId === r.id ? 'Assigning...' : 'Assign Standard Curriculum'}
+                          </button>
+                          {r.totalAssigned > 0 && (
+                            <button
+                              onClick={() => handleUnassignAll(r.id, r.fullName)}
+                              disabled={unassigningId === r.id}
+                              className="text-xs text-red-500 hover:underline disabled:opacity-50"
+                            >
+                              {unassigningId === r.id ? 'Unassigning...' : 'Unassign All'}
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                     {expandedId === r.id && (
                       <tr>
                         <td colSpan={6} className="p-0">
-                          <EmployeeTrainingDetail employeeId={r.id} />
+                          <EmployeeTrainingDetail employeeId={r.id} onChanged={load} />
                         </td>
                       </tr>
                     )}
