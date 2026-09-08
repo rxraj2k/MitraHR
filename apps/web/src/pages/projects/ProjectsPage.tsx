@@ -44,7 +44,6 @@ export default function ProjectsPage() {
     primaryMentorId: '',
     secondaryMentorId: '',
     startDate: '',
-    endDate: '',
   });
 
   function load() {
@@ -77,7 +76,6 @@ export default function ProjectsPage() {
         primaryMentorId: form.primaryMentorId || undefined,
         secondaryMentorId: form.secondaryMentorId || undefined,
         startDate: form.startDate || undefined,
-        endDate: form.endDate || undefined,
       } as any);
       setForm({
         name: '',
@@ -90,7 +88,6 @@ export default function ProjectsPage() {
         primaryMentorId: '',
         secondaryMentorId: '',
         startDate: '',
-        endDate: '',
       });
       setShowAdd(false);
       load();
@@ -222,15 +219,6 @@ export default function ProjectsPage() {
               type="date"
               value={form.startDate}
               onChange={(e) => setForm({ ...form, startDate: e.target.value })}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-            />
-          </div>
-          <div>
-            <label className="block text-xs text-slate-500 mb-1">End Date</label>
-            <input
-              type="date"
-              value={form.endDate}
-              onChange={(e) => setForm({ ...form, endDate: e.target.value })}
               className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
             />
           </div>

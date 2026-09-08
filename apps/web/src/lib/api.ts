@@ -428,6 +428,13 @@ export function updateProject(token: string, id: string, data: Partial<Project>)
 export function deleteProject(token: string, id: string): Promise<void> {
   return authFetch(token, `/projects/${id}`, { method: 'DELETE' });
 }
+export function endProject(
+  token: string,
+  id: string,
+  data: { endDate?: string; closureSummary: string },
+): Promise<Project> {
+  return authFetch(token, `/projects/${id}/end`, { method: 'PATCH', body: JSON.stringify(data) });
+}
 export function getMyProjects(token: string, employeeId?: string): Promise<MyProjectAssignment[]> {
   const qs = employeeId ? `?employeeId=${employeeId}` : '';
   return authFetch(token, `/projects/my${qs}`);

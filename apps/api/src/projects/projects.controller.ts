@@ -3,6 +3,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { StaffOnlyGuard } from '../auth/staff-only.guard';
 import { ProjectsService } from './projects.service';
 import { UpsertProjectDto } from './dto/upsert-project.dto';
+import { EndProjectDto } from './dto/end-project.dto';
 import { CreateAssignmentDto, UpdateAssignmentDto } from './dto/upsert-assignment.dto';
 
 // Full project/client detail is staff-only. An employee (OTP session) can
@@ -47,6 +48,15 @@ export class ProjectsController {
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.projectsService.remove(id);
+  }
+
+  // Marks the project ended: sets status to COMPLETED, records the end
+  // date (today, unless backdated) and a closing summary, and closes out
+  // any still-active team assignments as of that same date.
+  @UseGuards(StaffOnlyGuard)
+  @Patch(':id/end')
+  end(@Param('id') id: string, @Body() dto: EndProjectDto) {
+    return this.projectsService.end(id, dto);
   }
 
   @UseGuards(StaffOnlyGuard)

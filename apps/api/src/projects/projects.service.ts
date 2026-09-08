@@ -46,7 +46,6 @@ export class ProjectsService {
       data: {
         ...input,
         startDate: input.startDate ? new Date(input.startDate) : undefined,
-        endDate: input.endDate ? new Date(input.endDate) : undefined,
         technologyId: input.technologyId || undefined,
         primaryMentorId: input.primaryMentorId || undefined,
         secondaryMentorId: input.secondaryMentorId || undefined,
@@ -62,7 +61,6 @@ export class ProjectsService {
       data: {
         ...input,
         startDate: input.startDate ? new Date(input.startDate) : input.startDate === '' ? null : undefined,
-        endDate: input.endDate ? new Date(input.endDate) : input.endDate === '' ? null : undefined,
         technologyId: input.technologyId || null,
         primaryMentorId: input.primaryMentorId || null,
         secondaryMentorId: input.secondaryMentorId || null,
@@ -75,6 +73,30 @@ export class ProjectsService {
     if (!existing) throw new NotFoundException('Project not found');
     await this.prisma.project.delete({ where: { id } });
     return { success: true };
+  }
+
+  // Ends a project: marks it COMPLETED, stamps the end date (today unless
+  // backdated) and the closing summary, and closes out any still-active
+  // team assignments as of that same date so "who's on this project" and
+  // utilization stay accurate once it's over.
+  async end(id: string, input: { endDate?: string; closureSummary: string }) {
+    const existing = await this.prisma.project.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Project not found');
+    if (existing.status === 'COMPLETED' || existing.status === 'CANCELLED') {
+      throw new BadRequestException('This project has already been ended');
+    }
+    const endDate = input.endDate ? new Date(input.endDate) : new Date();
+    const [updated] = await this.prisma.$transaction([
+      this.prisma.project.update({
+        where: { id },
+        data: { status: 'COMPLETED', endDate, closureSummary: input.closureSummary },
+      }),
+      this.prisma.projectAssignment.updateMany({
+        where: { projectId: id, endDate: null },
+        data: { endDate },
+      }),
+    ]);
+    return updated;
   }
 
   // --- Assignments ---

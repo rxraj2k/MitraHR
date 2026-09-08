@@ -303,6 +303,7 @@ model Project {
   secondaryMentor    Employee?           @relation("SecondaryMentor", fields: [secondaryMentorId], references: [id])
   startDate          DateTime?
   endDate            DateTime?
+  closureSummary     String?
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
   assignments        ProjectAssignment[]

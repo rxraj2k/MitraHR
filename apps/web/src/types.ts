@@ -216,6 +216,7 @@ export interface Project {
   secondaryMentor?: EmployeeRef | null;
   startDate?: string | null;
   endDate?: string | null;
+  closureSummary?: string | null;
   createdAt: string;
   assignments?: ProjectAssignment[];
   _count?: { assignments: number };

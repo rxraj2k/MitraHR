@@ -6,6 +6,7 @@ import { CATEGORY_LABELS } from '../../components/TechnologyManager';
 import {
   addProjectAssignment,
   deleteProject,
+  endProject,
   getEmployees,
   getProject,
   getTechnologies,
@@ -31,6 +32,25 @@ const CONTRACT_LABELS: Record<ContractType, string> = {
 
 const CATEGORIES = Object.keys(CATEGORY_LABELS) as ProjectCategory[];
 
+// A human-friendly "X months, Y days" span between two dates. Kept local
+// for now — the reporting feature can lift this into a shared helper once
+// it needs the same duration math across many projects.
+function formatDuration(startIso: string, endIso: string): string {
+  const start = new Date(startIso);
+  const end = new Date(endIso);
+  let months = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
+  let days = end.getDate() - start.getDate();
+  if (days < 0) {
+    months -= 1;
+    days += new Date(end.getFullYear(), end.getMonth(), 0).getDate();
+  }
+  if (months < 0) return '—';
+  const parts: string[] = [];
+  if (months > 0) parts.push(`${months} month${months === 1 ? '' : 's'}`);
+  if (days > 0 || parts.length === 0) parts.push(`${days} day${days === 1 ? '' : 's'}`);
+  return parts.join(', ');
+}
+
 export default function ProjectDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -53,6 +73,10 @@ export default function ProjectDetail() {
 
   const [assignForm, setAssignForm] = useState({ employeeId: '', roleOnProject: '', allocationPercent: '100' });
   const [assignSubmitting, setAssignSubmitting] = useState(false);
+
+  const [showEnd, setShowEnd] = useState(false);
+  const [endForm, setEndForm] = useState({ endDate: new Date().toISOString().slice(0, 10), closureSummary: '' });
+  const [endSubmitting, setEndSubmitting] = useState(false);
 
   function load() {
     if (!token || !id) return;
@@ -108,6 +132,25 @@ export default function ProjectDetail() {
       navigate('/projects');
     } catch (err: any) {
       setError(err.message);
+    }
+  }
+
+  async function handleEndProject(e: FormEvent) {
+    e.preventDefault();
+    if (!token || !project) return;
+    setError('');
+    setEndSubmitting(true);
+    try {
+      await endProject(token, project.id, {
+        endDate: endForm.endDate || undefined,
+        closureSummary: endForm.closureSummary,
+      });
+      setShowEnd(false);
+      load();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setEndSubmitting(false);
     }
   }
 
@@ -170,12 +213,66 @@ export default function ProjectDetail() {
           <h1 className="text-2xl font-semibold text-slate-800">{project.name}</h1>
           <p className="text-slate-500 text-sm mt-1">{(project.client as any)?.name}</p>
         </div>
-        <button onClick={handleDeleteProject} className="text-red-500 hover:text-red-700 text-sm">
-          Delete Project
-        </button>
+        <div className="flex items-center gap-4">
+          {project.status !== 'COMPLETED' && project.status !== 'CANCELLED' && (
+            <button
+              onClick={() => setShowEnd((v) => !v)}
+              className="rounded-lg bg-slate-800 text-white text-sm font-medium px-4 py-2 hover:bg-slate-700"
+            >
+              {showEnd ? 'Cancel' : 'End Project'}
+            </button>
+          )}
+          <button onClick={handleDeleteProject} className="text-red-500 hover:text-red-700 text-sm">
+            Delete Project
+          </button>
+        </div>
       </div>
 
       {error && <div className="text-sm text-red-600">{error}</div>}
+
+      {showEnd && (
+        <form onSubmit={handleEndProject} className="bg-white border border-slate-200 rounded-xl p-6 space-y-4">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-800">End This Project</h2>
+            <p className="text-xs text-slate-500 mt-1">
+              This marks the project as ended (status becomes Completed) and closes out any active team
+              assignments as of the end date. It also stays listed here for the record.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-xs text-slate-500 mb-1">End Date</label>
+              <input
+                type="date"
+                required
+                value={endForm.endDate}
+                onChange={(e) => setEndForm({ ...endForm, endDate: e.target.value })}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              />
+            </div>
+            <div className="md:col-span-2">
+              <label className="block text-xs text-slate-500 mb-1">
+                Closing Summary <span className="text-slate-400">(what this project was about, and how it went)</span>
+              </label>
+              <textarea
+                required
+                minLength={1}
+                rows={3}
+                value={endForm.closureSummary}
+                onChange={(e) => setEndForm({ ...endForm, closureSummary: e.target.value })}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              />
+            </div>
+          </div>
+          <button
+            type="submit"
+            disabled={endSubmitting || !endForm.closureSummary}
+            className="rounded-lg bg-gradient-to-r from-mitra-accentFrom to-mitra-accentTo text-white text-sm font-medium px-4 py-2 disabled:opacity-50"
+          >
+            {endSubmitting ? 'Ending...' : 'Confirm End Project'}
+          </button>
+        </form>
+      )}
 
       <div className="bg-white border border-slate-200 rounded-xl p-6">
         <div className="flex items-center justify-between mb-4">
@@ -321,6 +418,19 @@ export default function ProjectDetail() {
               <div className="col-span-full">
                 <p className="text-xs text-slate-500">Description</p>
                 <p className="mt-1 text-slate-700">{project.description}</p>
+              </div>
+            )}
+            {project.status === 'COMPLETED' && project.closureSummary && (
+              <div className="col-span-full bg-slate-50 border border-slate-200 rounded-lg p-4">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Project Closed</p>
+                  {project.startDate && project.endDate && (
+                    <p className="text-xs text-slate-500">
+                      Duration: <span className="font-medium text-slate-700">{formatDuration(project.startDate, project.endDate)}</span>
+                    </p>
+                  )}
+                </div>
+                <p className="mt-2 text-slate-700 text-sm">{project.closureSummary}</p>
               </div>
             )}
           </div>

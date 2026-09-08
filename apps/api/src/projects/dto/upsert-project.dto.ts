@@ -4,6 +4,10 @@ const STATUSES = ['ACTIVE', 'ON_HOLD', 'COMPLETED', 'CANCELLED'];
 const CONTRACT_TYPES = ['T_AND_M', 'FIXED_PRICE', 'RETAINER', 'MANAGED_SERVICE'];
 const CATEGORIES = ['DEVOPS', 'IAM', 'ACTIVE_DIRECTORY', 'CLOUD_SECURITY', 'CYBER_SECURITY'];
 
+// Note: there is deliberately no `endDate` here. A project's end date is
+// never guessed at creation time — it's only ever set by actually ending
+// the project (see EndProjectDto / ProjectsService.end), which also records
+// why it ended.
 export class UpsertProjectDto {
   @IsString()
   @MinLength(1)
@@ -45,8 +49,4 @@ export class UpsertProjectDto {
   @IsOptional()
   @IsDateString()
   startDate?: string;
-
-  @IsOptional()
-  @IsDateString()
-  endDate?: string;
 }
