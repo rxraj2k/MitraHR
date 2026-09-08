@@ -41,7 +41,7 @@ export default function AppLayout() {
   const navItems = isStaff ? STAFF_NAV_ITEMS : EMPLOYEE_NAV_ITEMS;
 
   return (
-    <div className="min-h-screen flex bg-slate-50">
+    <div className="h-screen flex bg-slate-50 overflow-hidden">
       <aside className="w-60 flex-shrink-0 bg-mitra-navy flex flex-col">
         <div className="px-6 py-5">
           <span className="font-semibold text-lg bg-gradient-to-r from-mitra-accentFrom to-mitra-accentTo bg-clip-text text-transparent">
