@@ -366,3 +366,50 @@ export interface TrainingProgressEntry {
   inProgress: number;
   percentComplete: number;
 }
+
+// --- Asset Management ---
+
+export type AssetCategory =
+  | 'LAPTOP'
+  | 'MONITOR'
+  | 'MOBILE_PHONE'
+  | 'ID_CARD'
+  | 'SOFTWARE_LICENSE'
+  | 'NETWORKING_EQUIPMENT'
+  | 'OTHER';
+export type AssetStatus = 'AVAILABLE' | 'ASSIGNED' | 'IN_REPAIR' | 'RETIRED' | 'LOST';
+export type AssetCondition = 'NEW' | 'GOOD' | 'FAIR' | 'POOR' | 'DAMAGED';
+
+export interface AssetEmployeeRef {
+  id: string;
+  fullName: string;
+  employeeCode?: string | null;
+  photoUrl?: string | null;
+}
+
+export interface Asset {
+  id: string;
+  assetTag: string;
+  category: AssetCategory;
+  name: string;
+  serialNumber?: string | null;
+  purchaseDate?: string | null;
+  notes?: string | null;
+  status: AssetStatus;
+  assignments?: AssetAssignment[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AssetAssignment {
+  id: string;
+  assetId: string;
+  asset?: Asset;
+  employeeId: string;
+  employee?: AssetEmployeeRef;
+  conditionAtAssignment: AssetCondition;
+  assignedAt: string;
+  returnedAt?: string | null;
+  conditionAtReturn?: AssetCondition | null;
+  returnNotes?: string | null;
+}

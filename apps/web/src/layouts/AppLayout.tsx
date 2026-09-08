@@ -8,6 +8,7 @@ import {
   GaugeIcon,
   GraduationCapIcon,
   HomeIcon,
+  PackageIcon,
   ShareNetworkIcon,
   UsersIcon,
 } from '../components/icons';
@@ -23,6 +24,7 @@ const STAFF_NAV_ITEMS = [
   { to: '/projects', label: 'Project Management', end: false, icon: BriefcaseIcon },
   { to: '/utilization', label: 'Bench & Utilization', end: false, icon: GaugeIcon },
   { to: '/training', label: 'Learning Center', end: false, icon: GraduationCapIcon },
+  { to: '/assets', label: 'Asset Management', end: false, icon: PackageIcon },
   { to: '/settings', label: 'Master Data', end: false, icon: DatabaseIcon },
 ];
 

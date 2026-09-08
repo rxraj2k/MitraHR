@@ -104,6 +104,7 @@ model Employee {
   primaryMentorProjects   Project[]        @relation("PrimaryMentor")
   secondaryMentorProjects Project[]        @relation("SecondaryMentor")
   trainingAssignments EmployeeTraining[]
+  assetAssignments   AssetAssignment[]
   linkedUser User?
 
   dateOfJoining DateTime?
@@ -398,4 +399,44 @@ model EmployeeTraining {
   updatedAt   DateTime       @updatedAt
 
   @@unique([employeeId, courseId])
+}
+
+
+// Company-owned assets (laptops, monitors, ID cards, software licenses,
+// phones, networking gear) that get handed out to employees and returned
+// later. category/status/condition are fixed lists (see ASSET_CATEGORIES
+// etc. on the frontend), not a Master Data lookup, since the company's
+// asset types are a short, stable list. status is only ever changed
+// through the assign/return/status actions in the service, never a plain
+// field edit, so it always agrees with whether an assignment is open.
+model Asset {
+  id           String            @id @default(uuid())
+  assetTag     String            @unique
+  category     String
+  name         String
+  serialNumber String?
+  purchaseDate DateTime?
+  notes        String?
+  status       String            @default("AVAILABLE")
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  assignments  AssetAssignment[]
+}
+
+// One row per hand-out. A null returnedAt means the asset is currently
+// with this employee — the full history per asset (and per employee) is
+// the audit trail the plan called for.
+model AssetAssignment {
+  id                    String    @id @default(uuid())
+  assetId               String
+  asset                 Asset     @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  employeeId            String
+  employee              Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  conditionAtAssignment String    @default("GOOD")
+  assignedAt            DateTime  @default(now())
+  returnedAt            DateTime?
+  conditionAtReturn     String?
+  returnNotes           String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
 }

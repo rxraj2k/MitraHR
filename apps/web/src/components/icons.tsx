@@ -190,3 +190,64 @@ export function DatabaseIcon(props: IconProps) {
     </svg>
   );
 }
+
+export function PackageIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M12 3.5 20 8v8l-8 4.5L4 16V8l8-4.5Z" />
+      <path d="M4 8 12 12.5 20 8" />
+      <path d="M12 12.5V21" />
+      <path d="m8 5.75 8 4.5" />
+    </svg>
+  );
+}
+
+export function LaptopIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <rect x="5" y="5" width="14" height="9.5" rx="1.25" />
+      <path d="M3 18.5h18" />
+      <path d="M9.5 18.5 8 20.5h8l-1.5-2" />
+    </svg>
+  );
+}
+
+export function MonitorIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <rect x="3.5" y="4.5" width="17" height="11.5" rx="1.5" />
+      <path d="M9 20.5h6" />
+      <path d="M12 16v4.5" />
+    </svg>
+  );
+}
+
+export function SmartphoneIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <rect x="7" y="2.5" width="10" height="19" rx="2" />
+      <path d="M11 19h2" />
+    </svg>
+  );
+}
+
+export function IdCardIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <rect x="3" y="5" width="18" height="14" rx="2" />
+      <circle cx="9" cy="11" r="2" />
+      <path d="M6 16c0-1.7 1.3-2.5 3-2.5s3 0.8 3 2.5" />
+      <path d="M14 9.5h4M14 13h4" />
+    </svg>
+  );
+}
+
+export function KeyIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <circle cx="8" cy="15" r="4" />
+      <path d="M11 12 20 3" />
+      <path d="M16 7l2.5 2.5M18.5 4.5 21 7" />
+    </svg>
+  );
+}

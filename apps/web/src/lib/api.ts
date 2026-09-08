@@ -20,6 +20,8 @@ import {
   EmployeeTraining,
   TrainingProgressEntry,
   Technology,
+  Asset,
+  AssetAssignment,
 } from '../types';
 
 export const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000';
@@ -544,4 +546,48 @@ export function getAttendanceCalendar(
 ): Promise<{ days: AttendanceDay[] }> {
   const qs = employeeId ? `&employeeId=${employeeId}` : '';
   return authFetch(token, `/attendance/calendar?year=${year}&month=${month}${qs}`);
+}
+
+
+// --- Asset Management ---
+
+export function getAssets(token: string, params?: { category?: string; status?: string }): Promise<Asset[]> {
+  const qs = new URLSearchParams();
+  if (params?.category) qs.set('category', params.category);
+  if (params?.status) qs.set('status', params.status);
+  const s = qs.toString();
+  return authFetch(token, `/assets${s ? `?${s}` : ''}`);
+}
+export function getAsset(token: string, id: string): Promise<Asset> {
+  return authFetch(token, `/assets/${id}`);
+}
+export function createAsset(token: string, data: Partial<Asset>): Promise<Asset> {
+  return authFetch(token, '/assets', { method: 'POST', body: JSON.stringify(data) });
+}
+export function updateAsset(token: string, id: string, data: Partial<Asset>): Promise<Asset> {
+  return authFetch(token, `/assets/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+}
+export function deleteAsset(token: string, id: string): Promise<void> {
+  return authFetch(token, `/assets/${id}`, { method: 'DELETE' });
+}
+export function assignAsset(
+  token: string,
+  id: string,
+  data: { employeeId: string; conditionAtAssignment?: string },
+): Promise<AssetAssignment> {
+  return authFetch(token, `/assets/${id}/assign`, { method: 'PATCH', body: JSON.stringify(data) });
+}
+export function returnAsset(
+  token: string,
+  id: string,
+  data: { conditionAtReturn?: string; returnNotes?: string; resultingStatus?: string },
+): Promise<AssetAssignment> {
+  return authFetch(token, `/assets/${id}/return`, { method: 'PATCH', body: JSON.stringify(data) });
+}
+export function setAssetStatus(token: string, id: string, status: string): Promise<Asset> {
+  return authFetch(token, `/assets/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) });
+}
+export function getMyAssets(token: string, employeeId?: string): Promise<AssetAssignment[]> {
+  const qs = employeeId ? `?employeeId=${employeeId}` : '';
+  return authFetch(token, `/assets/my${qs}`);
 }
