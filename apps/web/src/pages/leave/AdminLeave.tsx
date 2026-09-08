@@ -5,6 +5,7 @@ import AttendanceCheckIn from '../../components/AttendanceCheckIn';
 import MyLeavePanel from '../../components/MyLeavePanel';
 import MonthCalendar from '../../components/MonthCalendar';
 import SearchableSelect from '../../components/SearchableSelect';
+import TabBar, { TabBarItem } from '../../components/TabBar';
 import {
   API_BASE,
   createLeaveRequest,
@@ -25,6 +26,12 @@ const STATUS_STYLES: Record<string, string> = {
   CANCELLED: 'bg-slate-100 text-slate-500',
 };
 
+type LeaveSection = 'overview' | 'calendar';
+const LEAVE_TABS: TabBarItem<LeaveSection>[] = [
+  { key: 'overview', label: 'Leaves & Attendance', color: 'indigo' },
+  { key: 'calendar', label: 'Leave & Attendance Calendar', color: 'sky' },
+];
+
 function dateRange(start: string, end: string) {
   const s = start.slice(0, 10);
   const e = end.slice(0, 10);
@@ -44,6 +51,7 @@ export default function AdminLeave() {
   const [error, setError] = useState('');
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [tab, setTab] = useState<'pending' | 'all'>('pending');
+  const [section, setSection] = useState<LeaveSection>('overview');
 
   const [compOffEntries, setCompOffEntries] = useState<CompOffEntry[]>([]);
   const [compOffNotes, setCompOffNotes] = useState<Record<string, string>>({});
@@ -195,6 +203,10 @@ export default function AdminLeave() {
     <div className="space-y-10">
       <h1 className="text-2xl font-semibold text-slate-800">Leaves & Attendance</h1>
 
+      <TabBar tabs={LEAVE_TABS} active={section} onChange={setSection} />
+
+      {section === 'overview' && (
+        <>
       {user?.employeeId && (
         <div className="space-y-6">
           <AttendanceCheckIn />
@@ -516,10 +528,14 @@ export default function AdminLeave() {
         )}
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-xl p-6">
-        <MonthCalendar year={calYear} month={calMonth} days={calendarDays} onPrev={prevMonth} onNext={nextMonth} />
-      </div>
+        </>
+      )}
 
+      {section === 'calendar' && (
+        <div className="bg-white border border-slate-200 rounded-xl p-6">
+          <MonthCalendar year={calYear} month={calMonth} days={calendarDays} onPrev={prevMonth} onNext={nextMonth} />
+        </div>
+      )}
     </div>
   );
 }

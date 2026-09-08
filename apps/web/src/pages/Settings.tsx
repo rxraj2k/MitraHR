@@ -4,6 +4,7 @@ import AdminManager from '../components/AdminManager';
 import LeaveTypeManager from '../components/LeaveTypeManager';
 import HolidayManager from '../components/HolidayManager';
 import TechnologyManager from '../components/TechnologyManager';
+import TabBar, { TabBarItem } from '../components/TabBar';
 import {
   createDepartment,
   createDesignation,
@@ -24,22 +25,13 @@ import {
 // longest — everything else is small enough to share a tab comfortably.
 type TabKey = 'organization' | 'skills' | 'technologies' | 'leave-policy' | 'admins';
 
-const TABS: { key: TabKey; label: string }[] = [
-  { key: 'organization', label: 'Organization' },
-  { key: 'skills', label: 'Skills' },
-  { key: 'technologies', label: 'Technologies' },
-  { key: 'leave-policy', label: 'Leave Policy' },
-  { key: 'admins', label: 'Admins' },
+const TABS: TabBarItem<TabKey>[] = [
+  { key: 'organization', label: 'Organization', color: 'indigo' },
+  { key: 'skills', label: 'Skills', color: 'emerald' },
+  { key: 'technologies', label: 'Technologies', color: 'sky' },
+  { key: 'leave-policy', label: 'Leave Policy', color: 'amber' },
+  { key: 'admins', label: 'Admins', color: 'rose' },
 ];
-
-function tabButtonClass(active: boolean) {
-  return [
-    'px-4 py-2 text-sm font-medium rounded-t-lg border-b-2 -mb-px transition-colors',
-    active
-      ? 'border-mitra-accentTo text-slate-800'
-      : 'border-transparent text-slate-500 hover:text-slate-700',
-  ].join(' ');
-}
 
 export default function Settings() {
   const [tab, setTab] = useState<TabKey>('organization');
@@ -51,18 +43,7 @@ export default function Settings() {
         The reference data that powers dropdowns and lookups across MitraHR.
       </p>
 
-      <div className="flex gap-1 border-b border-slate-200 mb-6 overflow-x-auto">
-        {TABS.map((t) => (
-          <button
-            key={t.key}
-            type="button"
-            onClick={() => setTab(t.key)}
-            className={tabButtonClass(tab === t.key)}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
+      <TabBar tabs={TABS} active={tab} onChange={setTab} />
 
       {tab === 'organization' && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

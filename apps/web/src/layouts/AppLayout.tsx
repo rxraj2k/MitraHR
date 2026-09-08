@@ -4,8 +4,8 @@ import {
   BriefcaseIcon,
   BuildingIcon,
   CalendarCheckIcon,
+  DatabaseIcon,
   HomeIcon,
-  SettingsIcon,
   ShareNetworkIcon,
   UsersIcon,
 } from '../components/icons';
@@ -19,7 +19,7 @@ const STAFF_NAV_ITEMS = [
   { to: '/leave', label: 'Leaves & Attendance', end: false, icon: CalendarCheckIcon },
   { to: '/clients', label: 'Client Management', end: false, icon: BuildingIcon },
   { to: '/projects', label: 'Project Management', end: false, icon: BriefcaseIcon },
-  { to: '/settings', label: 'Master Data', end: false, icon: SettingsIcon },
+  { to: '/settings', label: 'Master Data', end: false, icon: DatabaseIcon },
 ];
 
 const EMPLOYEE_NAV_ITEMS = [

@@ -79,13 +79,12 @@ export function BriefcaseIcon(props: IconProps) {
   );
 }
 
-export function SettingsIcon(props: IconProps) {
+export function DatabaseIcon(props: IconProps) {
   return (
     <svg {...base} {...props}>
-      <circle cx="12" cy="12" r="3.25" />
-      <path d="M12 3v2.5M12 18.5V21M21 12h-2.5M5.5 12H3" />
-      <path d="m18.36 5.64-1.77 1.77M7.41 16.59l-1.77 1.77" />
-      <path d="m18.36 18.36-1.77-1.77M7.41 7.41 5.64 5.64" />
+      <ellipse cx="12" cy="6" rx="8" ry="3.25" />
+      <path d="M4 6v6c0 1.8 3.6 3.25 8 3.25s8-1.45 8-3.25V6" />
+      <path d="M4 12v6c0 1.8 3.6 3.25 8 3.25s8-1.45 8-3.25v-6" />
     </svg>
   );
 }
