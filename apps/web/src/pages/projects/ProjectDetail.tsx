@@ -2,16 +2,18 @@ import { FormEvent, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import SearchableSelect from '../../components/SearchableSelect';
+import { CATEGORY_LABELS } from '../../components/TechnologyManager';
 import {
   addProjectAssignment,
   deleteProject,
   getEmployees,
   getProject,
+  getTechnologies,
   removeProjectAssignment,
   updateProject,
   updateProjectAssignment,
 } from '../../lib/api';
-import { ContractType, Employee, Project, ProjectStatus } from '../../types';
+import { ContractType, Employee, Project, ProjectCategory, ProjectStatus, Technology } from '../../types';
 
 const STATUS_STYLES: Record<ProjectStatus, string> = {
   ACTIVE: 'bg-green-100 text-green-700',
@@ -27,18 +29,25 @@ const CONTRACT_LABELS: Record<ContractType, string> = {
   MANAGED_SERVICE: 'Managed Service',
 };
 
+const CATEGORIES = Object.keys(CATEGORY_LABELS) as ProjectCategory[];
+
 export default function ProjectDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { token } = useAuth();
   const [project, setProject] = useState<Project | null>(null);
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [technologies, setTechnologies] = useState<Technology[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [editingInfo, setEditingInfo] = useState(false);
   const [infoForm, setInfoForm] = useState({
     status: 'ACTIVE' as ProjectStatus,
     contractType: '' as ContractType | '',
+    category: '' as ProjectCategory | '',
+    technologyId: '',
+    primaryMentorId: '',
+    secondaryMentorId: '',
     description: '',
   });
 
@@ -48,11 +57,20 @@ export default function ProjectDetail() {
   function load() {
     if (!token || !id) return;
     setLoading(true);
-    Promise.all([getProject(token, id), getEmployees(token)])
-      .then(([p, e]) => {
+    Promise.all([getProject(token, id), getEmployees(token), getTechnologies(token)])
+      .then(([p, e, t]) => {
         setProject(p);
         setEmployees(e);
-        setInfoForm({ status: p.status, contractType: (p.contractType as ContractType) || '', description: p.description || '' });
+        setTechnologies(t.filter((x) => x.active));
+        setInfoForm({
+          status: p.status,
+          contractType: (p.contractType as ContractType) || '',
+          category: (p.category as ProjectCategory) || '',
+          technologyId: p.technologyId || '',
+          primaryMentorId: p.primaryMentorId || '',
+          secondaryMentorId: p.secondaryMentorId || '',
+          description: p.description || '',
+        });
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
@@ -69,6 +87,10 @@ export default function ProjectDetail() {
         clientId: project.clientId,
         status: infoForm.status,
         contractType: infoForm.contractType || undefined,
+        category: infoForm.category || undefined,
+        technologyId: infoForm.technologyId || undefined,
+        primaryMentorId: infoForm.primaryMentorId || undefined,
+        secondaryMentorId: infoForm.secondaryMentorId || undefined,
         description: infoForm.description || undefined,
       } as any);
       setEditingInfo(false);
@@ -135,6 +157,9 @@ export default function ProjectDetail() {
   if (!project) return <p className="text-slate-500 text-sm">Project not found.</p>;
 
   const employeeOptions = employees.map((e) => ({ id: e.id, name: e.fullName }));
+  const technologyOptions = technologies
+    .filter((t) => !infoForm.category || t.category === infoForm.category)
+    .map((t) => ({ id: t.id, name: t.name }));
   const active = project.assignments?.filter((a) => !a.endDate) || [];
   const past = project.assignments?.filter((a) => !!a.endDate) || [];
 
@@ -143,10 +168,7 @@ export default function ProjectDetail() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-slate-800">{project.name}</h1>
-          <p className="text-slate-500 text-sm mt-1">
-            {(project.client as any)?.name}
-            {project.projectManager && <span> · PM: {project.projectManager.fullName}</span>}
-          </p>
+          <p className="text-slate-500 text-sm mt-1">{(project.client as any)?.name}</p>
         </div>
         <button onClick={handleDeleteProject} className="text-red-500 hover:text-red-700 text-sm">
           Delete Project
@@ -189,6 +211,30 @@ export default function ProjectDetail() {
               </select>
             </div>
             <div>
+              <label className="block text-xs text-slate-500 mb-1">Category</label>
+              <select
+                value={infoForm.category}
+                onChange={(e) => setInfoForm({ ...infoForm, category: e.target.value as ProjectCategory | '', technologyId: '' })}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              >
+                <option value="">Select...</option>
+                {CATEGORIES.map((c) => (
+                  <option key={c} value={c}>
+                    {CATEGORY_LABELS[c]}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs text-slate-500 mb-1">Specific Area / Tool</label>
+              <SearchableSelect
+                options={technologyOptions}
+                value={infoForm.technologyId}
+                onChange={(v) => setInfoForm({ ...infoForm, technologyId: v })}
+                placeholder={infoForm.category ? 'Search tool...' : 'Pick a category first'}
+              />
+            </div>
+            <div>
               <label className="block text-xs text-slate-500 mb-1">Contract Type</label>
               <select
                 value={infoForm.contractType}
@@ -202,6 +248,28 @@ export default function ProjectDetail() {
                   </option>
                 ))}
               </select>
+            </div>
+            <div>
+              <label className="block text-xs text-slate-500 mb-1">
+                Primary Mentor <span className="text-slate-400">(junior, day-to-day)</span>
+              </label>
+              <SearchableSelect
+                options={employeeOptions}
+                value={infoForm.primaryMentorId}
+                onChange={(v) => setInfoForm({ ...infoForm, primaryMentorId: v })}
+                placeholder="Search employee..."
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-slate-500 mb-1">
+                Secondary Mentor <span className="text-slate-400">(senior, as needed)</span>
+              </label>
+              <SearchableSelect
+                options={employeeOptions}
+                value={infoForm.secondaryMentorId}
+                onChange={(v) => setInfoForm({ ...infoForm, secondaryMentorId: v })}
+                placeholder="Search employee..."
+              />
             </div>
             <div className="md:col-span-3">
               <label className="block text-xs text-slate-500 mb-1">Description</label>
@@ -222,8 +290,24 @@ export default function ProjectDetail() {
               </span>
             </div>
             <div>
+              <p className="text-xs text-slate-500">Category</p>
+              <p className="mt-1 text-slate-700">{project.category ? CATEGORY_LABELS[project.category] : '—'}</p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-500">Specific Area / Tool</p>
+              <p className="mt-1 text-slate-700">{project.technology?.name || '—'}</p>
+            </div>
+            <div>
               <p className="text-xs text-slate-500">Contract Type</p>
               <p className="mt-1 text-slate-700">{project.contractType ? CONTRACT_LABELS[project.contractType] : '—'}</p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-500">Primary Mentor</p>
+              <p className="mt-1 text-slate-700">{project.primaryMentor?.fullName || '—'}</p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-500">Secondary Mentor</p>
+              <p className="mt-1 text-slate-700">{project.secondaryMentor?.fullName || '—'}</p>
             </div>
             <div>
               <p className="text-xs text-slate-500">Start Date</p>

@@ -12,7 +12,9 @@ export class ProjectsService {
       where: { clientId: filters.clientId || undefined, status: filters.status || undefined },
       include: {
         client: { select: { id: true, name: true } },
-        projectManager: { select: EMPLOYEE_REF_SELECT },
+        technology: true,
+        primaryMentor: { select: EMPLOYEE_REF_SELECT },
+        secondaryMentor: { select: EMPLOYEE_REF_SELECT },
         _count: { select: { assignments: { where: { endDate: null } } } },
       },
       orderBy: { name: 'asc' },
@@ -24,7 +26,9 @@ export class ProjectsService {
       where: { id },
       include: {
         client: true,
-        projectManager: { select: EMPLOYEE_REF_SELECT },
+        technology: true,
+        primaryMentor: { select: EMPLOYEE_REF_SELECT },
+        secondaryMentor: { select: EMPLOYEE_REF_SELECT },
         assignments: {
           include: { employee: { select: EMPLOYEE_REF_SELECT } },
           orderBy: [{ endDate: 'asc' }, { startDate: 'desc' }],
@@ -43,7 +47,9 @@ export class ProjectsService {
         ...input,
         startDate: input.startDate ? new Date(input.startDate) : undefined,
         endDate: input.endDate ? new Date(input.endDate) : undefined,
-        projectManagerId: input.projectManagerId || undefined,
+        technologyId: input.technologyId || undefined,
+        primaryMentorId: input.primaryMentorId || undefined,
+        secondaryMentorId: input.secondaryMentorId || undefined,
       },
     });
   }
@@ -57,7 +63,9 @@ export class ProjectsService {
         ...input,
         startDate: input.startDate ? new Date(input.startDate) : input.startDate === '' ? null : undefined,
         endDate: input.endDate ? new Date(input.endDate) : input.endDate === '' ? null : undefined,
-        projectManagerId: input.projectManagerId || null,
+        technologyId: input.technologyId || null,
+        primaryMentorId: input.primaryMentorId || null,
+        secondaryMentorId: input.secondaryMentorId || null,
       },
     });
   }

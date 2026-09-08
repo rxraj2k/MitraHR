@@ -174,6 +174,14 @@ export interface Client {
 
 export type ProjectStatus = 'ACTIVE' | 'ON_HOLD' | 'COMPLETED' | 'CANCELLED';
 export type ContractType = 'T_AND_M' | 'FIXED_PRICE' | 'RETAINER' | 'MANAGED_SERVICE';
+export type ProjectCategory = 'DEVOPS' | 'IAM' | 'ACTIVE_DIRECTORY' | 'CLOUD_SECURITY' | 'CYBER_SECURITY';
+
+export interface Technology {
+  id: string;
+  name: string;
+  category: ProjectCategory;
+  active: boolean;
+}
 
 export interface ProjectClientRef {
   id: string;
@@ -199,10 +207,15 @@ export interface Project {
   description?: string | null;
   status: ProjectStatus;
   contractType?: ContractType | null;
+  category?: ProjectCategory | null;
+  technologyId?: string | null;
+  technology?: Technology | null;
+  primaryMentorId?: string | null;
+  primaryMentor?: EmployeeRef | null;
+  secondaryMentorId?: string | null;
+  secondaryMentor?: EmployeeRef | null;
   startDate?: string | null;
   endDate?: string | null;
-  projectManagerId?: string | null;
-  projectManager?: EmployeeRef | null;
   createdAt: string;
   assignments?: ProjectAssignment[];
   _count?: { assignments: number };

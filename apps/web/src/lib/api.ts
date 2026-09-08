@@ -15,6 +15,7 @@ import {
   MyProjectAssignment,
   Project,
   ProjectAssignment,
+  Technology,
 } from '../types';
 
 export const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000';
@@ -454,6 +455,26 @@ export function updateProjectAssignment(
 }
 export function removeProjectAssignment(token: string, projectId: string, assignmentId: string): Promise<void> {
   return authFetch(token, `/projects/${projectId}/assignments/${assignmentId}`, { method: 'DELETE' });
+}
+
+// --- Technologies ---
+
+export function getTechnologies(token: string, category?: string): Promise<Technology[]> {
+  const qs = category ? `?category=${category}` : '';
+  return authFetch(token, `/technologies${qs}`);
+}
+export function createTechnology(token: string, data: { name: string; category: string; active?: boolean }): Promise<Technology> {
+  return authFetch(token, '/technologies', { method: 'POST', body: JSON.stringify(data) });
+}
+export function updateTechnology(
+  token: string,
+  id: string,
+  data: { name: string; category: string; active?: boolean },
+): Promise<Technology> {
+  return authFetch(token, `/technologies/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+}
+export function deleteTechnology(token: string, id: string): Promise<void> {
+  return authFetch(token, `/technologies/${id}`, { method: 'DELETE' });
 }
 
 // --- Attendance ---

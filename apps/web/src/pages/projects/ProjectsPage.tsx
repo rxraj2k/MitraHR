@@ -2,8 +2,9 @@ import { FormEvent, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import SearchableSelect from '../../components/SearchableSelect';
-import { createProject, getClients, getEmployees, getProjects } from '../../lib/api';
-import { Client, ContractType, Employee, Project, ProjectStatus } from '../../types';
+import { CATEGORY_LABELS } from '../../components/TechnologyManager';
+import { createProject, getClients, getEmployees, getProjects, getTechnologies } from '../../lib/api';
+import { Client, ContractType, Employee, Project, ProjectCategory, ProjectStatus, Technology } from '../../types';
 
 const STATUS_STYLES: Record<ProjectStatus, string> = {
   ACTIVE: 'bg-green-100 text-green-700',
@@ -19,11 +20,14 @@ const CONTRACT_LABELS: Record<ContractType, string> = {
   MANAGED_SERVICE: 'Managed Service',
 };
 
+const CATEGORIES = Object.keys(CATEGORY_LABELS) as ProjectCategory[];
+
 export default function ProjectsPage() {
   const { token } = useAuth();
   const [projects, setProjects] = useState<Project[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [technologies, setTechnologies] = useState<Technology[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [statusFilter, setStatusFilter] = useState<ProjectStatus | 'ALL'>('ALL');
@@ -35,19 +39,23 @@ export default function ProjectsPage() {
     description: '',
     status: 'ACTIVE' as ProjectStatus,
     contractType: '' as ContractType | '',
+    category: '' as ProjectCategory | '',
+    technologyId: '',
+    primaryMentorId: '',
+    secondaryMentorId: '',
     startDate: '',
     endDate: '',
-    projectManagerId: '',
   });
 
   function load() {
     if (!token) return;
     setLoading(true);
-    Promise.all([getProjects(token), getClients(token), getEmployees(token)])
-      .then(([p, c, e]) => {
+    Promise.all([getProjects(token), getClients(token), getEmployees(token), getTechnologies(token)])
+      .then(([p, c, e, t]) => {
         setProjects(p);
         setClients(c);
         setEmployees(e);
+        setTechnologies(t.filter((x) => x.active));
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
@@ -64,9 +72,12 @@ export default function ProjectsPage() {
       await createProject(token, {
         ...form,
         contractType: form.contractType || undefined,
+        category: form.category || undefined,
+        technologyId: form.technologyId || undefined,
+        primaryMentorId: form.primaryMentorId || undefined,
+        secondaryMentorId: form.secondaryMentorId || undefined,
         startDate: form.startDate || undefined,
         endDate: form.endDate || undefined,
-        projectManagerId: form.projectManagerId || undefined,
       } as any);
       setForm({
         name: '',
@@ -74,9 +85,12 @@ export default function ProjectsPage() {
         description: '',
         status: 'ACTIVE',
         contractType: '',
+        category: '',
+        technologyId: '',
+        primaryMentorId: '',
+        secondaryMentorId: '',
         startDate: '',
         endDate: '',
-        projectManagerId: '',
       });
       setShowAdd(false);
       load();
@@ -89,6 +103,9 @@ export default function ProjectsPage() {
 
   const clientOptions = clients.map((c) => ({ id: c.id, name: c.name }));
   const employeeOptions = employees.map((e) => ({ id: e.id, name: e.fullName }));
+  const technologyOptions = technologies
+    .filter((t) => !form.category || t.category === form.category)
+    .map((t) => ({ id: t.id, name: t.name }));
   const shown = statusFilter === 'ALL' ? projects : projects.filter((p) => p.status === statusFilter);
 
   return (
@@ -126,15 +143,6 @@ export default function ProjectsPage() {
             />
           </div>
           <div>
-            <label className="block text-xs text-slate-500 mb-1">Project Manager</label>
-            <SearchableSelect
-              options={employeeOptions}
-              value={form.projectManagerId}
-              onChange={(id) => setForm({ ...form, projectManagerId: id })}
-              placeholder="Search employee..."
-            />
-          </div>
-          <div>
             <label className="block text-xs text-slate-500 mb-1">Status</label>
             <select
               value={form.status}
@@ -146,6 +154,30 @@ export default function ProjectsPage() {
               <option value="COMPLETED">Completed</option>
               <option value="CANCELLED">Cancelled</option>
             </select>
+          </div>
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Category</label>
+            <select
+              value={form.category}
+              onChange={(e) => setForm({ ...form, category: e.target.value as ProjectCategory | '', technologyId: '' })}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            >
+              <option value="">Select...</option>
+              {CATEGORIES.map((c) => (
+                <option key={c} value={c}>
+                  {CATEGORY_LABELS[c]}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Specific Area / Tool</label>
+            <SearchableSelect
+              options={technologyOptions}
+              value={form.technologyId}
+              onChange={(id) => setForm({ ...form, technologyId: id })}
+              placeholder={form.category ? 'Search tool...' : 'Pick a category first'}
+            />
           </div>
           <div>
             <label className="block text-xs text-slate-500 mb-1">Contract Type</label>
@@ -161,6 +193,28 @@ export default function ProjectsPage() {
                 </option>
               ))}
             </select>
+          </div>
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">
+              Primary Mentor <span className="text-slate-400">(junior, day-to-day)</span>
+            </label>
+            <SearchableSelect
+              options={employeeOptions}
+              value={form.primaryMentorId}
+              onChange={(id) => setForm({ ...form, primaryMentorId: id })}
+              placeholder="Search employee..."
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">
+              Secondary Mentor <span className="text-slate-400">(senior, as needed)</span>
+            </label>
+            <SearchableSelect
+              options={employeeOptions}
+              value={form.secondaryMentorId}
+              onChange={(id) => setForm({ ...form, secondaryMentorId: id })}
+              placeholder="Search employee..."
+            />
           </div>
           <div>
             <label className="block text-xs text-slate-500 mb-1">Start Date</label>
@@ -225,7 +279,9 @@ export default function ProjectsPage() {
                 <tr className="text-left text-xs text-slate-500 border-b border-slate-100">
                   <th className="pb-2 font-medium">Project</th>
                   <th className="pb-2 font-medium">Client</th>
-                  <th className="pb-2 font-medium">Manager</th>
+                  <th className="pb-2 font-medium">Category / Tool</th>
+                  <th className="pb-2 font-medium">Primary Mentor</th>
+                  <th className="pb-2 font-medium">Secondary Mentor</th>
                   <th className="pb-2 font-medium">Team</th>
                   <th className="pb-2 font-medium">Status</th>
                 </tr>
@@ -239,7 +295,12 @@ export default function ProjectsPage() {
                       </Link>
                     </td>
                     <td className="py-2 text-slate-600">{p.client?.name}</td>
-                    <td className="py-2 text-slate-500">{p.projectManager?.fullName || '—'}</td>
+                    <td className="py-2 text-slate-500">
+                      {p.category ? CATEGORY_LABELS[p.category] : '—'}
+                      {p.technology ? ` · ${p.technology.name}` : ''}
+                    </td>
+                    <td className="py-2 text-slate-500">{p.primaryMentor?.fullName || '—'}</td>
+                    <td className="py-2 text-slate-500">{p.secondaryMentor?.fullName || '—'}</td>
                     <td className="py-2 text-slate-500">{p._count?.assignments ?? 0}</td>
                     <td className="py-2">
                       <span className={`px-2 py-0.5 rounded-full text-xs ${STATUS_STYLES[p.status]}`}>

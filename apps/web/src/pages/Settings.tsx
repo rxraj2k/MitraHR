@@ -1,6 +1,7 @@
 import LookupManager from '../components/LookupManager';
 import AdminManager from '../components/AdminManager';
 import LeaveTypeManager from '../components/LeaveTypeManager';
+import TechnologyManager from '../components/TechnologyManager';
 import HolidayManager from '../components/HolidayManager';
 import {
   createDepartment,
@@ -46,6 +47,7 @@ export default function Settings() {
         <AdminManager />
         <HolidayManager />
         <LeaveTypeManager />
+        <TechnologyManager />
       </div>
     </div>
   );

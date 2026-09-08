@@ -101,7 +101,8 @@ model Employee {
   compOffLedgers CompOffLedger[]
   attendanceRecords AttendanceRecord[]
   projectAssignments ProjectAssignment[]
-  managedProjects    Project[]            @relation("ProjectManager")
+  primaryMentorProjects   Project[]        @relation("PrimaryMentor")
+  secondaryMentorProjects Project[]        @relation("SecondaryMentor")
   linkedUser User?
 
   dateOfJoining DateTime?
@@ -276,23 +277,52 @@ model Client {
 // contractType is informational only for now (no billing/invoicing logic
 // yet — that is a possible future sprint): T&M, FIXED_PRICE, RETAINER,
 // MANAGED_SERVICE.
+// category: DEVOPS, IAM, ACTIVE_DIRECTORY, CLOUD_SECURITY, CYBER_SECURITY.
+// technologyId is the specific tool/platform for that category (see the
+// Technology lookup below), optional in case the exact tool isn't listed
+// yet — add it from Settings rather than leaving the project blank.
+//
+// Every project is staffed with two mentors, per how engagements actually
+// run: a Primary Mentor (a junior employee, on the client's shift day to
+// day) and a Secondary Mentor (a senior employee, engaged when their
+// expertise is needed). Both are optional Employee links, same as before.
 model Project {
-  id               String              @id @default(uuid())
-  name             String
-  clientId         String
-  client           Client              @relation(fields: [clientId], references: [id])
-  description      String?
-  status           String              @default("ACTIVE")
-  contractType     String?
-  startDate        DateTime?
-  endDate          DateTime?
-  projectManagerId String?
-  projectManager   Employee?           @relation("ProjectManager", fields: [projectManagerId], references: [id])
-  createdAt        DateTime            @default(now())
-  updatedAt        DateTime            @updatedAt
-  assignments      ProjectAssignment[]
+  id                 String              @id @default(uuid())
+  name               String
+  clientId           String
+  client             Client              @relation(fields: [clientId], references: [id])
+  description        String?
+  status             String              @default("ACTIVE")
+  contractType       String?
+  category           String?
+  technologyId       String?
+  technology         Technology?         @relation(fields: [technologyId], references: [id])
+  primaryMentorId    String?
+  primaryMentor      Employee?           @relation("PrimaryMentor", fields: [primaryMentorId], references: [id])
+  secondaryMentorId  String?
+  secondaryMentor    Employee?           @relation("SecondaryMentor", fields: [secondaryMentorId], references: [id])
+  startDate          DateTime?
+  endDate            DateTime?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  assignments        ProjectAssignment[]
 
   @@unique([clientId, name])
+}
+
+// Managed lookup list — editable from Settings (add/rename/delete), like
+// Departments/Designations/Skills. Grouped by category so the Project form
+// can show only the tools relevant to whichever category was picked first.
+model Technology {
+  id        String    @id @default(uuid())
+  name      String
+  category  String
+  active    Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  projects  Project[]
+
+  @@unique([name, category])
 }
 
 // One row per employee staffed on a project. A null endDate means still
