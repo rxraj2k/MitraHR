@@ -19,6 +19,7 @@ const STAFF_NAV_ITEMS = [
   { to: '/leave', label: 'Leaves & Attendance', end: false, icon: CalendarCheckIcon },
   { to: '/clients', label: 'Client Management', end: false, icon: BuildingIcon },
   { to: '/projects', label: 'Project Management', end: false, icon: BriefcaseIcon },
+  { to: '/settings', label: 'Master Data', end: false, icon: SettingsIcon },
 ];
 
 const EMPLOYEE_NAV_ITEMS = [
@@ -58,14 +59,6 @@ export default function AppLayout() {
             );
           })}
         </nav>
-        {isStaff && (
-          <div className="px-3 pb-4 pt-4 border-t border-white/10">
-            <NavLink to="/settings" className={navLinkClass}>
-              <SettingsIcon className="w-5 h-5 flex-shrink-0" />
-              <span>Master Data</span>
-            </NavLink>
-          </div>
-        )}
       </aside>
 
       <div className="flex-1 flex flex-col min-w-0">
