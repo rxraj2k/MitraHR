@@ -222,6 +222,42 @@ export interface Project {
   _count?: { assignments: number };
 }
 
+export type UtilizationStatus = 'BENCH' | 'PARTIAL' | 'FULL' | 'OVER';
+
+export interface UtilizationAssignment {
+  projectId: string;
+  projectName: string;
+  projectStatus: ProjectStatus;
+  clientName: string;
+  allocationPercent: number;
+  roleOnProject?: string | null;
+}
+
+export interface UtilizationEntry {
+  id: string;
+  fullName: string;
+  employeeCode?: string | null;
+  photoUrl?: string | null;
+  departmentName?: string | null;
+  designationName?: string | null;
+  totalAllocation: number;
+  status: UtilizationStatus;
+  assignments: UtilizationAssignment[];
+}
+
+export interface UtilizationSummary {
+  total: number;
+  bench: number;
+  partial: number;
+  full: number;
+  over: number;
+}
+
+export interface UtilizationResponse {
+  employees: UtilizationEntry[];
+  summary: UtilizationSummary;
+}
+
 export interface MyProjectAssignment {
   id: string;
   roleOnProject?: string | null;

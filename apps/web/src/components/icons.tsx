@@ -79,6 +79,17 @@ export function BriefcaseIcon(props: IconProps) {
   );
 }
 
+export function GaugeIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M4 16a8 8 0 0 1 16 0" />
+      <path d="M12 16 15.5 10.5" />
+      <circle cx="12" cy="16" r="1" />
+      <path d="M4 16h1.5M18.5 16H20M6.3 9.8l1 1M17.7 9.8l-1 1M12 5v1.5" />
+    </svg>
+  );
+}
+
 export function DatabaseIcon(props: IconProps) {
   return (
     <svg {...base} {...props}>

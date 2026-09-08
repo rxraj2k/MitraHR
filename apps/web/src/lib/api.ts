@@ -15,6 +15,7 @@ import {
   MyProjectAssignment,
   Project,
   ProjectAssignment,
+  UtilizationResponse,
   Technology,
 } from '../types';
 
@@ -462,6 +463,12 @@ export function updateProjectAssignment(
 }
 export function removeProjectAssignment(token: string, projectId: string, assignmentId: string): Promise<void> {
   return authFetch(token, `/projects/${projectId}/assignments/${assignmentId}`, { method: 'DELETE' });
+}
+
+// --- Bench / Utilization ---
+
+export function getUtilization(token: string): Promise<UtilizationResponse> {
+  return authFetch(token, '/utilization');
 }
 
 // --- Technologies ---

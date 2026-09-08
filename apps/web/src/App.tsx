@@ -14,6 +14,7 @@ import AdminLeave from './pages/leave/AdminLeave';
 import ClientsPage from './pages/projects/ClientsPage';
 import ProjectsPage from './pages/projects/ProjectsPage';
 import ProjectDetail from './pages/projects/ProjectDetail';
+import UtilizationPage from './pages/projects/UtilizationPage';
 
 function ProtectedRoute({ children }: { children: JSX.Element }) {
   const { token, loading } = useAuth();
@@ -88,6 +89,14 @@ export default function App() {
           element={
             <StaffOnlyRoute>
               <ProjectDetail />
+            </StaffOnlyRoute>
+          }
+        />
+        <Route
+          path="utilization"
+          element={
+            <StaffOnlyRoute>
+              <UtilizationPage />
             </StaffOnlyRoute>
           }
         />
