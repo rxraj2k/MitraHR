@@ -79,6 +79,97 @@ export function BriefcaseIcon(props: IconProps) {
   );
 }
 
+export function TrophyIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M7 4.5h10v4a5 5 0 0 1-10 0v-4Z" />
+      <path d="M7 5.5H4.5a1 1 0 0 0-1 1v1a3.5 3.5 0 0 0 3.5 3.5" />
+      <path d="M17 5.5h2.5a1 1 0 0 1 1 1v1a3.5 3.5 0 0 1-3.5 3.5" />
+      <path d="M12 13.5v3M9 20.5h6M9.5 20.5c0-2 .8-3 2.5-3.5 1.7.5 2.5 1.5 2.5 3.5" />
+    </svg>
+  );
+}
+
+export function ExternalLinkIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M9 6H5.5a2 2 0 0 0-2 2V18a2 2 0 0 0 2 2H16a2 2 0 0 0 2-2v-3.5" />
+      <path d="M14.5 4H20v5.5" />
+      <path d="M20 4 11 13" />
+    </svg>
+  );
+}
+
+export function GraduationCapIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M2.5 9.5 12 5l9.5 4.5L12 14 2.5 9.5Z" />
+      <path d="M6 11.5V16c0 1.5 2.7 3 6 3s6-1.5 6-3v-4.5" />
+      <path d="M21.5 9.5V15.5" />
+    </svg>
+  );
+}
+
+export function ClipboardListIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <rect x="5" y="4.5" width="14" height="17" rx="2" />
+      <path d="M9 4.5V3.75a1.25 1.25 0 0 1 1.25-1.25h3.5A1.25 1.25 0 0 1 15 3.75V4.5" />
+      <path d="M8.5 10.5h7M8.5 14h7M8.5 17.5h4.5" />
+    </svg>
+  );
+}
+
+export function GridIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <rect x="3.5" y="3.5" width="7.5" height="7.5" rx="1.5" />
+      <rect x="13" y="3.5" width="7.5" height="7.5" rx="1.5" />
+      <rect x="3.5" y="13" width="7.5" height="7.5" rx="1.5" />
+      <rect x="13" y="13" width="7.5" height="7.5" rx="1.5" />
+    </svg>
+  );
+}
+
+export function NotebookIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <rect x="4.5" y="3" width="15" height="18" rx="2" />
+      <path d="M8.5 3v18" />
+      <path d="M4.5 7.5h2M4.5 11h2M4.5 14.5h2" />
+      <path d="M12 9h4M12 12.5h4M12 16h2.5" />
+    </svg>
+  );
+}
+
+export function ShieldIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M12 3.5 19 6v5.5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-2.5Z" />
+      <path d="m9 12 2 2 4-4.5" />
+    </svg>
+  );
+}
+
+export function SparkleIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M12 3v3.5M12 17.5V21M3 12h3.5M17.5 12H21" />
+      <path d="M12 8.5c0 2-1.5 3.5-3.5 3.5 2 0 3.5 1.5 3.5 3.5 0-2 1.5-3.5 3.5-3.5-2 0-3.5-1.5-3.5-3.5Z" />
+    </svg>
+  );
+}
+
+export function GlobeIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M3.5 12h17" />
+      <path d="M12 3.5c2.5 2.3 3.8 5.3 3.8 8.5s-1.3 6.2-3.8 8.5c-2.5-2.3-3.8-5.3-3.8-8.5S9.5 5.8 12 3.5Z" />
+    </svg>
+  );
+}
+
 export function GaugeIcon(props: IconProps) {
   return (
     <svg {...base} {...props}>

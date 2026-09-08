@@ -15,6 +15,8 @@ import ClientsPage from './pages/projects/ClientsPage';
 import ProjectsPage from './pages/projects/ProjectsPage';
 import ProjectDetail from './pages/projects/ProjectDetail';
 import UtilizationPage from './pages/projects/UtilizationPage';
+import LearningCenter from './pages/training/LearningCenter';
+import MyLearning from './pages/training/MyLearning';
 
 function ProtectedRoute({ children }: { children: JSX.Element }) {
   const { token, loading } = useAuth();
@@ -100,6 +102,15 @@ export default function App() {
             </StaffOnlyRoute>
           }
         />
+        <Route
+          path="training"
+          element={
+            <StaffOnlyRoute>
+              <LearningCenter />
+            </StaffOnlyRoute>
+          }
+        />
+        <Route path="my-learning" element={<MyLearning />} />
         <Route
           path="settings"
           element={

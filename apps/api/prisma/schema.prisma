@@ -103,6 +103,7 @@ model Employee {
   projectAssignments ProjectAssignment[]
   primaryMentorProjects   Project[]        @relation("PrimaryMentor")
   secondaryMentorProjects Project[]        @relation("SecondaryMentor")
+  trainingAssignments EmployeeTraining[]
   linkedUser User?
 
   dateOfJoining DateTime?
@@ -342,4 +343,59 @@ model ProjectAssignment {
   endDate           DateTime?
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
+}
+
+
+// Assignable learning items — a mandatory onboarding course, video series,
+// or hands-on guide (Udemy, YouTube, an internal doc, etc.), managed from
+// the Learning Center catalog. category groups them for display (Agile &
+// Project Tools, Microsoft 365, Zoho Tools, IT & Security, AI Tools, Global
+// Work Skills). restrictedTo optionally names who a course is really for
+// (e.g. "DevOps Engineer") — informational only, shown as a tag in the
+// assign picker rather than auto-matched against designation, since real
+// titles vary too much (Senior DevOps Engineer, etc.) to match safely.
+model TrainingCourse {
+  id           String             @id @default(uuid())
+  title        String             @unique
+  category     String
+  description  String?
+  restrictedTo String?
+  active       Boolean            @default(true)
+  order        Int                @default(0)
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+  resources    TrainingResource[]
+  assignments  EmployeeTraining[]
+}
+
+// A course can point at more than one resource — a Udemy course plus one or
+// two alternative YouTube videos, a Drive doc, etc. label distinguishes them
+// in the UI ("Udemy", "YouTube (alt)", "Google Drive"...).
+model TrainingResource {
+  id       String         @id @default(uuid())
+  courseId String
+  course   TrainingCourse @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  label    String?
+  url      String
+  order    Int            @default(0)
+}
+
+// One row per employee per assigned course. Allowed status: NOT_STARTED,
+// IN_PROGRESS, COMPLETED. Deliberately no due date — these are "finish as
+// soon as you can" assignments, tracked by status only, per how the
+// company actually runs onboarding training.
+model EmployeeTraining {
+  id          String         @id @default(uuid())
+  employeeId  String
+  employee    Employee       @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  courseId    String
+  course      TrainingCourse @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  status      String         @default("NOT_STARTED")
+  assignedAt  DateTime       @default(now())
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@unique([employeeId, courseId])
 }

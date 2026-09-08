@@ -1,10 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
-export type UtilizationStatus = 'BENCH' | 'PARTIAL' | 'FULL' | 'OVER';
+export type UtilizationStatus = 'BENCH' | 'IN_TRAINING' | 'PARTIAL' | 'FULL' | 'OVER';
 
-function statusFor(totalAllocation: number): UtilizationStatus {
-  if (totalAllocation <= 0) return 'BENCH';
+function statusFor(totalAllocation: number, hasIncompleteTraining: boolean): UtilizationStatus {
+  if (totalAllocation <= 0) return hasIncompleteTraining ? 'IN_TRAINING' : 'BENCH';
   if (totalAllocation < 100) return 'PARTIAL';
   if (totalAllocation === 100) return 'FULL';
   return 'OVER';
@@ -14,7 +14,9 @@ function statusFor(totalAllocation: number): UtilizationStatus {
 // assignments (endDate null) on projects that are still ACTIVE or ON_HOLD —
 // a project that's been ended already closes out its assignments (see
 // ProjectsService.end), so this naturally excludes completed/cancelled work
-// without needing to filter it out again here.
+// without needing to filter it out again here. Anyone at 0% allocation who
+// still has incomplete onboarding training assigned reads as "In Training"
+// rather than "On Bench" — they're not idle, they're ramping up.
 @Injectable()
 export class UtilizationService {
   constructor(private prisma: PrismaService) {}
@@ -39,12 +41,16 @@ export class UtilizationService {
             },
           },
         },
+        trainingAssignments: { select: { status: true } },
       },
       orderBy: { fullName: 'asc' },
     });
 
     const rows = employees.map((e) => {
       const totalAllocation = e.projectAssignments.reduce((sum, a) => sum + a.allocationPercent, 0);
+      const trainingTotal = e.trainingAssignments.length;
+      const trainingCompleted = e.trainingAssignments.filter((a) => a.status === 'COMPLETED').length;
+      const hasIncompleteTraining = trainingTotal > trainingCompleted;
       return {
         id: e.id,
         fullName: e.fullName,
@@ -53,7 +59,9 @@ export class UtilizationService {
         departmentName: e.department?.name || null,
         designationName: e.designation?.name || null,
         totalAllocation,
-        status: statusFor(totalAllocation),
+        status: statusFor(totalAllocation, hasIncompleteTraining),
+        trainingTotal,
+        trainingCompleted,
         assignments: e.projectAssignments.map((a) => ({
           projectId: a.project.id,
           projectName: a.project.name,
@@ -68,6 +76,7 @@ export class UtilizationService {
     const summary = {
       total: rows.length,
       bench: rows.filter((r) => r.status === 'BENCH').length,
+      inTraining: rows.filter((r) => r.status === 'IN_TRAINING').length,
       partial: rows.filter((r) => r.status === 'PARTIAL').length,
       full: rows.filter((r) => r.status === 'FULL').length,
       over: rows.filter((r) => r.status === 'OVER').length,

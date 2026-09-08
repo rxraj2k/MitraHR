@@ -222,6 +222,176 @@ const TECHNOLOGIES: Array<{ name: string; category: string }> = [
   { name: 'Azure Bicep / ARM Templates', category: 'DEVOPS' },
 ];
 
+// Seeded from the actual onboarding curriculum the company hands new hires
+// today (a Zoho Notebook page full of Udemy/YouTube/Drive links) — see
+// TrainingCourse. Each course can carry more than one resource link
+// (alternates, or a main course + a follow-along doc), and `restrictedTo`
+// marks the handful that only apply to one role (currently just Git
+// Branching, for DevOps engineers) — informational, not auto-enforced.
+const TRAINING_COURSES: Array<{
+  title: string;
+  category: string;
+  description?: string;
+  restrictedTo?: string;
+  order: number;
+  resources: Array<{ label?: string; url: string }>;
+}> = [
+  {
+    title: 'Scrum Tutorial',
+    category: 'AGILE_TOOLS',
+    order: 1,
+    resources: [
+      { label: 'Udemy: Agile Fundamentals (Scrum & Kanban)', url: 'https://www.udemy.com/share/1013Ii3@OXUmwqFcqZi2fyE2aUaLqvw663_Q7caB4OIM8-yaErWpOXydWzqBPWqRm2L6NgnHQA==/' },
+      { label: 'YouTube', url: 'https://youtu.be/s3y95I79D_Q?si=NGdASQMMnLbCOX-X' },
+      { label: 'YouTube (alternate)', url: 'https://youtu.be/SWDhGSZNF9M?si=lrav7W7ds6JXSlwV' },
+    ],
+  },
+  {
+    title: 'Agile Tutorial',
+    category: 'AGILE_TOOLS',
+    order: 2,
+    resources: [{ label: 'YouTube', url: 'https://youtu.be/vxpKA9UuM1w?si=wIvvtrquL9VQPZIj' }],
+  },
+  {
+    title: 'Jira Tutorial',
+    category: 'AGILE_TOOLS',
+    description: 'Set up a free Jira trial account and follow along hands-on.',
+    order: 3,
+    resources: [
+      { label: 'YouTube', url: 'https://youtu.be/OKK3gMRdLzg?si=tGyy0OS1FjjGcWlj' },
+      { label: 'YouTube (alternate)', url: 'https://youtu.be/ekQOcHf8cBc?si=Xo6X4mlXwSu-ntHE' },
+    ],
+  },
+  {
+    title: 'Confluence',
+    category: 'AGILE_TOOLS',
+    order: 4,
+    resources: [
+      { label: 'YouTube', url: 'https://youtu.be/TmeAE2uRJGY?si=yv3Wtm5oEatxyOuW' },
+      { label: 'YouTube (alternate)', url: 'https://youtu.be/LOFdJbtQY-A?si=snvSrDPIzEKswXO2' },
+    ],
+  },
+  {
+    title: 'Outlook Tutorial',
+    category: 'MS365',
+    description:
+      "You can configure our office email with Outlook. Step 1: Enable IMAP in Zoho Mail — Settings → Mail Accounts → IMAP, turn on IMAP access, and save. Step 2: Add the account in Outlook, choosing IMAP as the account type, using the settings shown in the reference screenshots below.",
+    order: 1,
+    resources: [
+      { label: 'YouTube', url: 'https://youtu.be/4e_ghbyXcJ0?si=Nk_THs8ztxat5hWE' },
+      { label: 'IMAP Setup Screenshot 1', url: 'https://drive.google.com/file/d/1XgQc802aZY5WTdqi5zi2anFBLXcjhgqT/view?usp=drive_link' },
+      { label: 'IMAP Setup Screenshot 2', url: 'https://drive.google.com/file/d/1SeJ2LgumAVOV64ob3cUBtZYSsXXObL_P/view?usp=drive_link' },
+    ],
+  },
+  {
+    title: 'Writing Email',
+    category: 'MS365',
+    order: 2,
+    resources: [{ label: 'YouTube', url: 'https://youtu.be/U0gfefLM9to?si=oRF-tv6M_Y1HfI8H' }],
+  },
+  {
+    title: 'MS Teams',
+    category: 'MS365',
+    order: 3,
+    resources: [{ label: 'YouTube', url: 'https://youtu.be/jJMdtoL5zsE?si=PCwVMBDDu3Sni27d' }],
+  },
+  {
+    title: 'OneNote',
+    category: 'MS365',
+    order: 4,
+    resources: [{ label: 'YouTube', url: 'https://youtu.be/GJPfkvOFh0s?si=bLE41OeF9s5aqI8H' }],
+  },
+  {
+    title: 'SharePoint',
+    category: 'MS365',
+    order: 5,
+    resources: [{ label: 'YouTube', url: 'https://youtu.be/Mu6oWtbk9Nc?si=NmS2rlstJz6ghS3b' }],
+  },
+  {
+    title: 'Microsoft Excel',
+    category: 'MS365',
+    order: 6,
+    resources: [{ label: 'YouTube', url: 'https://youtu.be/OX-iyb-21tk?si=E22_VDtBCJlg776k' }],
+  },
+  {
+    title: 'Zoho ToDo',
+    category: 'ZOHO_TOOLS',
+    order: 1,
+    resources: [{ label: 'YouTube', url: 'https://youtu.be/t-NzHfut85k?si=_wZ81P_KBqORMloV' }],
+  },
+  {
+    title: 'Zoho Notebook',
+    category: 'ZOHO_TOOLS',
+    order: 2,
+    resources: [{ label: 'YouTube', url: 'https://youtu.be/gPGPQyxbrZA?si=dJJvvRG7vEaLrVFE' }],
+  },
+  {
+    title: 'ServiceNow',
+    category: 'SECURITY_IT',
+    order: 1,
+    resources: [{ label: 'YouTube', url: 'https://youtu.be/TWRA3nBOQpo?si=U6S72fOmRHszla22' }],
+  },
+  {
+    title: 'Phishing Awareness',
+    category: 'SECURITY_IT',
+    order: 2,
+    resources: [{ label: 'Training Document', url: 'https://workdrive.zoho.in/file/zxtj25759dbdc93864be193a3076439ec5c32' }],
+  },
+  {
+    title: 'Types of Environment',
+    category: 'SECURITY_IT',
+    order: 3,
+    resources: [{ label: 'YouTube', url: 'https://youtu.be/AlUXLJtSn_c?si=5rynkNMml4Vy8nu1' }],
+  },
+  {
+    title: 'Git Branching',
+    category: 'SECURITY_IT',
+    restrictedTo: 'DevOps Engineer',
+    order: 4,
+    resources: [
+      { label: 'YouTube', url: 'https://youtu.be/CwSEB0LoB74?si=WEEny3VmLHJB7nBj' },
+      { label: 'YouTube (alternate)', url: 'https://youtu.be/6QNgbD2m7gA?si=T0jwERGavgH6B3hX' },
+    ],
+  },
+  {
+    title: 'AI Fundamentals',
+    category: 'AI_TOOLS',
+    description: "Only the specific topics linked below are required — no need to complete the entire Udemy course.",
+    order: 1,
+    resources: [
+      { label: 'Udemy (selected topics only)', url: 'https://www.udemy.com/share/108c2m3@sitk4aUtmPGGWOe6HiTetCSkHq8CiE42XVXSZHruziYWTL09s5X_l0g6ejgpM1Vskw==/' },
+      { label: 'YouTube (selected topics)', url: 'https://www.youtube.com/watch?v=5i2Hn8OG94o' },
+    ],
+  },
+  {
+    title: 'Parakeet AI Guide',
+    category: 'AI_TOOLS',
+    description: 'Do the hands-on exercises yourself using your own personal account.',
+    order: 2,
+    resources: [{ label: 'Guide', url: 'https://workdrive.zoho.in/file/3t87xf7af3f05dcfd45bc8c690c44300e8dce' }],
+  },
+  {
+    title: 'US Time Zones',
+    category: 'GLOBAL_SKILLS',
+    order: 1,
+    resources: [{ label: 'YouTube', url: 'https://youtu.be/kjAMPug7i_M?si=LfHyUisWtjLJHut0' }],
+  },
+  {
+    title: 'Daylight Saving (DST)',
+    category: 'GLOBAL_SKILLS',
+    order: 2,
+    resources: [{ label: 'YouTube', url: 'https://youtu.be/DRQcW9ODoP4?si=UCwGZlJ7YugO0WEL' }],
+  },
+  {
+    title: 'Improve Your American Accent',
+    category: 'GLOBAL_SKILLS',
+    description:
+      "Dedicate at least 30 minutes Mon–Fri (5:00–5:30 PM) to this. Search YouTube for: \"American accent training for beginners\", \"US accent pronunciation tips\", \"American R sound pronunciation\", \"flap T sound American English\", \"American vowel sounds training\", \"American English intonation and rhythm\". Recommended channels: Rachel's English (start here — very structured), Accent's Way by Hadar Shemesh, EnglishAnyone, Speak English With Vanessa, ETJ English. Found a better resource? Share it so it can be added here.",
+    order: 3,
+    resources: [{ label: "Rachel's English (YouTube channel)", url: 'https://youtube.com/@rachelsenglish?si=uW47PT93FazrH9-v' }],
+  },
+];
+
 async function main() {
   const email = 'admin@mitrahr.local';
   const existingAdmin = await prisma.user.findUnique({ where: { email } });
@@ -275,6 +445,22 @@ async function main() {
     });
   }
   console.log(`Technologies ready: ${TECHNOLOGIES.length} across 5 categories`);
+
+  for (const c of TRAINING_COURSES) {
+    await prisma.trainingCourse.upsert({
+      where: { title: c.title },
+      update: {},
+      create: {
+        title: c.title,
+        category: c.category,
+        description: c.description,
+        restrictedTo: c.restrictedTo,
+        order: c.order,
+        resources: { create: c.resources.map((r, i) => ({ label: r.label, url: r.url, order: i })) },
+      },
+    });
+  }
+  console.log(`Training courses ready: ${TRAINING_COURSES.length} across 6 categories`);
 
   await prisma.counter.upsert({
     where: { name: 'employeeCode' },

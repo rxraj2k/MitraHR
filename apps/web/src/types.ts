@@ -222,7 +222,7 @@ export interface Project {
   _count?: { assignments: number };
 }
 
-export type UtilizationStatus = 'BENCH' | 'PARTIAL' | 'FULL' | 'OVER';
+export type UtilizationStatus = 'BENCH' | 'IN_TRAINING' | 'PARTIAL' | 'FULL' | 'OVER';
 
 export interface UtilizationAssignment {
   projectId: string;
@@ -242,12 +242,15 @@ export interface UtilizationEntry {
   designationName?: string | null;
   totalAllocation: number;
   status: UtilizationStatus;
+  trainingTotal: number;
+  trainingCompleted: number;
   assignments: UtilizationAssignment[];
 }
 
 export interface UtilizationSummary {
   total: number;
   bench: number;
+  inTraining: number;
   partial: number;
   full: number;
   over: number;
@@ -314,4 +317,52 @@ export interface AttendanceDay {
   absent: EmployeeRef[];
   presentOnHoliday: EmployeeRef[];
   presentOnWeekend: EmployeeRef[];
+}
+
+
+// --- Training & Certifications ---
+
+export type TrainingCategory = 'AGILE_TOOLS' | 'MS365' | 'ZOHO_TOOLS' | 'SECURITY_IT' | 'AI_TOOLS' | 'GLOBAL_SKILLS';
+export type TrainingStatus = 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED';
+
+export interface TrainingResource {
+  id: string;
+  label?: string | null;
+  url: string;
+  order: number;
+}
+
+export interface TrainingCourse {
+  id: string;
+  title: string;
+  category: TrainingCategory;
+  description?: string | null;
+  restrictedTo?: string | null;
+  active: boolean;
+  order: number;
+  resources: TrainingResource[];
+}
+
+export interface EmployeeTraining {
+  id: string;
+  employeeId: string;
+  courseId: string;
+  course: TrainingCourse;
+  status: TrainingStatus;
+  assignedAt: string;
+  startedAt?: string | null;
+  completedAt?: string | null;
+}
+
+export interface TrainingProgressEntry {
+  id: string;
+  fullName: string;
+  employeeCode?: string | null;
+  photoUrl?: string | null;
+  departmentName?: string | null;
+  designationName?: string | null;
+  totalAssigned: number;
+  completed: number;
+  inProgress: number;
+  percentComplete: number;
 }

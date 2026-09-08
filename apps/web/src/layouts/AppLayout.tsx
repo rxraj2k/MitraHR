@@ -6,6 +6,7 @@ import {
   CalendarCheckIcon,
   DatabaseIcon,
   GaugeIcon,
+  GraduationCapIcon,
   HomeIcon,
   ShareNetworkIcon,
   UsersIcon,
@@ -21,6 +22,7 @@ const STAFF_NAV_ITEMS = [
   { to: '/clients', label: 'Client Management', end: false, icon: BuildingIcon },
   { to: '/projects', label: 'Project Management', end: false, icon: BriefcaseIcon },
   { to: '/utilization', label: 'Bench & Utilization', end: false, icon: GaugeIcon },
+  { to: '/training', label: 'Learning Center', end: false, icon: GraduationCapIcon },
   { to: '/settings', label: 'Master Data', end: false, icon: DatabaseIcon },
 ];
 
@@ -29,6 +31,7 @@ const EMPLOYEE_NAV_ITEMS = [
   { to: '/employees', label: 'Employees', end: false, icon: UsersIcon },
   { to: '/org-chart', label: 'Team Topology', end: false, icon: ShareNetworkIcon },
   { to: '/my-leave', label: 'My Leaves & Attendance', end: false, icon: CalendarCheckIcon },
+  { to: '/my-learning', label: 'My Learning', end: false, icon: GraduationCapIcon },
 ];
 
 function navLinkClass({ isActive }: { isActive: boolean }) {

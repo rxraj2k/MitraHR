@@ -16,6 +16,9 @@ import {
   Project,
   ProjectAssignment,
   UtilizationResponse,
+  TrainingCourse,
+  EmployeeTraining,
+  TrainingProgressEntry,
   Technology,
 } from '../types';
 
@@ -469,6 +472,38 @@ export function removeProjectAssignment(token: string, projectId: string, assign
 
 export function getUtilization(token: string): Promise<UtilizationResponse> {
   return authFetch(token, '/utilization');
+}
+
+// --- Training & Certifications ---
+
+export function getTrainingCourses(token: string, includeInactive?: boolean): Promise<TrainingCourse[]> {
+  const qs = includeInactive ? '?includeInactive=true' : '';
+  return authFetch(token, `/training/courses${qs}`);
+}
+export function createTrainingCourse(token: string, data: Partial<TrainingCourse>): Promise<TrainingCourse> {
+  return authFetch(token, '/training/courses', { method: 'POST', body: JSON.stringify(data) });
+}
+export function updateTrainingCourse(token: string, id: string, data: Partial<TrainingCourse>): Promise<TrainingCourse> {
+  return authFetch(token, `/training/courses/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+}
+export function deleteTrainingCourse(token: string, id: string): Promise<void> {
+  return authFetch(token, `/training/courses/${id}`, { method: 'DELETE' });
+}
+export function getTrainingProgress(token: string): Promise<TrainingProgressEntry[]> {
+  return authFetch(token, '/training/progress');
+}
+export function assignTraining(token: string, data: { employeeIds: string[]; courseIds: string[] }): Promise<void> {
+  return authFetch(token, '/training/assignments', { method: 'POST', body: JSON.stringify(data) });
+}
+export function updateTrainingAssignmentStatus(token: string, id: string, status: string): Promise<EmployeeTraining> {
+  return authFetch(token, `/training/assignments/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) });
+}
+export function removeTrainingAssignment(token: string, id: string): Promise<void> {
+  return authFetch(token, `/training/assignments/${id}`, { method: 'DELETE' });
+}
+export function getMyTraining(token: string, employeeId?: string): Promise<EmployeeTraining[]> {
+  const qs = employeeId ? `?employeeId=${employeeId}` : '';
+  return authFetch(token, `/training/my${qs}`);
 }
 
 // --- Technologies ---

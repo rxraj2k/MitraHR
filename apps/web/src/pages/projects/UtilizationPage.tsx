@@ -7,6 +7,7 @@ import { UtilizationEntry, UtilizationResponse, UtilizationStatus } from '../../
 
 const STATUS_LABELS: Record<UtilizationStatus, string> = {
   BENCH: 'On Bench',
+  IN_TRAINING: 'In Training',
   PARTIAL: 'Partially Allocated',
   FULL: 'Fully Allocated',
   OVER: 'Over-Allocated',
@@ -14,6 +15,7 @@ const STATUS_LABELS: Record<UtilizationStatus, string> = {
 
 const STATUS_BADGE: Record<UtilizationStatus, string> = {
   BENCH: 'bg-slate-100 text-slate-500',
+  IN_TRAINING: 'bg-fuchsia-100 text-fuchsia-700',
   PARTIAL: 'bg-amber-100 text-amber-700',
   FULL: 'bg-green-100 text-green-700',
   OVER: 'bg-red-100 text-red-700',
@@ -21,6 +23,7 @@ const STATUS_BADGE: Record<UtilizationStatus, string> = {
 
 const STATUS_BAR: Record<UtilizationStatus, string> = {
   BENCH: 'bg-slate-300',
+  IN_TRAINING: 'bg-fuchsia-400',
   PARTIAL: 'bg-amber-500',
   FULL: 'bg-green-500',
   OVER: 'bg-red-500',
@@ -29,6 +32,7 @@ const STATUS_BAR: Record<UtilizationStatus, string> = {
 const FILTERS: { key: UtilizationStatus | 'ALL'; label: string }[] = [
   { key: 'ALL', label: 'All' },
   { key: 'BENCH', label: 'On Bench' },
+  { key: 'IN_TRAINING', label: 'In Training' },
   { key: 'PARTIAL', label: 'Partial' },
   { key: 'FULL', label: 'Full' },
   { key: 'OVER', label: 'Over-Allocated' },
@@ -77,10 +81,14 @@ export default function UtilizationPage() {
         <p className="text-slate-500 text-sm">Loading...</p>
       ) : (
         <>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
             <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
               <p className="text-xs font-medium text-slate-500">On Bench</p>
               <p className="text-2xl font-semibold text-slate-800 mt-1">{data?.summary.bench ?? 0}</p>
+            </div>
+            <div className="bg-fuchsia-50 border border-fuchsia-200 rounded-xl p-4">
+              <p className="text-xs font-medium text-fuchsia-600">In Training</p>
+              <p className="text-2xl font-semibold text-fuchsia-900 mt-1">{data?.summary.inTraining ?? 0}</p>
             </div>
             <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
               <p className="text-xs font-medium text-amber-600">Partially Allocated</p>
@@ -96,7 +104,7 @@ export default function UtilizationPage() {
             </div>
           </div>
 
-          <div className="flex gap-2 text-sm">
+          <div className="flex gap-2 text-sm flex-wrap">
             {FILTERS.map((f) => (
               <button
                 key={f.key}
@@ -159,6 +167,13 @@ export default function UtilizationPage() {
                           <span className={`px-2 py-0.5 rounded-full text-xs ${STATUS_BADGE[e.status]}`}>
                             {STATUS_LABELS[e.status]}
                           </span>
+                          {e.trainingTotal > 0 && (
+                            <div className="mt-1">
+                              <Link to="/training" className="text-xs text-slate-400 hover:text-mitra-accentFrom hover:underline">
+                                Training: {e.trainingCompleted}/{e.trainingTotal}
+                              </Link>
+                            </div>
+                          )}
                         </td>
                       </tr>
                     ))}
