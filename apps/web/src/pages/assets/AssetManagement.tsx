@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import TabBar, { TabBarItem } from '../../components/TabBar';
 import {
   ASSET_CATEGORIES,
   ASSET_CONDITIONS,
@@ -22,6 +23,12 @@ import {
   updateAsset,
 } from '../../lib/api';
 import { Asset, AssetCategory, AssetStatus, Employee } from '../../types';
+
+type Tab = 'inventory' | 'assignments';
+const TABS: TabBarItem<Tab>[] = [
+  { key: 'inventory', label: 'List of Assets', color: 'teal' },
+  { key: 'assignments', label: 'Asset Assignment', color: 'indigo' },
+];
 
 interface AssetForm {
   assetTag: string;
@@ -54,256 +61,20 @@ function formatDate(d?: string | null) {
   return new Date(d).toLocaleDateString();
 }
 
-// The expanded row for one asset: full assignment history, plus whichever
-// action makes sense right now (Assign when free, Return when out,
-// otherwise a quick status correction).
-function AssetDetail({
-  asset,
-  employees,
+// --- List of Assets tab: the inventory itself (add, edit, delete, browse
+// by category) — no assignment actions here, just what the company owns
+// and its current status. ---
+function InventoryTab({
+  assets,
+  loading,
   onChanged,
 }: {
-  asset: Asset;
-  employees: Employee[];
+  assets: Asset[];
+  loading: boolean;
   onChanged: () => void;
 }) {
   const { token } = useAuth();
-  const [detail, setDetail] = useState<Asset | null>(null);
   const [error, setError] = useState('');
-  const [busy, setBusy] = useState(false);
-
-  const [assignEmployeeId, setAssignEmployeeId] = useState('');
-  const [assignCondition, setAssignCondition] = useState('GOOD');
-
-  const [returnCondition, setReturnCondition] = useState('GOOD');
-  const [returnStatus, setReturnStatus] = useState('AVAILABLE');
-  const [returnNotes, setReturnNotes] = useState('');
-
-  function load() {
-    if (!token) return;
-    getAsset(token, asset.id)
-      .then(setDetail)
-      .catch((err) => setError(err.message));
-  }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(load, [token, asset.id]);
-
-  async function handleAssign(e: FormEvent) {
-    e.preventDefault();
-    if (!token || !assignEmployeeId) return;
-    setBusy(true);
-    setError('');
-    try {
-      await assignAsset(token, asset.id, { employeeId: assignEmployeeId, conditionAtAssignment: assignCondition });
-      setAssignEmployeeId('');
-      load();
-      onChanged();
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function handleReturn(e: FormEvent) {
-    e.preventDefault();
-    if (!token) return;
-    setBusy(true);
-    setError('');
-    try {
-      await returnAsset(token, asset.id, {
-        conditionAtReturn: returnCondition,
-        resultingStatus: returnStatus,
-        returnNotes: returnNotes || undefined,
-      });
-      setReturnNotes('');
-      load();
-      onChanged();
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function handleQuickStatus(status: string) {
-    if (!token) return;
-    setBusy(true);
-    setError('');
-    try {
-      await setAssetStatus(token, asset.id, status);
-      load();
-      onChanged();
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  const holderName = (id: string) => employees.find((e) => e.id === id)?.fullName || 'Unknown';
-
-  return (
-    <div className="px-4 py-4 bg-slate-50 space-y-4">
-      {error && <div className="text-sm text-red-600">{error}</div>}
-
-      {asset.status === 'AVAILABLE' && (
-        <form onSubmit={handleAssign} className="bg-white border border-slate-200 rounded-lg p-4">
-          <h4 className="text-xs font-semibold text-slate-600 mb-3">Assign this asset</h4>
-          <div className="flex flex-wrap items-end gap-3">
-            <div>
-              <label className="block text-xs text-slate-500 mb-1">Employee</label>
-              <select
-                required
-                value={assignEmployeeId}
-                onChange={(e) => setAssignEmployeeId(e.target.value)}
-                className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm min-w-[180px]"
-              >
-                <option value="">Select...</option>
-                {employees.map((e) => (
-                  <option key={e.id} value={e.id}>
-                    {e.fullName}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs text-slate-500 mb-1">Condition handed out</label>
-              <select
-                value={assignCondition}
-                onChange={(e) => setAssignCondition(e.target.value)}
-                className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm"
-              >
-                {ASSET_CONDITIONS.map((c) => (
-                  <option key={c} value={c}>
-                    {CONDITION_LABELS[c]}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <button
-              type="submit"
-              disabled={busy}
-              className="rounded-lg bg-gradient-to-r from-mitra-accentFrom to-mitra-accentTo text-white text-sm font-medium px-4 py-1.5 disabled:opacity-50"
-            >
-              Assign
-            </button>
-          </div>
-        </form>
-      )}
-
-      {asset.status === 'ASSIGNED' && (
-        <form onSubmit={handleReturn} className="bg-white border border-slate-200 rounded-lg p-4">
-          <h4 className="text-xs font-semibold text-slate-600 mb-3">Mark returned</h4>
-          <div className="flex flex-wrap items-end gap-3">
-            <div>
-              <label className="block text-xs text-slate-500 mb-1">Condition on return</label>
-              <select
-                value={returnCondition}
-                onChange={(e) => setReturnCondition(e.target.value)}
-                className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm"
-              >
-                {ASSET_CONDITIONS.map((c) => (
-                  <option key={c} value={c}>
-                    {CONDITION_LABELS[c]}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs text-slate-500 mb-1">Send it to</label>
-              <select
-                value={returnStatus}
-                onChange={(e) => setReturnStatus(e.target.value)}
-                className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm"
-              >
-                <option value="AVAILABLE">Available (back in circulation)</option>
-                <option value="IN_REPAIR">In Repair</option>
-                <option value="RETIRED">Retired</option>
-                <option value="LOST">Lost</option>
-              </select>
-            </div>
-            <div className="flex-1 min-w-[160px]">
-              <label className="block text-xs text-slate-500 mb-1">Notes (optional)</label>
-              <input
-                value={returnNotes}
-                onChange={(e) => setReturnNotes(e.target.value)}
-                placeholder="e.g. minor scratch on lid"
-                className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm"
-              />
-            </div>
-            <button
-              type="submit"
-              disabled={busy}
-              className="rounded-lg bg-gradient-to-r from-mitra-accentFrom to-mitra-accentTo text-white text-sm font-medium px-4 py-1.5 disabled:opacity-50"
-            >
-              Mark Returned
-            </button>
-          </div>
-        </form>
-      )}
-
-      {(asset.status === 'IN_REPAIR' || asset.status === 'RETIRED' || asset.status === 'LOST') && (
-        <div className="bg-white border border-slate-200 rounded-lg p-4 flex items-center gap-3">
-          <span className="text-xs text-slate-500">Currently {STATUS_LABELS[asset.status].toLowerCase()}.</span>
-          <button
-            onClick={() => handleQuickStatus('AVAILABLE')}
-            disabled={busy}
-            className="text-xs text-mitra-accentFrom hover:underline disabled:opacity-50"
-          >
-            Mark Available again
-          </button>
-        </div>
-      )}
-
-      <div>
-        <h4 className="text-xs font-semibold text-slate-600 mb-2">Assignment history</h4>
-        {!detail ? (
-          <p className="text-slate-500 text-sm">Loading...</p>
-        ) : detail.assignments && detail.assignments.length > 0 ? (
-          <div className="overflow-x-auto bg-white border border-slate-200 rounded-lg">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-xs text-slate-500 border-b border-slate-100">
-                  <th className="px-3 py-2 font-medium">Employee</th>
-                  <th className="px-3 py-2 font-medium">Assigned</th>
-                  <th className="px-3 py-2 font-medium">Condition Out</th>
-                  <th className="px-3 py-2 font-medium">Returned</th>
-                  <th className="px-3 py-2 font-medium">Condition In</th>
-                  <th className="px-3 py-2 font-medium">Notes</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {detail.assignments.map((a) => (
-                  <tr key={a.id}>
-                    <td className="px-3 py-2 text-slate-700">{a.employee?.fullName || holderName(a.employeeId)}</td>
-                    <td className="px-3 py-2 text-slate-500">{formatDate(a.assignedAt)}</td>
-                    <td className="px-3 py-2 text-slate-500">{CONDITION_LABELS[a.conditionAtAssignment]}</td>
-                    <td className="px-3 py-2 text-slate-500">
-                      {a.returnedAt ? formatDate(a.returnedAt) : <span className="text-indigo-600">Still out</span>}
-                    </td>
-                    <td className="px-3 py-2 text-slate-500">{a.conditionAtReturn ? CONDITION_LABELS[a.conditionAtReturn] : '—'}</td>
-                    <td className="px-3 py-2 text-slate-500">{a.returnNotes || '—'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <p className="text-slate-500 text-sm">Never assigned yet.</p>
-        )}
-      </div>
-    </div>
-  );
-}
-
-export default function AssetManagement() {
-  const { token } = useAuth();
-  const [assets, setAssets] = useState<Asset[]>([]);
-  const [employees, setEmployees] = useState<Employee[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [expandedId, setExpandedId] = useState<string | null>(null);
-
   const [categoryFilter, setCategoryFilter] = useState<string>('ALL');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
 
@@ -311,20 +82,7 @@ export default function AssetManagement() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<AssetForm>(EMPTY_ASSET);
   const [submitting, setSubmitting] = useState(false);
-
-  function load() {
-    if (!token) return;
-    setLoading(true);
-    Promise.all([getAssets(token), getEmployees(token)])
-      .then(([a, e]) => {
-        setAssets(a);
-        setEmployees(e);
-      })
-      .catch((err) => setError(err.message))
-      .finally(() => setLoading(false));
-  }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(load, [token]);
+  const [busyId, setBusyId] = useState<string | null>(null);
 
   function startAdd() {
     setEditingId(null);
@@ -367,7 +125,7 @@ export default function AssetManagement() {
       setShowForm(false);
       setEditingId(null);
       setForm(EMPTY_ASSET);
-      load();
+      onChanged();
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -380,9 +138,23 @@ export default function AssetManagement() {
     if (!confirm('Delete this asset? Only possible if it has never been assigned to anyone.')) return;
     try {
       await deleteAsset(token, id);
-      load();
+      onChanged();
     } catch (err: any) {
       setError(err.message);
+    }
+  }
+
+  async function handleMarkAvailable(id: string) {
+    if (!token) return;
+    setBusyId(id);
+    setError('');
+    try {
+      await setAssetStatus(token, id, 'AVAILABLE');
+      onChanged();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setBusyId(null);
     }
   }
 
@@ -393,45 +165,16 @@ export default function AssetManagement() {
     (g) => g.items.length > 0,
   );
 
-  const tileCounts: Record<AssetStatus, number> = {
-    AVAILABLE: 0,
-    ASSIGNED: 0,
-    IN_REPAIR: 0,
-    RETIRED: 0,
-    LOST: 0,
-  };
-  assets.forEach((a) => {
-    tileCounts[a.status] += 1;
-  });
-
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold text-slate-800">Asset Management</h1>
-          <p className="text-sm text-slate-500 mt-1">Laptops, monitors, ID cards, phones, and licenses — who has what, and the full history.</p>
-        </div>
+        <p className="text-sm text-slate-500">Everything the company owns — add new assets and manage what's already on the books.</p>
         <button
           onClick={() => (showForm ? setShowForm(false) : startAdd())}
           className="rounded-lg bg-gradient-to-r from-mitra-accentFrom to-mitra-accentTo text-white text-sm font-medium px-4 py-2"
         >
           {showForm ? 'Cancel' : '+ Add Asset'}
         </button>
-      </div>
-
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        {STATUS_TILE_ORDER.map((s) => (
-          <button
-            key={s}
-            onClick={() => setStatusFilter(statusFilter === s ? 'ALL' : s)}
-            className={`bg-white border rounded-xl p-4 text-left transition-colors ${
-              statusFilter === s ? 'border-mitra-accentTo' : 'border-slate-200 hover:border-slate-300'
-            }`}
-          >
-            <div className={`text-2xl font-semibold ${STATUS_TILE_COLOR[s]}`}>{tileCounts[s]}</div>
-            <div className="text-xs text-slate-500 mt-1">{STATUS_LABELS[s]}</div>
-          </button>
-        ))}
       </div>
 
       {error && <div className="text-sm text-red-600">{error}</div>}
@@ -511,7 +254,7 @@ export default function AssetManagement() {
         </form>
       )}
 
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 flex-wrap">
         <select
           value={categoryFilter}
           onChange={(e) => setCategoryFilter(e.target.value)}
@@ -524,11 +267,18 @@ export default function AssetManagement() {
             </option>
           ))}
         </select>
-        {statusFilter !== 'ALL' && (
-          <button onClick={() => setStatusFilter('ALL')} className="text-xs text-mitra-accentFrom hover:underline">
-            Clear status filter ({STATUS_LABELS[statusFilter as AssetStatus]})
-          </button>
-        )}
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm"
+        >
+          <option value="ALL">All statuses</option>
+          {STATUS_TILE_ORDER.map((s) => (
+            <option key={s} value={s}>
+              {STATUS_LABELS[s]}
+            </option>
+          ))}
+        </select>
       </div>
 
       {loading ? (
@@ -567,40 +317,36 @@ export default function AssetManagement() {
                       {items.map((a) => {
                         const holder = a.assignments && a.assignments[0];
                         return (
-                          <>
-                            <tr
-                              key={a.id}
-                              className="hover:bg-white/60 cursor-pointer bg-white/40"
-                              onClick={() => setExpandedId(expandedId === a.id ? null : a.id)}
-                            >
-                              <td className="px-3 py-2 font-medium text-slate-700">{a.assetTag}</td>
-                              <td className="px-3 py-2 text-slate-600">{a.name}</td>
-                              <td className="px-3 py-2 text-slate-500">{a.serialNumber || '—'}</td>
-                              <td className="px-3 py-2">
-                                <span className={`px-2 py-0.5 rounded-full text-xs ${STATUS_BADGE[a.status]}`}>
-                                  {STATUS_LABELS[a.status]}
-                                </span>
-                              </td>
-                              <td className="px-3 py-2 text-slate-600">{holder?.employee?.fullName || '—'}</td>
-                              <td className="px-3 py-2 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                                <div className="flex items-center justify-end gap-3">
-                                  <button onClick={() => startEdit(a)} className="text-xs text-slate-500 hover:text-mitra-accentFrom">
-                                    Edit
+                          <tr key={a.id} className="bg-white/40">
+                            <td className="px-3 py-2 font-medium text-slate-700">{a.assetTag}</td>
+                            <td className="px-3 py-2 text-slate-600">{a.name}</td>
+                            <td className="px-3 py-2 text-slate-500">{a.serialNumber || '—'}</td>
+                            <td className="px-3 py-2">
+                              <span className={`px-2 py-0.5 rounded-full text-xs ${STATUS_BADGE[a.status]}`}>
+                                {STATUS_LABELS[a.status]}
+                              </span>
+                            </td>
+                            <td className="px-3 py-2 text-slate-600">{holder?.employee?.fullName || '—'}</td>
+                            <td className="px-3 py-2 text-right whitespace-nowrap">
+                              <div className="flex items-center justify-end gap-3">
+                                {(a.status === 'IN_REPAIR' || a.status === 'RETIRED' || a.status === 'LOST') && (
+                                  <button
+                                    onClick={() => handleMarkAvailable(a.id)}
+                                    disabled={busyId === a.id}
+                                    className="text-xs text-mitra-accentFrom hover:underline disabled:opacity-50"
+                                  >
+                                    Mark Available
                                   </button>
-                                  <button onClick={() => handleDelete(a.id)} className="text-xs text-red-500 hover:text-red-700">
-                                    Delete
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                            {expandedId === a.id && (
-                              <tr>
-                                <td colSpan={6} className="p-0">
-                                  <AssetDetail asset={a} employees={employees} onChanged={load} />
-                                </td>
-                              </tr>
-                            )}
-                          </>
+                                )}
+                                <button onClick={() => startEdit(a)} className="text-xs text-slate-500 hover:text-mitra-accentFrom">
+                                  Edit
+                                </button>
+                                <button onClick={() => handleDelete(a.id)} className="text-xs text-red-500 hover:text-red-700">
+                                  Delete
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
                         );
                       })}
                     </tbody>
@@ -611,6 +357,359 @@ export default function AssetManagement() {
           );
         })
       )}
+    </div>
+  );
+}
+
+// The expanded row for one currently-assigned asset: a Return form plus
+// its full history.
+function AssignmentHistory({ asset, onChanged }: { asset: Asset; onChanged: () => void }) {
+  const { token } = useAuth();
+  const [detail, setDetail] = useState<Asset | null>(null);
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const [returnCondition, setReturnCondition] = useState('GOOD');
+  const [returnStatus, setReturnStatus] = useState('AVAILABLE');
+  const [returnNotes, setReturnNotes] = useState('');
+
+  function load() {
+    if (!token) return;
+    getAsset(token, asset.id)
+      .then(setDetail)
+      .catch((err) => setError(err.message));
+  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(load, [token, asset.id]);
+
+  async function handleReturn(e: FormEvent) {
+    e.preventDefault();
+    if (!token) return;
+    setBusy(true);
+    setError('');
+    try {
+      await returnAsset(token, asset.id, {
+        conditionAtReturn: returnCondition,
+        resultingStatus: returnStatus,
+        returnNotes: returnNotes || undefined,
+      });
+      setReturnNotes('');
+      load();
+      onChanged();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="px-4 py-4 bg-slate-50 space-y-4">
+      {error && <div className="text-sm text-red-600">{error}</div>}
+
+      <form onSubmit={handleReturn} className="bg-white border border-slate-200 rounded-lg p-4">
+        <h4 className="text-xs font-semibold text-slate-600 mb-3">Mark returned</h4>
+        <div className="flex flex-wrap items-end gap-3">
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Condition on return</label>
+            <select
+              value={returnCondition}
+              onChange={(e) => setReturnCondition(e.target.value)}
+              className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm"
+            >
+              {ASSET_CONDITIONS.map((c) => (
+                <option key={c} value={c}>
+                  {CONDITION_LABELS[c]}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Send it to</label>
+            <select
+              value={returnStatus}
+              onChange={(e) => setReturnStatus(e.target.value)}
+              className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm"
+            >
+              <option value="AVAILABLE">Available (back in circulation)</option>
+              <option value="IN_REPAIR">In Repair</option>
+              <option value="RETIRED">Retired</option>
+              <option value="LOST">Lost</option>
+            </select>
+          </div>
+          <div className="flex-1 min-w-[160px]">
+            <label className="block text-xs text-slate-500 mb-1">Notes (optional)</label>
+            <input
+              value={returnNotes}
+              onChange={(e) => setReturnNotes(e.target.value)}
+              placeholder="e.g. minor scratch on lid"
+              className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm"
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={busy}
+            className="rounded-lg bg-gradient-to-r from-mitra-accentFrom to-mitra-accentTo text-white text-sm font-medium px-4 py-1.5 disabled:opacity-50"
+          >
+            Mark Returned
+          </button>
+        </div>
+      </form>
+
+      <div>
+        <h4 className="text-xs font-semibold text-slate-600 mb-2">Assignment history</h4>
+        {!detail ? (
+          <p className="text-slate-500 text-sm">Loading...</p>
+        ) : detail.assignments && detail.assignments.length > 0 ? (
+          <div className="overflow-x-auto bg-white border border-slate-200 rounded-lg">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs text-slate-500 border-b border-slate-100">
+                  <th className="px-3 py-2 font-medium">Employee</th>
+                  <th className="px-3 py-2 font-medium">Assigned</th>
+                  <th className="px-3 py-2 font-medium">Condition Out</th>
+                  <th className="px-3 py-2 font-medium">Returned</th>
+                  <th className="px-3 py-2 font-medium">Condition In</th>
+                  <th className="px-3 py-2 font-medium">Notes</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {detail.assignments.map((a) => (
+                  <tr key={a.id}>
+                    <td className="px-3 py-2 text-slate-700">{a.employee?.fullName || '—'}</td>
+                    <td className="px-3 py-2 text-slate-500">{formatDate(a.assignedAt)}</td>
+                    <td className="px-3 py-2 text-slate-500">{CONDITION_LABELS[a.conditionAtAssignment]}</td>
+                    <td className="px-3 py-2 text-slate-500">
+                      {a.returnedAt ? formatDate(a.returnedAt) : <span className="text-indigo-600">Still out</span>}
+                    </td>
+                    <td className="px-3 py-2 text-slate-500">{a.conditionAtReturn ? CONDITION_LABELS[a.conditionAtReturn] : '—'}</td>
+                    <td className="px-3 py-2 text-slate-500">{a.returnNotes || '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="text-slate-500 text-sm">No history yet.</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// --- Asset Assignment tab: who has what, right now — plus assigning an
+// available asset and marking one returned. ---
+function AssignmentsTab({
+  assets,
+  employees,
+  loading,
+  onChanged,
+}: {
+  assets: Asset[];
+  employees: Employee[];
+  loading: boolean;
+  onChanged: () => void;
+}) {
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  const [pickAssetId, setPickAssetId] = useState('');
+  const [pickEmployeeId, setPickEmployeeId] = useState('');
+  const [pickCondition, setPickCondition] = useState('GOOD');
+  const [assigning, setAssigning] = useState(false);
+  const [assignMessage, setAssignMessage] = useState('');
+  const { token } = useAuth();
+
+  const available = assets.filter((a) => a.status === 'AVAILABLE');
+  const assigned = assets.filter((a) => a.status === 'ASSIGNED');
+
+  async function handleAssignOne(e: FormEvent) {
+    e.preventDefault();
+    if (!token || !pickAssetId || !pickEmployeeId) return;
+    setAssigning(true);
+    setAssignMessage('');
+    try {
+      await assignAsset(token, pickAssetId, { employeeId: pickEmployeeId, conditionAtAssignment: pickCondition });
+      setAssignMessage('Assigned.');
+      setPickAssetId('');
+      setPickEmployeeId('');
+      onChanged();
+    } catch (err: any) {
+      setAssignMessage(err.message);
+    } finally {
+      setAssigning(false);
+    }
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="bg-white border border-slate-200 rounded-xl p-6">
+        <h2 className="text-lg font-semibold text-slate-800 mb-1">Assign an Asset</h2>
+        <p className="text-xs text-slate-500 mb-4">Hand an available asset to an employee. Only assets not currently out show up here.</p>
+        {assignMessage && <div className="text-sm text-slate-600 mb-3">{assignMessage}</div>}
+        <form onSubmit={handleAssignOne} className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Asset</label>
+            <select
+              required
+              value={pickAssetId}
+              onChange={(e) => setPickAssetId(e.target.value)}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            >
+              <option value="">Select an available asset...</option>
+              {available.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.assetTag} · {a.name} ({CATEGORY_LABELS[a.category]})
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Employee</label>
+            <select
+              required
+              value={pickEmployeeId}
+              onChange={(e) => setPickEmployeeId(e.target.value)}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            >
+              <option value="">Select an employee...</option>
+              {employees.map((e) => (
+                <option key={e.id} value={e.id}>
+                  {e.fullName}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Condition handed out</label>
+            <select
+              value={pickCondition}
+              onChange={(e) => setPickCondition(e.target.value)}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            >
+              {ASSET_CONDITIONS.map((c) => (
+                <option key={c} value={c}>
+                  {CONDITION_LABELS[c]}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex items-end">
+            <button
+              type="submit"
+              disabled={assigning}
+              className="rounded-lg bg-gradient-to-r from-mitra-accentFrom to-mitra-accentTo text-white text-sm font-medium px-4 py-2 disabled:opacity-50"
+            >
+              {assigning ? 'Assigning...' : 'Assign'}
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <div className="bg-white border border-slate-200 rounded-xl p-6">
+        <h2 className="text-lg font-semibold text-slate-800 mb-4">Who Has What</h2>
+        {loading ? (
+          <p className="text-slate-500 text-sm">Loading...</p>
+        ) : assigned.length === 0 ? (
+          <p className="text-slate-500 text-sm">Nothing currently checked out.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs text-slate-500 border-b border-slate-100">
+                  <th className="pb-2 font-medium">Asset</th>
+                  <th className="pb-2 font-medium">Tag</th>
+                  <th className="pb-2 font-medium">Category</th>
+                  <th className="pb-2 font-medium">Employee</th>
+                  <th className="pb-2 font-medium">Since</th>
+                  <th className="pb-2 font-medium"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {assigned.map((a) => {
+                  const holder = a.assignments && a.assignments[0];
+                  return (
+                    <>
+                      <tr key={a.id} className="hover:bg-slate-50 cursor-pointer" onClick={() => setExpandedId(expandedId === a.id ? null : a.id)}>
+                        <td className="py-2 font-medium text-slate-700">{a.name}</td>
+                        <td className="py-2 text-slate-500">{a.assetTag}</td>
+                        <td className="py-2 text-slate-500">{CATEGORY_LABELS[a.category]}</td>
+                        <td className="py-2 text-slate-600">{holder?.employee?.fullName || '—'}</td>
+                        <td className="py-2 text-slate-500">{holder ? formatDate(holder.assignedAt) : '—'}</td>
+                        <td className="py-2 text-right text-xs text-mitra-accentFrom">
+                          {expandedId === a.id ? 'Hide' : 'Return / History'}
+                        </td>
+                      </tr>
+                      {expandedId === a.id && (
+                        <tr>
+                          <td colSpan={6} className="p-0">
+                            <AssignmentHistory asset={a} onChanged={onChanged} />
+                          </td>
+                        </tr>
+                      )}
+                    </>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export default function AssetManagement() {
+  const { token } = useAuth();
+  const [assets, setAssets] = useState<Asset[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState<Tab>('inventory');
+
+  function load() {
+    if (!token) return;
+    setLoading(true);
+    Promise.all([getAssets(token), getEmployees(token)])
+      .then(([a, e]) => {
+        setAssets(a);
+        setEmployees(e);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(load, [token]);
+
+  const tileCounts: Record<AssetStatus, number> = {
+    AVAILABLE: 0,
+    ASSIGNED: 0,
+    IN_REPAIR: 0,
+    RETIRED: 0,
+    LOST: 0,
+  };
+  assets.forEach((a) => {
+    tileCounts[a.status] += 1;
+  });
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-semibold text-slate-800">Asset Management</h1>
+        <p className="text-sm text-slate-500 mt-1">Laptops, monitors, ID cards, phones, and licenses — what the company owns, and who has it.</p>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        {STATUS_TILE_ORDER.map((s) => (
+          <div key={s} className="bg-white border border-slate-200 rounded-xl p-4">
+            <div className={`text-2xl font-semibold ${STATUS_TILE_COLOR[s]}`}>{tileCounts[s]}</div>
+            <div className="text-xs text-slate-500 mt-1">{STATUS_LABELS[s]}</div>
+          </div>
+        ))}
+      </div>
+
+      <TabBar tabs={TABS} active={tab} onChange={setTab} />
+
+      {tab === 'inventory' && <InventoryTab assets={assets} loading={loading} onChanged={load} />}
+      {tab === 'assignments' && <AssignmentsTab assets={assets} employees={employees} loading={loading} onChanged={load} />}
     </div>
   );
 }
