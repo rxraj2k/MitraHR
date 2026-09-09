@@ -693,3 +693,9 @@ export function markAllNotificationsRead(token: string): Promise<void> {
 export function getUpcomingBirthdays(token: string, days = 7): Promise<UpcomingBirthday[]> {
   return authFetch(token, `/employees/birthdays/upcoming?days=${days}`);
 }
+
+// Staff-only: runs the birthday + document-expiry check immediately
+// instead of waiting for the daily 8am cron.
+export function runDailyNotificationCheck(token: string): Promise<{ success: boolean }> {
+  return authFetch(token, '/notifications/run-daily-check', { method: 'POST' });
+}

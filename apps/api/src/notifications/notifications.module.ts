@@ -10,6 +10,6 @@ import { DailyJobsService } from './daily-jobs.service';
 @Module({
   controllers: [NotificationsController],
   providers: [NotificationsService, DailyJobsService],
-  exports: [NotificationsService],
+  exports: [NotificationsService, DailyJobsService],
 })
 export class NotificationsModule {}

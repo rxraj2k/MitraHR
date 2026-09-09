@@ -7,6 +7,7 @@ import {
   getUnreadNotificationCount,
   markAllNotificationsRead,
   markNotificationRead,
+  runDailyNotificationCheck,
 } from '../lib/api';
 import { AppNotification } from '../types';
 import { BellIcon } from './icons';
@@ -24,11 +25,12 @@ function timeAgo(iso: string) {
 }
 
 export default function NotificationBell() {
-  const { token } = useAuth();
+  const { token, isStaff } = useAuth();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<AppNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [runningCheck, setRunningCheck] = useState(false);
 
   async function loadCount() {
     if (!token) return;
@@ -76,6 +78,20 @@ export default function NotificationBell() {
     if (n.link) navigate(n.link);
   }
 
+  async function handleRunDailyCheck() {
+    if (!token) return;
+    setRunningCheck(true);
+    try {
+      await runDailyNotificationCheck(token);
+      await loadCount();
+      await loadList();
+    } catch {
+      // best-effort
+    } finally {
+      setRunningCheck(false);
+    }
+  }
+
   async function handleMarkAllRead() {
     if (!token) return;
     try {
@@ -107,11 +123,23 @@ export default function NotificationBell() {
           <div className="absolute right-0 mt-2 w-80 max-h-96 overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-lg z-20">
             <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 sticky top-0 bg-white">
               <span className="text-sm font-semibold text-slate-700">Notifications</span>
-              {unreadCount > 0 && (
-                <button onClick={handleMarkAllRead} className="text-xs text-mitra-accentFrom hover:underline">
-                  Mark all read
-                </button>
-              )}
+              <div className="flex items-center gap-3">
+                {isStaff && (
+                  <button
+                    onClick={handleRunDailyCheck}
+                    disabled={runningCheck}
+                    title="Run the birthday + document-expiry check now, instead of waiting for the daily 8am run"
+                    className="text-xs text-slate-400 hover:text-mitra-accentFrom disabled:opacity-50"
+                  >
+                    {runningCheck ? 'Running...' : 'Run daily check'}
+                  </button>
+                )}
+                {unreadCount > 0 && (
+                  <button onClick={handleMarkAllRead} className="text-xs text-mitra-accentFrom hover:underline">
+                    Mark all read
+                  </button>
+                )}
+              </div>
             </div>
             {items.length === 0 ? (
               <p className="text-sm text-slate-400 px-4 py-6 text-center">No notifications yet.</p>
