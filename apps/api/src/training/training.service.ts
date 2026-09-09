@@ -1,11 +1,15 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 const COURSE_INCLUDE = { resources: { orderBy: { order: 'asc' as const } } };
 
 @Injectable()
 export class TrainingService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private notifications: NotificationsService,
+  ) {}
 
   // --- Catalog (staff-only management) ---
 
@@ -106,6 +110,19 @@ export class TrainingService {
             create: { employeeId, courseId },
           }),
         ),
+      ),
+    );
+    await Promise.all(
+      employeeIds.map((employeeId) =>
+        this.notifications.notifyEmployee(employeeId, {
+          type: 'TRAINING_ASSIGNED',
+          title:
+            courseIds.length === 1
+              ? 'A new course was assigned to you'
+              : `${courseIds.length} new courses were assigned to you`,
+          employeeLink: '/my-learning',
+          staffLink: '/training',
+        }),
       ),
     );
     return { success: true };

@@ -269,3 +269,22 @@ export function FolderIcon(props: IconProps) {
     </svg>
   );
 }
+
+export function BellIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M6 10a6 6 0 1 1 12 0c0 4 1.5 5.5 1.5 5.5H4.5S6 14 6 10Z" />
+      <path d="M10 19a2 2 0 0 0 4 0" />
+    </svg>
+  );
+}
+
+export function CakeIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M4 12.5h16v6.5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-6.5Z" />
+      <path d="M4 12.5c0-1.5 1.5-1.5 1.5-3S4 7 4 7m8 5.5c0-1.5 1.5-1.5 1.5-3S12 6 12 6m4 6.5c0-1.5 1.5-1.5 1.5-3S16 7 16 7" />
+      <path d="M12 3.5v2" />
+    </svg>
+  );
+}

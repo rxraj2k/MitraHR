@@ -1,7 +1,15 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { getCompanyDocuments, getMyAssets, getMyEmployeeDocuments, getMyProjects, openAuthedFile } from '../lib/api';
-import { AssetAssignment, CompanyDocument, EmployeeDocument, MyProjectAssignment } from '../types';
+import {
+  API_BASE,
+  getCompanyDocuments,
+  getMyAssets,
+  getMyEmployeeDocuments,
+  getMyProjects,
+  getUpcomingBirthdays,
+  openAuthedFile,
+} from '../lib/api';
+import { AssetAssignment, CompanyDocument, EmployeeDocument, MyProjectAssignment, UpcomingBirthday } from '../types';
 import { CATEGORY_LABELS as ASSET_CATEGORY_LABELS, STATUS_BADGE as ASSET_STATUS_BADGE, STATUS_LABELS as ASSET_STATUS_LABELS } from '../lib/assetCategories';
 import {
   EMPLOYEE_DOCUMENT_TYPE_LABELS,
@@ -9,6 +17,13 @@ import {
   EXPIRY_STATUS_LABELS,
   getExpiryStatus,
 } from '../lib/documentCategories';
+import { CakeIcon } from '../components/icons';
+
+function birthdayWhen(daysUntil: number) {
+  if (daysUntil === 0) return 'Today!';
+  if (daysUntil === 1) return 'Tomorrow';
+  return `In ${daysUntil} days`;
+}
 
 const STATUS_STYLES: Record<string, string> = {
   ACTIVE: 'bg-green-100 text-green-700',
@@ -24,8 +39,16 @@ export default function Home() {
   const [myAssets, setMyAssets] = useState<AssetAssignment[]>([]);
   const [myDocuments, setMyDocuments] = useState<EmployeeDocument[]>([]);
   const [companyDocuments, setCompanyDocuments] = useState<CompanyDocument[]>([]);
+  const [birthdays, setBirthdays] = useState<UpcomingBirthday[]>([]);
 
   const employeeId = user?.kind === 'EMPLOYEE' ? user.id : user?.employeeId;
+
+  useEffect(() => {
+    if (!token) return;
+    getUpcomingBirthdays(token, 7)
+      .then(setBirthdays)
+      .catch(() => {});
+  }, [token]);
 
   useEffect(() => {
     if (!token || !employeeId) return;
@@ -52,6 +75,33 @@ export default function Home() {
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-semibold text-slate-800">Welcome, {user?.name?.split(' ')[0]}</h1>
+
+      {birthdays.length > 0 && (
+        <div className="bg-gradient-to-r from-fuchsia-50 to-indigo-50 border border-fuchsia-200 rounded-xl p-5">
+          <div className="flex items-center gap-2 mb-3">
+            <CakeIcon className="w-5 h-5 text-fuchsia-500" />
+            <h2 className="text-sm font-semibold text-slate-700">Birthdays</h2>
+          </div>
+          <ul className="flex flex-wrap gap-3">
+            {birthdays.map((b) => (
+              <li
+                key={b.id}
+                className="flex items-center gap-2 bg-white border border-fuchsia-100 rounded-full pl-1.5 pr-3 py-1.5"
+              >
+                {b.photoUrl ? (
+                  <img src={`${API_BASE}${b.photoUrl}`} alt="" className="w-6 h-6 rounded-full object-cover" />
+                ) : (
+                  <span className="w-6 h-6 rounded-full bg-fuchsia-100 text-fuchsia-600 text-xs font-semibold flex items-center justify-center">
+                    {b.fullName.charAt(0).toUpperCase()}
+                  </span>
+                )}
+                <span className="text-sm text-slate-700">{b.fullName}</span>
+                <span className="text-xs text-fuchsia-500 font-medium">{birthdayWhen(b.daysUntil)}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {employeeId && (
         <div className="bg-white border border-slate-200 rounded-xl p-6">

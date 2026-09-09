@@ -160,6 +160,28 @@ export class EmployeesService {
   // Cross-employee view for the staff-only Document Management page — every
   // employee document in one list, so expiry can be monitored company-wide
   // instead of digging through profiles one at a time.
+  // Everyone's birthday within the next `days` days (today included),
+  // sorted soonest-first. Compared by month/day only — the year in
+  // dateOfBirth never matters here.
+  async upcomingBirthdays(days: number) {
+    const employees = await this.prisma.employee.findMany({
+      where: { status: 'ACTIVE', dateOfBirth: { not: null } },
+      select: { id: true, fullName: true, photoUrl: true, dateOfBirth: true },
+    });
+    const today = new Date();
+    const startOfToday = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
+    return employees
+      .map((e) => {
+        const dob = e.dateOfBirth as unknown as Date;
+        let next = Date.UTC(today.getUTCFullYear(), dob.getUTCMonth(), dob.getUTCDate());
+        if (next < startOfToday) next = Date.UTC(today.getUTCFullYear() + 1, dob.getUTCMonth(), dob.getUTCDate());
+        const daysUntil = Math.round((next - startOfToday) / 86400000);
+        return { id: e.id, fullName: e.fullName, photoUrl: e.photoUrl, daysUntil };
+      })
+      .filter((e) => e.daysUntil <= days)
+      .sort((a, b) => a.daysUntil - b.daysUntil);
+  }
+
   findAllDocuments() {
     return this.prisma.employeeDocument.findMany({
       include: { employee: { select: { id: true, fullName: true, photoUrl: true, employeeCode: true } } },

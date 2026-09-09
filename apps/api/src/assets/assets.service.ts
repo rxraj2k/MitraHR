@@ -1,11 +1,15 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 const EMPLOYEE_REF_SELECT = { id: true, fullName: true, employeeCode: true, photoUrl: true };
 
 @Injectable()
 export class AssetsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private notifications: NotificationsService,
+  ) {}
 
   // List view: each asset carries its currently-open assignment (if any)
   // so the table can show the current holder without a second call.
@@ -106,6 +110,12 @@ export class AssetsService {
       }),
       this.prisma.asset.update({ where: { id }, data: { status: 'ASSIGNED' } }),
     ]);
+    await this.notifications.notifyEmployee(input.employeeId, {
+      type: 'ASSET_ASSIGNED',
+      title: `${asset.name} (${asset.assetTag}) was assigned to you`,
+      employeeLink: '/',
+      staffLink: '/assets',
+    });
     return assignment;
   }
 

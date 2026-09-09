@@ -1,11 +1,17 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { join } from 'path';
 import { PrismaService } from '../prisma/prisma.service';
+import { MailService } from '../mail/mail.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { countWorkingDays, monthsElapsedInYear, toISODate } from './leave-balance.util';
 
 @Injectable()
 export class LeaveRequestsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private notifications: NotificationsService,
+    private mail: MailService,
+  ) {}
 
   private async getHolidaySet(year: number): Promise<Set<string>> {
     const holidays = await this.prisma.holiday.findMany({
@@ -127,7 +133,7 @@ export class LeaveRequestsService {
       }
     }
 
-    return this.prisma.leaveRequest.create({
+    const request = await this.prisma.leaveRequest.create({
       data: {
         employeeId,
         leaveTypeId: input.leaveTypeId,
@@ -138,8 +144,15 @@ export class LeaveRequestsService {
         reason: input.reason,
         status: 'PENDING',
       },
-      include: { leaveType: true },
+      include: { leaveType: true, employee: { select: { fullName: true } } },
     });
+    await this.notifications.notifyAllStaff({
+      type: 'LEAVE_SUBMITTED',
+      title: `${request.employee.fullName} requested ${leaveType.name}`,
+      body: `${toISODate(start)} → ${toISODate(end)} (${totalDays} day${totalDays === 1 ? '' : 's'})`,
+      link: '/leave',
+    });
+    return request;
   }
 
   findForEmployee(employeeId: string) {
@@ -164,11 +177,30 @@ export class LeaveRequestsService {
     if (request.status !== 'PENDING') {
       throw new BadRequestException('Only pending requests can be approved or rejected');
     }
-    return this.prisma.leaveRequest.update({
+    const updated = await this.prisma.leaveRequest.update({
       where: { id },
       data: { status, decidedById, decisionNote, decidedAt: new Date() },
-      include: { leaveType: true },
+      include: { leaveType: true, employee: { select: { fullName: true, email: true } } },
     });
+    const verb = status === 'APPROVED' ? 'approved' : 'rejected';
+    const dateRange = `${toISODate(updated.startDate)} → ${toISODate(updated.endDate)}`;
+    await this.notifications.notifyEmployee(request.employeeId, {
+      type: 'LEAVE_DECIDED',
+      title: `Your ${updated.leaveType.name} request was ${verb}`,
+      body: dateRange + (decisionNote ? ` — ${decisionNote}` : ''),
+      employeeLink: '/my-leave',
+      staffLink: '/leave',
+    });
+    this.mail
+      .sendMail({
+        to: updated.employee.email,
+        subject: `Your leave request has been ${verb}`,
+        text: `Hi ${updated.employee.fullName},\n\nYour ${updated.leaveType.name} request for ${dateRange} has been ${verb}.${
+          decisionNote ? `\n\nNote: ${decisionNote}` : ''
+        }\n\n— MitraHR`,
+      })
+      .catch(() => {});
+    return updated;
   }
 
   async cancel(id: string, requester: { kind: string; sub: string }) {

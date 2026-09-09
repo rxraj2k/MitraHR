@@ -440,3 +440,32 @@ export interface AssetAssignment {
   conditionAtReturn?: AssetCondition | null;
   returnNotes?: string | null;
 }
+
+export type NotificationType =
+  | 'LEAVE_SUBMITTED'
+  | 'LEAVE_DECIDED'
+  | 'COMP_OFF_SUBMITTED'
+  | 'COMP_OFF_DECIDED'
+  | 'TRAINING_ASSIGNED'
+  | 'PROJECT_ASSIGNED'
+  | 'PROJECT_ASSIGNMENT_ENDED'
+  | 'ASSET_ASSIGNED'
+  | 'DOCUMENT_EXPIRING'
+  | 'BIRTHDAY';
+
+export interface AppNotification {
+  id: string;
+  type: NotificationType | string;
+  title: string;
+  body?: string | null;
+  link?: string | null;
+  readAt?: string | null;
+  createdAt: string;
+}
+
+export interface UpcomingBirthday {
+  id: string;
+  fullName: string;
+  photoUrl?: string | null;
+  daysUntil: number;
+}

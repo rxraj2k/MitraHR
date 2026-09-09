@@ -24,6 +24,8 @@ import {
   AssetAssignment,
   EmployeeDocumentWithOwner,
   CompanyDocument,
+  AppNotification,
+  UpcomingBirthday,
 } from '../types';
 
 export const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000';
@@ -668,4 +670,26 @@ export function setAssetStatus(token: string, id: string, status: string): Promi
 export function getMyAssets(token: string, employeeId?: string): Promise<AssetAssignment[]> {
   const qs = employeeId ? `?employeeId=${employeeId}` : '';
   return authFetch(token, `/assets/my${qs}`);
+}
+
+// --- Notifications ---
+
+export function getNotifications(token: string): Promise<AppNotification[]> {
+  return authFetch(token, '/notifications');
+}
+
+export function getUnreadNotificationCount(token: string): Promise<{ count: number }> {
+  return authFetch(token, '/notifications/unread-count');
+}
+
+export function markNotificationRead(token: string, id: string): Promise<AppNotification> {
+  return authFetch(token, `/notifications/${id}/read`, { method: 'PATCH' });
+}
+
+export function markAllNotificationsRead(token: string): Promise<void> {
+  return authFetch(token, '/notifications/read-all', { method: 'PATCH' });
+}
+
+export function getUpcomingBirthdays(token: string, days = 7): Promise<UpcomingBirthday[]> {
+  return authFetch(token, `/employees/birthdays/upcoming?days=${days}`);
 }

@@ -457,3 +457,23 @@ model AssetAssignment {
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 }
+
+// In-app notifications. recipientKind/recipientId mirror the JWT session
+// shape (kind: 'STAFF' | 'EMPLOYEE', sub: that account's id) rather than a
+// single foreign key, because a recipient can be either a User (staff) or
+// an Employee (OTP login) — see NotificationsService.notifyEmployee, which
+// resolves "the employee at this id" to whichever session actually reads
+// it (an admin linked to their own Employee record reads it as staff).
+model Notification {
+  id            String    @id @default(uuid())
+  recipientKind String
+  recipientId   String
+  type          String
+  title         String
+  body          String?
+  link          String?
+  readAt        DateTime?
+  createdAt     DateTime  @default(now())
+
+  @@index([recipientKind, recipientId, readAt])
+}

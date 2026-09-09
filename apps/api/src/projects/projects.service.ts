@@ -1,11 +1,15 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 const EMPLOYEE_REF_SELECT = { id: true, fullName: true, employeeCode: true, photoUrl: true };
 
 @Injectable()
 export class ProjectsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private notifications: NotificationsService,
+  ) {}
 
   findAll(filters: { clientId?: string; status?: string }) {
     return this.prisma.project.findMany({
@@ -86,6 +90,10 @@ export class ProjectsService {
       throw new BadRequestException('This project has already been ended');
     }
     const endDate = input.endDate ? new Date(input.endDate) : new Date();
+    const openAssignments = await this.prisma.projectAssignment.findMany({
+      where: { projectId: id, endDate: null },
+      select: { employeeId: true },
+    });
     const [updated] = await this.prisma.$transaction([
       this.prisma.project.update({
         where: { id },
@@ -96,6 +104,16 @@ export class ProjectsService {
         data: { endDate },
       }),
     ]);
+    await Promise.all(
+      openAssignments.map((a) =>
+        this.notifications.notifyEmployee(a.employeeId, {
+          type: 'PROJECT_ASSIGNMENT_ENDED',
+          title: `Your assignment on ${existing.name} has ended`,
+          employeeLink: '/',
+          staffLink: `/projects/${id}`,
+        }),
+      ),
+    );
     return updated;
   }
 
@@ -109,7 +127,7 @@ export class ProjectsService {
     if (!project) throw new NotFoundException('Project not found');
     const employee = await this.prisma.employee.findUnique({ where: { id: input.employeeId } });
     if (!employee) throw new BadRequestException('Invalid employee');
-    return this.prisma.projectAssignment.create({
+    const assignment = await this.prisma.projectAssignment.create({
       data: {
         projectId,
         employeeId: input.employeeId,
@@ -119,6 +137,14 @@ export class ProjectsService {
       },
       include: { employee: { select: EMPLOYEE_REF_SELECT } },
     });
+    await this.notifications.notifyEmployee(input.employeeId, {
+      type: 'PROJECT_ASSIGNED',
+      title: `You've been added to ${project.name}`,
+      body: input.roleOnProject || undefined,
+      employeeLink: '/',
+      staffLink: `/projects/${projectId}`,
+    });
+    return assignment;
   }
 
   async updateAssignment(

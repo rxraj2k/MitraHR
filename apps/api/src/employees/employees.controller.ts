@@ -70,6 +70,13 @@ export class EmployeesController {
     return this.employeesService.update(req.user.sub, dto);
   }
 
+  // Open to any logged-in user — the Home dashboard's birthday widget is
+  // for the whole team, not just staff.
+  @Get('birthdays/upcoming')
+  upcomingBirthdays(@Query('days') days?: string) {
+    return this.employeesService.upcomingBirthdays(days ? parseInt(days, 10) : 7);
+  }
+
   // Staff-only, cross-employee document list for the Document Management
   // page — every employee's documents in one place so expiry can be
   // monitored company-wide.

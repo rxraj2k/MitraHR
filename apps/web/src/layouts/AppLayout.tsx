@@ -1,5 +1,6 @@
 import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import NotificationBell from '../components/NotificationBell';
 import {
   BriefcaseIcon,
   BuildingIcon,
@@ -72,6 +73,7 @@ export default function AppLayout() {
 
       <div className="flex-1 flex flex-col min-w-0">
         <header className="h-16 flex-shrink-0 bg-white border-b border-slate-200 px-6 flex items-center justify-end gap-4">
+          <NotificationBell />
           <span className="text-sm text-slate-500">
             {user?.name} <span className="text-slate-400">({user?.role})</span>
           </span>

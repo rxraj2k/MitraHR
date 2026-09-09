@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
 import { EmployeesModule } from './employees/employees.module';
@@ -17,11 +18,14 @@ import { UtilizationModule } from './utilization/utilization.module';
 import { TrainingModule } from './training/training.module';
 import { AssetsModule } from './assets/assets.module';
 import { CompanyDocumentsModule } from './company-documents/company-documents.module';
+import { NotificationsModule } from './notifications/notifications.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    ScheduleModule.forRoot(),
     PrismaModule,
+    NotificationsModule,
     AuthModule,
     EmployeesModule,
     DepartmentsModule,
