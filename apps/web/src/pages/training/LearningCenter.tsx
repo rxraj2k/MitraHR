@@ -1,6 +1,8 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import MyLearningPanel from '../../components/MyLearningPanel';
+import { ExternalLinkIcon } from '../../components/icons';
+import { resourceLinkLabel } from '../../lib/resourceLinks';
 import { CATEGORY_LABELS, CATEGORY_THEME } from '../../lib/trainingCategories';
 import {
   assignTraining,
@@ -75,13 +77,31 @@ function EmployeeTrainingDetail({ employeeId, onChanged }: { employeeId: string;
         <tbody className="divide-y divide-slate-200">
           {items.map((item) => (
             <tr key={item.id}>
-              <td className="py-2 pr-4">
-                <span className={`text-xs px-1.5 py-0.5 rounded mr-2 ${CATEGORY_THEME[item.course.category].chip}`}>
-                  {CATEGORY_LABELS[item.course.category]}
-                </span>
-                {item.course.title}
+              <td className="py-2 pr-4 align-top">
+                <div className="mb-1.5">
+                  <span className={`text-xs px-1.5 py-0.5 rounded mr-2 ${CATEGORY_THEME[item.course.category].chip}`}>
+                    {CATEGORY_LABELS[item.course.category]}
+                  </span>
+                  {item.course.title}
+                </div>
+                {item.course.resources.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {item.course.resources.map((r) => (
+                      <a
+                        key={r.id}
+                        href={r.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 text-xs bg-white border border-slate-200 rounded-full px-2 py-0.5 text-slate-600 hover:border-mitra-accentFrom hover:text-mitra-accentFrom"
+                      >
+                        {resourceLinkLabel(r.url, r.label)}
+                        <ExternalLinkIcon className="w-3 h-3" />
+                      </a>
+                    ))}
+                  </div>
+                )}
               </td>
-              <td className="py-2 text-right whitespace-nowrap">
+              <td className="py-2 text-right whitespace-nowrap align-top">
                 <div className="flex gap-1.5 justify-end items-center">
                   {STATUS_OPTIONS.map((s) => (
                     <button
@@ -148,6 +168,7 @@ function TeamProgressTab() {
     try {
       const nonRestricted = courses.filter((c) => c.active && !c.restrictedTo).map((c) => c.id);
       await assignTraining(token, { employeeIds: [employeeId], courseIds: nonRestricted });
+      setExpandedId(employeeId);
       load();
     } catch (err: any) {
       setError(err.message);
@@ -180,12 +201,14 @@ function TeamProgressTab() {
   async function handleAssignOne(e: FormEvent) {
     e.preventDefault();
     if (!token || !pickCourseId || !pickEmployeeId) return;
+    const targetEmployeeId = pickEmployeeId;
     setAssignSubmitting(true);
     setAssignMessage('');
     try {
-      await assignTraining(token, { employeeIds: [pickEmployeeId], courseIds: [pickCourseId] });
+      await assignTraining(token, { employeeIds: [targetEmployeeId], courseIds: [pickCourseId] });
       setAssignMessage('Assigned.');
       setPickEmployeeId('');
+      setExpandedId(targetEmployeeId);
       load();
     } catch (err: any) {
       setAssignMessage(err.message);
