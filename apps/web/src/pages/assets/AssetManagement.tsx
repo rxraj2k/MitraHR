@@ -12,6 +12,7 @@ import {
   STATUS_LABELS,
 } from '../../lib/assetCategories';
 import {
+  API_BASE,
   assignAsset,
   createAsset,
   deleteAsset,
@@ -660,7 +661,7 @@ function AssignmentsTab({
                   >
                     <div className="flex items-center gap-3">
                       {group.photoUrl ? (
-                        <img src={group.photoUrl} alt="" className="w-8 h-8 rounded-full object-cover" />
+                        <img src={`${API_BASE}${group.photoUrl}`} alt="" className="w-8 h-8 rounded-full object-cover" />
                       ) : (
                         <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-xs font-semibold">
                           {group.employeeName.charAt(0).toUpperCase()}

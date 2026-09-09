@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { getStaffingSandboxBoard, placeSandboxEmployee, resetStaffingSandbox } from '../../lib/api';
+import { API_BASE, getStaffingSandboxBoard, placeSandboxEmployee, resetStaffingSandbox } from '../../lib/api';
 import { SandboxEmployeeCard, StaffingSandboxBoard } from '../../types';
 
 // A rough "what if" planning surface. It reads the real roster and real
@@ -44,7 +44,7 @@ function EmployeeCard({
     >
       <div className="flex items-center gap-2">
         {card.photoUrl ? (
-          <img src={card.photoUrl} alt="" className="w-7 h-7 rounded-full object-cover flex-shrink-0" />
+          <img src={`${API_BASE}${card.photoUrl}`} alt="" className="w-7 h-7 rounded-full object-cover flex-shrink-0" />
         ) : (
           <span className="w-7 h-7 rounded-full bg-slate-100 text-slate-500 text-xs font-semibold flex items-center justify-center flex-shrink-0">
             {card.fullName.charAt(0).toUpperCase()}
