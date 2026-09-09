@@ -20,6 +20,7 @@ import { AssetsModule } from './assets/assets.module';
 import { CompanyDocumentsModule } from './company-documents/company-documents.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { ReportsModule } from './reports/reports.module';
+import { StaffingSandboxModule } from './staffing-sandbox/staffing-sandbox.module';
 
 @Module({
   imports: [
@@ -44,6 +45,7 @@ import { ReportsModule } from './reports/reports.module';
     AssetsModule,
     CompanyDocumentsModule,
     ReportsModule,
+    StaffingSandboxModule,
   ],
 })
 export class AppModule {}

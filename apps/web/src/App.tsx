@@ -20,6 +20,7 @@ import MyLearning from './pages/training/MyLearning';
 import AssetManagement from './pages/assets/AssetManagement';
 import DocumentManagement from './pages/documents/DocumentManagement';
 import ReportsPage from './pages/reports/ReportsPage';
+import StaffingSandbox from './pages/staffing/StaffingSandbox';
 
 function ProtectedRoute({ children }: { children: JSX.Element }) {
   const { token, loading } = useAuth();
@@ -102,6 +103,14 @@ export default function App() {
           element={
             <StaffOnlyRoute>
               <UtilizationPage />
+            </StaffOnlyRoute>
+          }
+        />
+        <Route
+          path="staffing-sandbox"
+          element={
+            <StaffOnlyRoute>
+              <StaffingSandbox />
             </StaffOnlyRoute>
           }
         />

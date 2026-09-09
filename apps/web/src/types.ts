@@ -381,6 +381,27 @@ export interface ProjectClosure {
   closureSummary: string | null;
 }
 
+export interface SandboxEmployeeCard {
+  id: string;
+  fullName: string;
+  employeeCode: string | null;
+  photoUrl: string | null;
+  departmentName: string | null;
+  designationName: string | null;
+}
+
+export interface SandboxProjectColumn {
+  id: string;
+  name: string;
+  status: string;
+  clientName: string;
+}
+
+export interface StaffingSandboxBoard {
+  projects: SandboxProjectColumn[];
+  columns: Record<string, SandboxEmployeeCard[]>;
+}
+
 export interface EmployeeRef {
   id: string;
   fullName: string;

@@ -306,3 +306,14 @@ export function ClockIcon(props: IconProps) {
     </svg>
   );
 }
+
+export function ShuffleIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M3 6h3.5l8 12H19" />
+      <path d="M15 6h4v4M19 6l-4.5 4.5" />
+      <path d="M3 18h3.5l2-3" />
+      <path d="M15 18h4v-4M19 18l-4.5-4.5" />
+    </svg>
+  );
+}

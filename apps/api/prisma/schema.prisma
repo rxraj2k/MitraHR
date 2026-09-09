@@ -105,6 +105,7 @@ model Employee {
   secondaryMentorProjects Project[]        @relation("SecondaryMentor")
   trainingAssignments EmployeeTraining[]
   assetAssignments   AssetAssignment[]
+  sandboxPlacement   SandboxPlacement?
   linkedUser User?
 
   dateOfJoining DateTime?
@@ -272,6 +273,21 @@ model AttendanceSettings {
   updatedAt             DateTime @updatedAt
 }
 
+// A purely visual "where would this person go" scratch pad — deliberately
+// separate from ProjectAssignment, which is the real staffing record. One
+// row per employee who's been dragged onto a project column; no row at all
+// (or projectId left null) just means they're sitting in the Bench column.
+// Nothing here ever creates a real assignment or fires a notification —
+// that only happens if/when someone acts on the plan via the Project page.
+model SandboxPlacement {
+  id         String   @id @default(uuid())
+  employeeId String   @unique
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  projectId  String?
+  project    Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  updatedAt  DateTime @updatedAt
+}
+
 // Employee-logged extra day worked (a weekend/holiday shift, or approved
 // overtime), submitted for admin approval. Once APPROVED, the day counts
 // toward that employee's "Compensatory Off" leave-type balance (a LeaveType
@@ -342,6 +358,7 @@ model Project {
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
   assignments        ProjectAssignment[]
+  sandboxPlacements  SandboxPlacement[]
 
   @@unique([clientId, name])
 }

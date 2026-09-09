@@ -13,6 +13,7 @@ import {
   HomeIcon,
   PackageIcon,
   ShareNetworkIcon,
+  ShuffleIcon,
   UsersIcon,
 } from '../components/icons';
 
@@ -26,6 +27,7 @@ const STAFF_NAV_ITEMS = [
   { to: '/clients', label: 'Client Management', end: false, icon: BuildingIcon },
   { to: '/projects', label: 'Project Management', end: false, icon: BriefcaseIcon },
   { to: '/utilization', label: 'Bench & Utilization', end: false, icon: GaugeIcon },
+  { to: '/staffing-sandbox', label: 'Staffing Sandbox', end: false, icon: ShuffleIcon },
   { to: '/training', label: 'Learning Center', end: false, icon: GraduationCapIcon },
   { to: '/assets', label: 'Asset Management', end: false, icon: PackageIcon },
   { to: '/documents', label: 'Document Management', end: false, icon: FileTextIcon },

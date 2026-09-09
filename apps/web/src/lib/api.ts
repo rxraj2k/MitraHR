@@ -31,6 +31,7 @@ import {
   AttendanceAnalytics,
   AttendanceSettings,
   ProjectClosure,
+  StaffingSandboxBoard,
 } from '../types';
 
 export const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000';
@@ -736,4 +737,21 @@ export function updateAttendanceSettings(
   data: Partial<Pick<AttendanceSettings, 'expectedStartTime' | 'graceMinutes' | 'halfDayThresholdHours'>>,
 ): Promise<AttendanceSettings> {
   return authFetch(token, '/reports/attendance-settings', { method: 'PATCH', body: JSON.stringify(data) });
+}
+
+// --- Staffing Sandbox ---
+
+export function getStaffingSandboxBoard(token: string): Promise<StaffingSandboxBoard> {
+  return authFetch(token, '/staffing-sandbox/board');
+}
+
+export function placeSandboxEmployee(token: string, employeeId: string, projectId: string | null): Promise<any> {
+  return authFetch(token, '/staffing-sandbox/place', {
+    method: 'PATCH',
+    body: JSON.stringify({ employeeId, projectId }),
+  });
+}
+
+export function resetStaffingSandbox(token: string): Promise<{ success: boolean }> {
+  return authFetch(token, '/staffing-sandbox/reset', { method: 'POST' });
 }
