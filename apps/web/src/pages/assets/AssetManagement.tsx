@@ -510,7 +510,8 @@ function AssignmentsTab({
   loading: boolean;
   onChanged: () => void;
 }) {
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [expandedEmployeeId, setExpandedEmployeeId] = useState<string | null>(null);
+  const [expandedAssetId, setExpandedAssetId] = useState<string | null>(null);
 
   const [pickAssetId, setPickAssetId] = useState('');
   const [pickEmployeeId, setPickEmployeeId] = useState('');
@@ -521,6 +522,37 @@ function AssignmentsTab({
 
   const available = assets.filter((a) => a.status === 'AVAILABLE');
   const assigned = assets.filter((a) => a.status === 'ASSIGNED');
+
+  type EmployeeGroup = {
+    employeeId: string;
+    employeeName: string;
+    department?: string | null;
+    designation?: string | null;
+    photoUrl?: string | null;
+    assets: Asset[];
+  };
+
+  const byEmployee: EmployeeGroup[] = [];
+  {
+    const map = new Map<string, EmployeeGroup>();
+    for (const a of assigned) {
+      const holder = a.assignments && a.assignments[0];
+      const employeeId = holder?.employeeId || holder?.employee?.id || 'unknown';
+      const fullEmployee = employees.find((e) => e.id === employeeId);
+      if (!map.has(employeeId)) {
+        map.set(employeeId, {
+          employeeId,
+          employeeName: fullEmployee?.fullName || holder?.employee?.fullName || 'Unknown',
+          department: fullEmployee?.department?.name,
+          designation: fullEmployee?.designation?.name,
+          photoUrl: fullEmployee?.photoUrl || holder?.employee?.photoUrl,
+          assets: [],
+        });
+      }
+      map.get(employeeId)!.assets.push(a);
+    }
+    byEmployee.push(...Array.from(map.values()).sort((x, y) => x.employeeName.localeCompare(y.employeeName)));
+  }
 
   async function handleAssignOne(e: FormEvent) {
     e.preventDefault();
@@ -606,51 +638,85 @@ function AssignmentsTab({
       </div>
 
       <div className="bg-white border border-slate-200 rounded-xl p-6">
-        <h2 className="text-lg font-semibold text-slate-800 mb-4">Who Has What</h2>
+        <h2 className="text-lg font-semibold text-slate-800 mb-1">Who Has What</h2>
+        <p className="text-xs text-slate-500 mb-4">Grouped by employee. Click a name to see everything they currently hold.</p>
         {loading ? (
           <p className="text-slate-500 text-sm">Loading...</p>
-        ) : assigned.length === 0 ? (
+        ) : byEmployee.length === 0 ? (
           <p className="text-slate-500 text-sm">Nothing currently checked out.</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-xs text-slate-500 border-b border-slate-100">
-                  <th className="pb-2 font-medium">Asset</th>
-                  <th className="pb-2 font-medium">Tag</th>
-                  <th className="pb-2 font-medium">Category</th>
-                  <th className="pb-2 font-medium">Employee</th>
-                  <th className="pb-2 font-medium">Since</th>
-                  <th className="pb-2 font-medium"></th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {assigned.map((a) => {
-                  const holder = a.assignments && a.assignments[0];
-                  return (
-                    <>
-                      <tr key={a.id} className="hover:bg-slate-50 cursor-pointer" onClick={() => setExpandedId(expandedId === a.id ? null : a.id)}>
-                        <td className="py-2 font-medium text-slate-700">{a.name}</td>
-                        <td className="py-2 text-slate-500">{a.assetTag}</td>
-                        <td className="py-2 text-slate-500">{CATEGORY_LABELS[a.category]}</td>
-                        <td className="py-2 text-slate-600">{holder?.employee?.fullName || '—'}</td>
-                        <td className="py-2 text-slate-500">{holder ? formatDate(holder.assignedAt) : '—'}</td>
-                        <td className="py-2 text-right text-xs text-mitra-accentFrom">
-                          {expandedId === a.id ? 'Hide' : 'Return / History'}
-                        </td>
-                      </tr>
-                      {expandedId === a.id && (
-                        <tr>
-                          <td colSpan={6} className="p-0">
-                            <AssignmentHistory asset={a} onChanged={onChanged} />
-                          </td>
-                        </tr>
+          <div className="divide-y divide-slate-100">
+            {byEmployee.map((group) => {
+              const isOpen = expandedEmployeeId === group.employeeId;
+              return (
+                <div key={group.employeeId}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setExpandedEmployeeId(isOpen ? null : group.employeeId);
+                      setExpandedAssetId(null);
+                    }}
+                    className="w-full flex items-center justify-between py-3 text-left hover:bg-slate-50 rounded-lg px-2 -mx-2"
+                  >
+                    <div className="flex items-center gap-3">
+                      {group.photoUrl ? (
+                        <img src={group.photoUrl} alt="" className="w-8 h-8 rounded-full object-cover" />
+                      ) : (
+                        <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-xs font-semibold">
+                          {group.employeeName.charAt(0).toUpperCase()}
+                        </div>
                       )}
-                    </>
-                  );
-                })}
-              </tbody>
-            </table>
+                      <div>
+                        <div className="text-sm font-medium text-slate-700">{group.employeeName}</div>
+                        {(group.designation || group.department) && (
+                          <div className="text-xs text-slate-500">
+                            {[group.designation, group.department].filter(Boolean).join(' · ')}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs bg-indigo-100 text-indigo-700 rounded-full px-2 py-0.5">
+                        {group.assets.length} asset{group.assets.length === 1 ? '' : 's'}
+                      </span>
+                      <span className="text-xs text-mitra-accentFrom">{isOpen ? 'Hide' : 'View'}</span>
+                    </div>
+                  </button>
+                  {isOpen && (
+                    <div className="pb-4 pl-11 pr-2 space-y-2">
+                      {group.assets.map((a) => {
+                        const holder = a.assignments && a.assignments[0];
+                        const assetOpen = expandedAssetId === a.id;
+                        const Icon = CATEGORY_ICONS[a.category];
+                        return (
+                          <div key={a.id} className="border border-slate-100 rounded-lg overflow-hidden">
+                            <div
+                              className="flex items-center justify-between px-3 py-2 hover:bg-slate-50 cursor-pointer"
+                              onClick={() => setExpandedAssetId(assetOpen ? null : a.id)}
+                            >
+                              <div className="flex items-center gap-2">
+                                <Icon className="w-4 h-4 text-slate-400" />
+                                <div>
+                                  <div className="text-sm text-slate-700">{a.name}</div>
+                                  <div className="text-xs text-slate-500">
+                                    {a.assetTag} · {CATEGORY_LABELS[a.category]}
+                                    {holder ? ` · since ${formatDate(holder.assignedAt)}` : ''}
+                                  </div>
+                                </div>
+                              </div>
+                              <span className="text-xs text-mitra-accentFrom">
+                                {assetOpen ? 'Hide' : 'Return / History'}
+                              </span>
+                            </div>
+                            {assetOpen && <AssignmentHistory asset={a} onChanged={onChanged} />}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
