@@ -1,4 +1,5 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { join } from 'path';
 import { PrismaService } from '../prisma/prisma.service';
 import { countWorkingDays, monthsElapsedInYear, toISODate } from './leave-balance.util';
 
@@ -202,6 +203,23 @@ export class LeaveRequestsService {
       data: { attachmentName: fileName, attachmentUrl: fileUrl },
       include: { leaveType: true },
     });
+  }
+
+  // Same root-relative-fileUrl trick as EmployeesService.getDocumentFile —
+  // works for attachments uploaded before or after the secure-uploads split.
+  async getAttachmentFile(id: string, requester: { kind: string; sub: string }) {
+    const request = await this.prisma.leaveRequest.findUnique({ where: { id } });
+    if (!request) throw new NotFoundException('Leave request not found');
+    if (requester.kind === 'EMPLOYEE' && request.employeeId !== requester.sub) {
+      throw new ForbiddenException('Not your leave request');
+    }
+    if (!request.attachmentUrl || !request.attachmentName) {
+      throw new NotFoundException('No attachment on this leave request');
+    }
+    return {
+      path: join(process.cwd(), request.attachmentUrl.replace(/^\//, '')),
+      fileName: request.attachmentName,
+    };
   }
 
   async calendar(year: number, month: number) {

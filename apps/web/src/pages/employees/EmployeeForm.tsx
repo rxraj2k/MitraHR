@@ -11,6 +11,7 @@ import {
   getEmployee,
   getEmployees,
   getSkills,
+  openAuthedFile,
   replaceEmployeeSkills,
   updateEmployee,
   uploadEmployeeDocument,
@@ -18,6 +19,13 @@ import {
 } from '../../lib/api';
 import { Employee, EmployeeInput, EmployeeSkillEntry, LookupItem } from '../../types';
 import SearchableSelect from '../../components/SearchableSelect';
+import {
+  EMPLOYEE_DOCUMENT_TYPES,
+  EMPLOYEE_DOCUMENT_TYPE_LABELS,
+  EXPIRY_STATUS_BADGE,
+  EXPIRY_STATUS_LABELS,
+  getExpiryStatus,
+} from '../../lib/documentCategories';
 
 const EMPTY: EmployeeInput = {
   fullName: '',
@@ -37,18 +45,10 @@ const EMPTY: EmployeeInput = {
   dateOfBirth: '',
 };
 
-const DOCUMENT_TYPES = [
-  'Government ID Proof',
-  'PAN Card',
-  'Academic Certificate',
-  'Address Proof',
-  'Offer Letter',
-  'Other',
-];
-
 interface PendingDocument {
   documentType: string;
   file: File;
+  expiryDate: string;
 }
 
 export default function EmployeeForm() {
@@ -68,8 +68,9 @@ export default function EmployeeForm() {
   const [skillRows, setSkillRows] = useState<EmployeeSkillEntry[]>([]);
   const [existingDocuments, setExistingDocuments] = useState<Employee['documents']>([]);
   const [pendingDocuments, setPendingDocuments] = useState<PendingDocument[]>([]);
-  const [newDocType, setNewDocType] = useState(DOCUMENT_TYPES[0]);
+  const [newDocType, setNewDocType] = useState<string>(EMPLOYEE_DOCUMENT_TYPES[0]);
   const [newDocFile, setNewDocFile] = useState<File | null>(null);
+  const [newDocExpiry, setNewDocExpiry] = useState('');
   const [loading, setLoading] = useState(isEdit);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -142,8 +143,9 @@ export default function EmployeeForm() {
 
   function queueDocument() {
     if (!newDocFile) return;
-    setPendingDocuments((docs) => [...docs, { documentType: newDocType, file: newDocFile }]);
+    setPendingDocuments((docs) => [...docs, { documentType: newDocType, file: newDocFile, expiryDate: newDocExpiry }]);
     setNewDocFile(null);
+    setNewDocExpiry('');
   }
 
   function removePendingDocument(index: number) {
@@ -195,7 +197,7 @@ export default function EmployeeForm() {
           await replaceEmployeeSkills(token, employeeId, validSkillRows);
         }
         for (const doc of pendingDocuments) {
-          await uploadEmployeeDocument(token, employeeId, doc.documentType, doc.file);
+          await uploadEmployeeDocument(token, employeeId, doc.documentType, doc.file, doc.expiryDate || undefined);
         }
       }
       navigate('/employees');
@@ -536,25 +538,36 @@ export default function EmployeeForm() {
 
           {existingDocuments && existingDocuments.length > 0 && (
             <ul className="divide-y divide-slate-100 border border-slate-100 rounded-lg overflow-hidden">
-              {existingDocuments.map((doc) => (
-                <li key={doc.id} className="flex items-center justify-between px-3 py-2 text-sm">
-                  <a
-                    href={`${API_BASE}${doc.fileUrl}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-slate-700 hover:text-mitra-accentFrom"
-                  >
-                    {doc.documentType} — {doc.fileName}
-                  </a>
-                  <button
-                    type="button"
-                    onClick={() => handleDeleteExistingDocument(doc.id)}
-                    className="text-xs text-red-500 hover:text-red-700"
-                  >
-                    Remove
-                  </button>
-                </li>
-              ))}
+              {existingDocuments.map((doc) => {
+                const status = getExpiryStatus(doc.expiryDate);
+                return (
+                  <li key={doc.id} className="flex items-center justify-between px-3 py-2 text-sm">
+                    <button
+                      type="button"
+                      onClick={() => id && token && openAuthedFile(token, `/employees/${id}/documents/${doc.id}/file`)}
+                      className="text-slate-700 hover:text-mitra-accentFrom text-left"
+                    >
+                      {EMPLOYEE_DOCUMENT_TYPE_LABELS[doc.documentType as keyof typeof EMPLOYEE_DOCUMENT_TYPE_LABELS] ||
+                        doc.documentType}{' '}
+                      — {doc.fileName}
+                    </button>
+                    <div className="flex items-center gap-3">
+                      {status !== 'NONE' && (
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${EXPIRY_STATUS_BADGE[status]}`}>
+                          {EXPIRY_STATUS_LABELS[status]}
+                        </span>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteExistingDocument(doc.id)}
+                        className="text-xs text-red-500 hover:text-red-700"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
           )}
 
@@ -563,7 +576,10 @@ export default function EmployeeForm() {
               {pendingDocuments.map((doc, index) => (
                 <li key={index} className="flex items-center justify-between px-3 py-2 text-sm">
                   <span className="text-slate-600">
-                    {doc.documentType} — {doc.file.name}{' '}
+                    {EMPLOYEE_DOCUMENT_TYPE_LABELS[doc.documentType as keyof typeof EMPLOYEE_DOCUMENT_TYPE_LABELS] ||
+                      doc.documentType}{' '}
+                    — {doc.file.name}
+                    {doc.expiryDate && <> · expires {doc.expiryDate}</>}{' '}
                     <span className="text-xs text-slate-400">(will upload on save)</span>
                   </span>
                   <button
@@ -578,18 +594,25 @@ export default function EmployeeForm() {
             </ul>
           )}
 
-          <div className="grid grid-cols-[1.2fr_2fr_auto] gap-2 items-center">
+          <div className="grid grid-cols-[1.2fr_1fr_2fr_auto] gap-2 items-center">
             <select
               value={newDocType}
               onChange={(e) => setNewDocType(e.target.value)}
               className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
             >
-              {DOCUMENT_TYPES.map((t) => (
+              {EMPLOYEE_DOCUMENT_TYPES.map((t) => (
                 <option key={t} value={t}>
-                  {t}
+                  {EMPLOYEE_DOCUMENT_TYPE_LABELS[t]}
                 </option>
               ))}
             </select>
+            <input
+              type="date"
+              value={newDocExpiry}
+              onChange={(e) => setNewDocExpiry(e.target.value)}
+              title="Expiry date (optional)"
+              className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            />
             <input
               type="file"
               accept="image/*,application/pdf"

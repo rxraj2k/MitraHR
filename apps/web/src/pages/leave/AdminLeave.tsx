@@ -7,7 +7,6 @@ import MonthCalendar from '../../components/MonthCalendar';
 import SearchableSelect from '../../components/SearchableSelect';
 import TabBar, { TabBarItem } from '../../components/TabBar';
 import {
-  API_BASE,
   createLeaveRequest,
   decideCompOffEntry,
   decideLeaveRequest,
@@ -16,6 +15,7 @@ import {
   getEmployees,
   getLeaveRequests,
   getLeaveTypes,
+  openAuthedFile,
 } from '../../lib/api';
 import { AttendanceDay, CompOffEntry, Employee, LeaveRequest, LeaveType } from '../../types';
 
@@ -401,14 +401,13 @@ export default function AdminLeave() {
                     </td>
                     <td className="py-2">
                       {r.attachmentUrl ? (
-                        <a
-                          href={`${API_BASE}${r.attachmentUrl}`}
-                          target="_blank"
-                          rel="noreferrer"
+                        <button
+                          type="button"
+                          onClick={() => token && openAuthedFile(token, `/leave-requests/${r.id}/attachment`)}
                           className="text-mitra-accentFrom hover:underline text-xs"
                         >
                           View
-                        </a>
+                        </button>
                       ) : (
                         <span className="text-slate-300 text-xs">—</span>
                       )}

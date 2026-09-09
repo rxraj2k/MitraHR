@@ -2,7 +2,6 @@ import { FormEvent, useEffect, useRef, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useAutoRefresh } from '../hooks/useAutoRefresh';
 import {
-  API_BASE,
   cancelLeaveRequest,
   createCompOffEntry,
   createLeaveRequest,
@@ -10,6 +9,7 @@ import {
   getLeaveBalances,
   getLeaveRequests,
   getLeaveTypes,
+  openAuthedFile,
   uploadLeaveAttachment,
 } from '../lib/api';
 import { CompOffEntry, LeaveBalance, LeaveRequest, LeaveType } from '../types';
@@ -304,14 +304,13 @@ export default function MyLeavePanel({ employeeId, title = 'My Leaves' }: Props)
                     </td>
                     <td className="py-2">
                       {r.attachmentUrl ? (
-                        <a
-                          href={`${API_BASE}${r.attachmentUrl}`}
-                          target="_blank"
-                          rel="noreferrer"
+                        <button
+                          type="button"
+                          onClick={() => token && openAuthedFile(token, `/leave-requests/${r.id}/attachment`)}
                           className="text-mitra-accentFrom hover:underline text-xs"
                         >
                           View
-                        </a>
+                        </button>
                       ) : r.status === 'CANCELLED' ? (
                         <span className="text-slate-300 text-xs">—</span>
                       ) : (

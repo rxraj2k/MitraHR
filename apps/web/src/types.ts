@@ -16,12 +16,39 @@ export interface EmployeeSkillEntry {
   yearsExperience: number | '';
 }
 
+export type EmployeeDocumentType =
+  | 'OFFER_LETTER'
+  | 'ID_PROOF'
+  | 'PAN_CARD'
+  | 'ACADEMIC_CERTIFICATE'
+  | 'EXPERIENCE_LETTER'
+  | 'CONTRACT'
+  | 'CERTIFICATION'
+  | 'OTHER';
+
 export interface EmployeeDocument {
   id: string;
-  documentType: string;
+  documentType: EmployeeDocumentType | string;
+  fileName: string;
+  fileUrl: string;
+  expiryDate?: string | null;
+  uploadedAt: string;
+}
+
+export interface EmployeeDocumentWithOwner extends EmployeeDocument {
+  employee: { id: string; fullName: string; photoUrl?: string | null; employeeCode?: string | null };
+}
+
+export type CompanyDocumentCategory = 'POLICY' | 'TEMPLATE' | 'HANDBOOK' | 'OTHER';
+
+export interface CompanyDocument {
+  id: string;
+  category: CompanyDocumentCategory | string;
+  title: string;
   fileName: string;
   fileUrl: string;
   uploadedAt: string;
+  updatedAt: string;
 }
 
 export interface EmployeeManagerRef {

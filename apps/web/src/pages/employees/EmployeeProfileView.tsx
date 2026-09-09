@@ -1,8 +1,9 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { API_BASE, getEmployee, updateMyProfile } from '../../lib/api';
+import { API_BASE, getEmployee, openAuthedFile, updateMyProfile } from '../../lib/api';
 import { Employee } from '../../types';
+import { EMPLOYEE_DOCUMENT_TYPE_LABELS, EXPIRY_STATUS_BADGE, EXPIRY_STATUS_LABELS, getExpiryStatus } from '../../lib/documentCategories';
 
 const EMPLOYMENT_TYPE_LABELS: Record<string, string> = {
   INTERN: 'Intern',
@@ -187,19 +188,28 @@ export default function EmployeeProfileView() {
         {employee.documents && employee.documents.length > 0 && (
           <div>
             <p className="text-xs text-slate-400 mb-2">Documents</p>
-            <ul className="space-y-1">
-              {employee.documents.map((doc) => (
-                <li key={doc.id} className="text-sm">
-                  <a
-                    href={`${API_BASE}${doc.fileUrl}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-slate-700 hover:text-mitra-accentFrom"
-                  >
-                    {doc.documentType} — {doc.fileName}
-                  </a>
-                </li>
-              ))}
+            <ul className="space-y-1.5">
+              {employee.documents.map((doc) => {
+                const status = getExpiryStatus(doc.expiryDate);
+                return (
+                  <li key={doc.id} className="flex items-center justify-between text-sm">
+                    <button
+                      type="button"
+                      onClick={() => id && token && openAuthedFile(token, `/employees/${id}/documents/${doc.id}/file`)}
+                      className="text-slate-700 hover:text-mitra-accentFrom text-left"
+                    >
+                      {EMPLOYEE_DOCUMENT_TYPE_LABELS[doc.documentType as keyof typeof EMPLOYEE_DOCUMENT_TYPE_LABELS] ||
+                        doc.documentType}{' '}
+                      — {doc.fileName}
+                    </button>
+                    {status !== 'NONE' && (
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${EXPIRY_STATUS_BADGE[status]}`}>
+                        {EXPIRY_STATUS_LABELS[status]}
+                      </span>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
           </div>
         )}

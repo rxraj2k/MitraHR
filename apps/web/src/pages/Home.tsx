@@ -1,8 +1,14 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { getMyAssets, getMyProjects } from '../lib/api';
-import { AssetAssignment, MyProjectAssignment } from '../types';
+import { getCompanyDocuments, getMyAssets, getMyEmployeeDocuments, getMyProjects, openAuthedFile } from '../lib/api';
+import { AssetAssignment, CompanyDocument, EmployeeDocument, MyProjectAssignment } from '../types';
 import { CATEGORY_LABELS as ASSET_CATEGORY_LABELS, STATUS_BADGE as ASSET_STATUS_BADGE, STATUS_LABELS as ASSET_STATUS_LABELS } from '../lib/assetCategories';
+import {
+  EMPLOYEE_DOCUMENT_TYPE_LABELS,
+  EXPIRY_STATUS_BADGE,
+  EXPIRY_STATUS_LABELS,
+  getExpiryStatus,
+} from '../lib/documentCategories';
 
 const STATUS_STYLES: Record<string, string> = {
   ACTIVE: 'bg-green-100 text-green-700',
@@ -16,6 +22,8 @@ export default function Home() {
   const [assignments, setAssignments] = useState<MyProjectAssignment[]>([]);
   const [loading, setLoading] = useState(false);
   const [myAssets, setMyAssets] = useState<AssetAssignment[]>([]);
+  const [myDocuments, setMyDocuments] = useState<EmployeeDocument[]>([]);
+  const [companyDocuments, setCompanyDocuments] = useState<CompanyDocument[]>([]);
 
   const employeeId = user?.kind === 'EMPLOYEE' ? user.id : user?.employeeId;
 
@@ -28,6 +36,12 @@ export default function Home() {
       .finally(() => setLoading(false));
     getMyAssets(token, user?.kind === 'STAFF' ? employeeId : undefined)
       .then(setMyAssets)
+      .catch(() => {});
+    getMyEmployeeDocuments(token, user?.kind === 'STAFF' ? employeeId : undefined)
+      .then(setMyDocuments)
+      .catch(() => {});
+    getCompanyDocuments(token)
+      .then(setCompanyDocuments)
       .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, employeeId]);
@@ -114,6 +128,60 @@ export default function Home() {
                   ))}
                 </tbody>
               </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {employeeId && (
+        <div className="bg-white border border-slate-200 rounded-xl p-6">
+          <h2 className="text-sm font-semibold text-slate-800 mb-4">My Documents</h2>
+          {myDocuments.length === 0 && companyDocuments.length === 0 ? (
+            <p className="text-slate-500 text-sm">No documents on file yet.</p>
+          ) : (
+            <div className="space-y-4">
+              {myDocuments.length > 0 && (
+                <div>
+                  <p className="text-xs text-slate-400 mb-2">On your record</p>
+                  <ul className="space-y-1.5">
+                    {myDocuments.map((doc) => {
+                      const status = getExpiryStatus(doc.expiryDate);
+                      return (
+                        <li key={doc.id} className="flex items-center justify-between text-sm">
+                          <button
+                            onClick={() => token && employeeId && openAuthedFile(token, `/employees/${employeeId}/documents/${doc.id}/file`)}
+                            className="text-slate-700 hover:text-mitra-accentFrom text-left"
+                          >
+                            {EMPLOYEE_DOCUMENT_TYPE_LABELS[doc.documentType as keyof typeof EMPLOYEE_DOCUMENT_TYPE_LABELS] ||
+                              doc.documentType}{' '}
+                            — {doc.fileName}
+                          </button>
+                          <span className={`text-xs px-2 py-0.5 rounded-full ${EXPIRY_STATUS_BADGE[status]}`}>
+                            {EXPIRY_STATUS_LABELS[status]}
+                          </span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              )}
+              {companyDocuments.length > 0 && (
+                <div>
+                  <p className="text-xs text-slate-400 mb-2">Company documents</p>
+                  <ul className="space-y-1.5">
+                    {companyDocuments.map((doc) => (
+                      <li key={doc.id}>
+                        <button
+                          onClick={() => token && openAuthedFile(token, `/company-documents/${doc.id}/file`)}
+                          className="text-sm text-slate-700 hover:text-mitra-accentFrom text-left"
+                        >
+                          {doc.title}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
           )}
         </div>

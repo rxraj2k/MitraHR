@@ -130,14 +130,31 @@ model EmployeeSkill {
 }
 
 // Uploaded employee documents (ID proof, academic certificates, PAN card, etc).
+// documentType is validated against a fixed list (see employees/document-types.ts)
+// rather than a Master Data lookup, matching the Asset category precedent.
 model EmployeeDocument {
-  id           String   @id @default(uuid())
+  id           String    @id @default(uuid())
   employeeId   String
-  employee     Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employee     Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   documentType String
   fileName     String
   fileUrl      String
-  uploadedAt   DateTime @default(now())
+  expiryDate   DateTime?
+  uploadedAt   DateTime  @default(now())
+}
+
+// Company-wide documents (policies, templates, handbooks) — readable by any
+// logged-in user (staff or employee), managed only by staff. Lives outside
+// Master Data on purpose: nothing else references these rows by foreign key,
+// they're just documents to read (see the Sprint 8 design note).
+model CompanyDocument {
+  id         String   @id @default(uuid())
+  category   String
+  title      String
+  fileName   String
+  fileUrl    String
+  uploadedAt DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 }
 
 // One-time login codes for employee self-service (OTP-only, no password).

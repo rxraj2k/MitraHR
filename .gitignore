@@ -7,6 +7,12 @@ apps/api/uploads/employee-photos/*
 !apps/api/uploads/employee-photos/.gitkeep
 apps/api/uploads/employee-documents/*
 !apps/api/uploads/employee-documents/.gitkeep
+apps/api/secure-uploads/employee-documents/*
+!apps/api/secure-uploads/employee-documents/.gitkeep
+apps/api/secure-uploads/company-documents/*
+!apps/api/secure-uploads/company-documents/.gitkeep
+apps/api/secure-uploads/leave-attachments/*
+!apps/api/secure-uploads/leave-attachments/.gitkeep
 .DS_Store
 *.tsbuildinfo
 apps/web/vite.config.js

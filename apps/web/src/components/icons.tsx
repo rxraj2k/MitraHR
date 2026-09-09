@@ -251,3 +251,21 @@ export function KeyIcon(props: IconProps) {
     </svg>
   );
 }
+
+export function FileTextIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M7 3.5h7l4 4V19a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 6 19V5A1.5 1.5 0 0 1 7 3.5Z" />
+      <path d="M14 3.5V8h4.5" />
+      <path d="M9 12.5h6M9 15.5h6M9 9.5h2" />
+    </svg>
+  );
+}
+
+export function FolderIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M3.5 7a1.5 1.5 0 0 1 1.5-1.5h4l2 2h8A1.5 1.5 0 0 1 20.5 9v8A1.5 1.5 0 0 1 19 18.5H5A1.5 1.5 0 0 1 3.5 17V7Z" />
+    </svg>
+  );
+}

@@ -5,6 +5,7 @@ import {
   BuildingIcon,
   CalendarCheckIcon,
   DatabaseIcon,
+  FileTextIcon,
   GaugeIcon,
   GraduationCapIcon,
   HomeIcon,
@@ -25,6 +26,7 @@ const STAFF_NAV_ITEMS = [
   { to: '/utilization', label: 'Bench & Utilization', end: false, icon: GaugeIcon },
   { to: '/training', label: 'Learning Center', end: false, icon: GraduationCapIcon },
   { to: '/assets', label: 'Asset Management', end: false, icon: PackageIcon },
+  { to: '/documents', label: 'Document Management', end: false, icon: FileTextIcon },
   { to: '/settings', label: 'Master Data', end: false, icon: DatabaseIcon },
 ];
 

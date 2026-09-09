@@ -9,11 +9,13 @@ import {
   Post,
   Query,
   Req,
+  Res,
   UploadedFile,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { Response } from 'express';
 import { diskStorage } from 'multer';
 import { extname, join } from 'path';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -22,7 +24,10 @@ import { LeaveRequestsService } from './leave-requests.service';
 import { CreateLeaveRequestDto } from './dto/create-leave-request.dto';
 import { DecideLeaveRequestDto } from './dto/decide-leave-request.dto';
 
-const ATTACHMENT_DIR = join(process.cwd(), 'uploads', 'leave-attachments');
+// Kept outside the publicly-served `uploads/` root (see main.ts) since
+// medical certificates and similar attachments shouldn't be fetchable by
+// URL alone — the :id/attachment route below is the only way to read one.
+const ATTACHMENT_DIR = join(process.cwd(), 'secure-uploads', 'leave-attachments');
 const ALLOWED_ATTACHMENT_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'application/pdf'];
 
 // Employees (OTP sessions) can submit/cancel/view their own requests and
@@ -103,8 +108,15 @@ export class LeaveRequestsController {
       id,
       req.user,
       file.originalname,
-      `/uploads/leave-attachments/${file.filename}`,
+      `/secure-uploads/leave-attachments/${file.filename}`,
     );
+  }
+
+  // Owner or staff only — mirrors the upload ownership check above.
+  @Get(':id/attachment')
+  async downloadAttachment(@Req() req: any, @Param('id') id: string, @Res() res: Response) {
+    const { path, fileName } = await this.leaveRequestsService.getAttachmentFile(id, req.user);
+    res.download(path, fileName);
   }
 
   @UseGuards(StaffOnlyGuard)

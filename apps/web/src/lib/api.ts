@@ -22,6 +22,8 @@ import {
   Technology,
   Asset,
   AssetAssignment,
+  EmployeeDocumentWithOwner,
+  CompanyDocument,
 } from '../types';
 
 export const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000';
@@ -153,9 +155,11 @@ export async function uploadEmployeeDocument(
   id: string,
   documentType: string,
   file: File,
+  expiryDate?: string,
 ): Promise<Employee> {
   const formData = new FormData();
   formData.append('documentType', documentType);
+  if (expiryDate) formData.append('expiryDate', expiryDate);
   formData.append('file', file);
   const res = await fetch(`${API_BASE}/employees/${id}/documents`, {
     method: 'POST',
@@ -169,8 +173,82 @@ export async function uploadEmployeeDocument(
   return res.json();
 }
 
+export function updateEmployeeDocument(
+  token: string,
+  id: string,
+  documentId: string,
+  updates: { documentType?: string; expiryDate?: string | null },
+): Promise<Employee> {
+  return authFetch(token, `/employees/${id}/documents/${documentId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(updates),
+  });
+}
+
 export function deleteEmployeeDocument(token: string, id: string, documentId: string): Promise<Employee> {
   return authFetch(token, `/employees/${id}/documents/${documentId}`, { method: 'DELETE' });
+}
+
+export function getAllEmployeeDocuments(token: string): Promise<EmployeeDocumentWithOwner[]> {
+  return authFetch(token, '/employees/documents/all');
+}
+
+export function getMyEmployeeDocuments(token: string, employeeId?: string) {
+  const qs = employeeId ? `?employeeId=${employeeId}` : '';
+  return authFetch(token, `/employees/documents/my${qs}`);
+}
+
+// Fetches a protected file (an employee document, a company document, or a
+// leave attachment — anything served only through an authenticated route,
+// not the public /uploads/ static path) and opens it in a new tab. A plain
+// <a href> can't carry the Bearer token, so this fetches the bytes first.
+export async function openAuthedFile(token: string, path: string) {
+  const res = await fetch(`${API_BASE}${path}`, { headers: { Authorization: `Bearer ${token}` } });
+  if (!res.ok) throw new Error('Failed to load file');
+  const blob = await res.blob();
+  const objectUrl = URL.createObjectURL(blob);
+  window.open(objectUrl, '_blank');
+  setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
+}
+
+// --- Company Documents ---
+
+export function getCompanyDocuments(token: string): Promise<CompanyDocument[]> {
+  return authFetch(token, '/company-documents');
+}
+
+export async function createCompanyDocument(
+  token: string,
+  category: string,
+  title: string,
+  file: File,
+): Promise<CompanyDocument> {
+  const formData = new FormData();
+  formData.append('category', category);
+  formData.append('title', title);
+  formData.append('file', file);
+  const res = await fetch(`${API_BASE}/company-documents`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: formData,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ message: 'Document upload failed' }));
+    throw new Error(err.message || 'Document upload failed');
+  }
+  return res.json();
+}
+
+export function updateCompanyDocument(
+  token: string,
+  id: string,
+  updates: { category?: string; title?: string },
+): Promise<CompanyDocument> {
+  return authFetch(token, `/company-documents/${id}`, { method: 'PATCH', body: JSON.stringify(updates) });
+}
+
+export function deleteCompanyDocument(token: string, id: string): Promise<void> {
+  return authFetch(token, `/company-documents/${id}`, { method: 'DELETE' });
 }
 
 // --- Departments ---
