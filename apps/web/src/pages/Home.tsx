@@ -1,15 +1,24 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
   API_BASE,
   getCompanyDocuments,
+  getDashboardSummary,
   getMyAssets,
   getMyEmployeeDocuments,
   getMyProjects,
   getUpcomingBirthdays,
   openAuthedFile,
 } from '../lib/api';
-import { AssetAssignment, CompanyDocument, EmployeeDocument, MyProjectAssignment, UpcomingBirthday } from '../types';
+import {
+  AssetAssignment,
+  CompanyDocument,
+  DashboardSummary,
+  EmployeeDocument,
+  MyProjectAssignment,
+  UpcomingBirthday,
+} from '../types';
 import { CATEGORY_LABELS as ASSET_CATEGORY_LABELS, STATUS_BADGE as ASSET_STATUS_BADGE, STATUS_LABELS as ASSET_STATUS_LABELS } from '../lib/assetCategories';
 import {
   EMPLOYEE_DOCUMENT_TYPE_LABELS,
@@ -33,13 +42,14 @@ const STATUS_STYLES: Record<string, string> = {
 };
 
 export default function Home() {
-  const { user, token } = useAuth();
+  const { user, token, isStaff } = useAuth();
   const [assignments, setAssignments] = useState<MyProjectAssignment[]>([]);
   const [loading, setLoading] = useState(false);
   const [myAssets, setMyAssets] = useState<AssetAssignment[]>([]);
   const [myDocuments, setMyDocuments] = useState<EmployeeDocument[]>([]);
   const [companyDocuments, setCompanyDocuments] = useState<CompanyDocument[]>([]);
   const [birthdays, setBirthdays] = useState<UpcomingBirthday[]>([]);
+  const [dashboard, setDashboard] = useState<DashboardSummary | null>(null);
 
   const employeeId = user?.kind === 'EMPLOYEE' ? user.id : user?.employeeId;
 
@@ -49,6 +59,13 @@ export default function Home() {
       .then(setBirthdays)
       .catch(() => {});
   }, [token]);
+
+  useEffect(() => {
+    if (!token || !isStaff) return;
+    getDashboardSummary(token)
+      .then(setDashboard)
+      .catch(() => {});
+  }, [token, isStaff]);
 
   useEffect(() => {
     if (!token || !employeeId) return;
@@ -75,6 +92,56 @@ export default function Home() {
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-semibold text-slate-800">Welcome, {user?.name?.split(' ')[0]}</h1>
+
+      {isStaff && dashboard && (
+        <div className="bg-white border border-slate-200 rounded-xl p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-sm font-semibold text-slate-800">Company Dashboard</h2>
+            <Link to="/reports" className="text-xs font-medium text-mitra-accentFrom hover:underline">
+              View detailed reports →
+            </Link>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <Link to="/employees" className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 hover:bg-indigo-100">
+              <p className="text-xs font-medium text-indigo-600">Headcount</p>
+              <p className="text-2xl font-semibold text-slate-800 mt-1">{dashboard.headcount}</p>
+              {dashboard.newJoinersThisMonth > 0 && (
+                <p className="text-xs text-indigo-500 mt-1">+{dashboard.newJoinersThisMonth} this month</p>
+              )}
+            </Link>
+            <Link to="/leave" className="bg-amber-50 border border-amber-200 rounded-xl p-4 hover:bg-amber-100">
+              <p className="text-xs font-medium text-amber-600">Leave Days This Month</p>
+              <p className="text-2xl font-semibold text-slate-800 mt-1">{dashboard.leaveDaysThisMonth}</p>
+            </Link>
+            <Link to="/projects" className="bg-sky-50 border border-sky-200 rounded-xl p-4 hover:bg-sky-100">
+              <p className="text-xs font-medium text-sky-600">Active Projects</p>
+              <p className="text-2xl font-semibold text-slate-800 mt-1">{dashboard.activeProjects}</p>
+            </Link>
+            <Link to="/utilization" className="bg-fuchsia-50 border border-fuchsia-200 rounded-xl p-4 hover:bg-fuchsia-100">
+              <p className="text-xs font-medium text-fuchsia-600">On Bench</p>
+              <p className="text-2xl font-semibold text-slate-800 mt-1">{dashboard.utilizationSummary.bench}</p>
+              <p className="text-xs text-fuchsia-500 mt-1">of {dashboard.utilizationSummary.total} active</p>
+            </Link>
+            <Link to="/assets" className="bg-teal-50 border border-teal-200 rounded-xl p-4 hover:bg-teal-100">
+              <p className="text-xs font-medium text-teal-600">Assets Assigned</p>
+              <p className="text-2xl font-semibold text-slate-800 mt-1">{dashboard.assetStatusCounts.ASSIGNED || 0}</p>
+              <p className="text-xs text-teal-500 mt-1">of {Object.values(dashboard.assetStatusCounts).reduce((a, b) => a + b, 0)} total</p>
+            </Link>
+            <Link to="/training" className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 hover:bg-emerald-100">
+              <p className="text-xs font-medium text-emerald-600">Training Completion</p>
+              <p className="text-2xl font-semibold text-slate-800 mt-1">{dashboard.trainingCompletionPercent}%</p>
+            </Link>
+            <Link to="/reports" className="bg-rose-50 border border-rose-200 rounded-xl p-4 hover:bg-rose-100">
+              <p className="text-xs font-medium text-rose-600">Over-Allocated</p>
+              <p className="text-2xl font-semibold text-slate-800 mt-1">{dashboard.utilizationSummary.over}</p>
+            </Link>
+            <Link to="/reports" className="bg-slate-50 border border-slate-200 rounded-xl p-4 hover:bg-slate-100">
+              <p className="text-xs font-medium text-slate-600">Fully Allocated</p>
+              <p className="text-2xl font-semibold text-slate-800 mt-1">{dashboard.utilizationSummary.full}</p>
+            </Link>
+          </div>
+        </div>
+      )}
 
       {birthdays.length > 0 && (
         <div className="bg-gradient-to-r from-fuchsia-50 to-indigo-50 border border-fuchsia-200 rounded-xl p-5">

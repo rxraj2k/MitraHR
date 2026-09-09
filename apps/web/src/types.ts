@@ -322,6 +322,63 @@ export interface CompOffEntry {
 export interface AttendanceToday {
   checkedIn: boolean;
   markedAt: string | null;
+  checkedOut: boolean;
+  checkOutAt: string | null;
+}
+
+export interface AttendanceSettings {
+  id: string;
+  expectedStartTime: string;
+  graceMinutes: number;
+  halfDayThresholdHours: number;
+  updatedAt: string;
+}
+
+export interface DashboardSummary {
+  headcount: number;
+  newJoinersThisMonth: number;
+  leaveDaysThisMonth: number;
+  activeProjects: number;
+  utilizationSummary: {
+    total: number;
+    bench: number;
+    inTraining: number;
+    partial: number;
+    full: number;
+    over: number;
+  };
+  assetStatusCounts: Record<string, number>;
+  trainingCompletionPercent: number;
+}
+
+export interface AbsenteeismRow {
+  id: string;
+  fullName: string;
+  absentDays: number;
+}
+
+export interface AttendanceAnalyticsRow {
+  id: string;
+  fullName: string;
+  presentDays: number;
+  lateDays: number;
+  halfDays: number;
+}
+
+export interface AttendanceAnalytics {
+  settings: AttendanceSettings;
+  rows: AttendanceAnalyticsRow[];
+}
+
+export interface ProjectClosure {
+  id: string;
+  name: string;
+  clientName: string;
+  status: string;
+  startDate: string | null;
+  endDate: string | null;
+  durationDays: number | null;
+  closureSummary: string | null;
 }
 
 export interface EmployeeRef {

@@ -288,3 +288,21 @@ export function CakeIcon(props: IconProps) {
     </svg>
   );
 }
+
+export function ChartBarIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M4 20V10m6.5 10V4M17 20v-7" />
+      <path d="M3 20h18" />
+    </svg>
+  );
+}
+
+export function ClockIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M12 7.5V12l3 2" />
+    </svg>
+  );
+}

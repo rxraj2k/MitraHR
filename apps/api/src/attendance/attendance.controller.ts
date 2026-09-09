@@ -25,6 +25,20 @@ export class AttendanceController {
     throw new ForbiddenException('employeeId is required');
   }
 
+  @Post('check-out')
+  checkOut(@Req() req: any, @Body() dto: CheckInDto) {
+    if (req.user.kind === 'EMPLOYEE') {
+      return this.attendanceService.checkOut(req.user.sub, new Date());
+    }
+    if (dto.employeeId) {
+      return this.attendanceService.checkOut(dto.employeeId, dto.date ? new Date(dto.date) : new Date());
+    }
+    if (req.user.employeeId) {
+      return this.attendanceService.checkOut(req.user.employeeId, new Date());
+    }
+    throw new ForbiddenException('employeeId is required');
+  }
+
   @Get('today')
   today(@Req() req: any) {
     const employeeId = req.user.kind === 'EMPLOYEE' ? req.user.sub : req.user.employeeId;

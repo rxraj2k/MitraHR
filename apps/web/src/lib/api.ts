@@ -26,6 +26,11 @@ import {
   CompanyDocument,
   AppNotification,
   UpcomingBirthday,
+  DashboardSummary,
+  AbsenteeismRow,
+  AttendanceAnalytics,
+  AttendanceSettings,
+  ProjectClosure,
 } from '../types';
 
 export const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000';
@@ -618,6 +623,10 @@ export function getAttendanceToday(token: string): Promise<AttendanceToday> {
   return authFetch(token, '/attendance/today');
 }
 
+export function checkOut(token: string, data?: { employeeId?: string; date?: string }): Promise<any> {
+  return authFetch(token, '/attendance/check-out', { method: 'POST', body: JSON.stringify(data || {}) });
+}
+
 export function getAttendanceCalendar(
   token: string,
   year: number,
@@ -698,4 +707,33 @@ export function getUpcomingBirthdays(token: string, days = 7): Promise<UpcomingB
 // instead of waiting for the daily 8am cron.
 export function runDailyNotificationCheck(token: string): Promise<{ success: boolean }> {
   return authFetch(token, '/notifications/run-daily-check', { method: 'POST' });
+}
+
+// --- Reports & Dashboards ---
+
+export function getDashboardSummary(token: string): Promise<DashboardSummary> {
+  return authFetch(token, '/reports/dashboard-summary');
+}
+
+export function getAbsenteeismReport(token: string, year: number, month: number): Promise<AbsenteeismRow[]> {
+  return authFetch(token, `/reports/absenteeism?year=${year}&month=${month}`);
+}
+
+export function getAttendanceAnalytics(token: string, year: number, month: number): Promise<AttendanceAnalytics> {
+  return authFetch(token, `/reports/attendance-analytics?year=${year}&month=${month}`);
+}
+
+export function getProjectClosureReports(token: string): Promise<ProjectClosure[]> {
+  return authFetch(token, '/reports/project-closures');
+}
+
+export function getAttendanceSettings(token: string): Promise<AttendanceSettings> {
+  return authFetch(token, '/reports/attendance-settings');
+}
+
+export function updateAttendanceSettings(
+  token: string,
+  data: Partial<Pick<AttendanceSettings, 'expectedStartTime' | 'graceMinutes' | 'halfDayThresholdHours'>>,
+): Promise<AttendanceSettings> {
+  return authFetch(token, '/reports/attendance-settings', { method: 'PATCH', body: JSON.stringify(data) });
 }

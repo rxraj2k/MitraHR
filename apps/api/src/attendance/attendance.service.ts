@@ -52,7 +52,34 @@ export class AttendanceService {
     const record = await this.prisma.attendanceRecord.findUnique({
       where: { employeeId_date: { employeeId, date: day } },
     });
-    return { checkedIn: !!record, markedAt: record?.markedAt ?? null };
+    return {
+      checkedIn: !!record,
+      markedAt: record?.markedAt ?? null,
+      checkedOut: !!record?.checkOutAt,
+      checkOutAt: record?.checkOutAt ?? null,
+    };
+  }
+
+  // Additive to check-in, not a replacement: logs the end of the workday
+  // for whichever record already exists (today, or a specific date for a
+  // staff correction). Feeds the late-arrival/half-day analytics in the
+  // reports module — anyone who never clocks out just has no half-day
+  // signal, which is the safe default (never guessed against them).
+  async checkOut(employeeId: string, date: Date) {
+    const day = this.normalizeDate(date);
+    const record = await this.prisma.attendanceRecord.findUnique({
+      where: { employeeId_date: { employeeId, date: day } },
+    });
+    if (!record) {
+      throw new BadRequestException('No check-in on record for this date yet');
+    }
+    if (record.checkOutAt) {
+      throw new BadRequestException('Already clocked out for this date');
+    }
+    return this.prisma.attendanceRecord.update({
+      where: { id: record.id },
+      data: { checkOutAt: new Date() },
+    });
   }
 
   // Full breakdown for a month. Pass employeeId to scope every bucket down

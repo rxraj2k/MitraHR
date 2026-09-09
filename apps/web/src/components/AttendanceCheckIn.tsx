@@ -1,13 +1,16 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useAutoRefresh } from '../hooks/useAutoRefresh';
-import { checkIn, getAttendanceToday } from '../lib/api';
+import { checkIn, checkOut, getAttendanceToday } from '../lib/api';
+import { AttendanceToday } from '../types';
 
 // A small daily "mark yourself present" widget. Shown to any session with
 // a linked Employee record (OTP employees always; Admins only if linked).
+// Clock-out is additive: it never replaces "Mark Present", it's purely so
+// the late-arrival/half-day report has an end-of-day timestamp to work with.
 export default function AttendanceCheckIn() {
   const { token } = useAuth();
-  const [status, setStatus] = useState<{ checkedIn: boolean; markedAt: string | null } | null>(null);
+  const [status, setStatus] = useState<AttendanceToday | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -37,6 +40,20 @@ export default function AttendanceCheckIn() {
     }
   }
 
+  async function handleCheckOut() {
+    if (!token) return;
+    setError('');
+    setSubmitting(true);
+    try {
+      await checkOut(token);
+      load();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   const today = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
 
   return (
@@ -49,14 +66,34 @@ export default function AttendanceCheckIn() {
       {loading ? (
         <span className="text-sm text-slate-400">Loading...</span>
       ) : status?.checkedIn ? (
-        <span className="inline-flex items-center gap-2 rounded-full bg-green-100 text-green-700 text-sm font-medium px-4 py-2">
-          ✓ Marked present
-          {status.markedAt && (
-            <span className="text-green-600 font-normal">
-              at {new Date(status.markedAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+        <div className="flex items-center gap-3">
+          <span className="inline-flex items-center gap-2 rounded-full bg-green-100 text-green-700 text-sm font-medium px-4 py-2">
+            ✓ Marked present
+            {status.markedAt && (
+              <span className="text-green-600 font-normal">
+                at {new Date(status.markedAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+              </span>
+            )}
+          </span>
+          {status.checkedOut ? (
+            <span className="inline-flex items-center gap-2 rounded-full bg-slate-100 text-slate-600 text-sm font-medium px-4 py-2">
+              Clocked out
+              {status.checkOutAt && (
+                <span className="text-slate-500 font-normal">
+                  at {new Date(status.checkOutAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                </span>
+              )}
             </span>
+          ) : (
+            <button
+              onClick={handleCheckOut}
+              disabled={submitting}
+              className="rounded-lg border border-slate-200 text-slate-600 text-sm font-medium px-4 py-2 hover:bg-slate-50 disabled:opacity-50"
+            >
+              {submitting ? 'Saving...' : 'Clock Out'}
+            </button>
           )}
-        </span>
+        </div>
       ) : (
         <button
           onClick={handleCheckIn}

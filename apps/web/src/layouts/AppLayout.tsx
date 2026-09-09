@@ -5,6 +5,7 @@ import {
   BriefcaseIcon,
   BuildingIcon,
   CalendarCheckIcon,
+  ChartBarIcon,
   DatabaseIcon,
   FileTextIcon,
   GaugeIcon,
@@ -28,6 +29,7 @@ const STAFF_NAV_ITEMS = [
   { to: '/training', label: 'Learning Center', end: false, icon: GraduationCapIcon },
   { to: '/assets', label: 'Asset Management', end: false, icon: PackageIcon },
   { to: '/documents', label: 'Document Management', end: false, icon: FileTextIcon },
+  { to: '/reports', label: 'Reports & Analytics', end: false, icon: ChartBarIcon },
   { to: '/settings', label: 'Master Data', end: false, icon: DatabaseIcon },
 ];
 

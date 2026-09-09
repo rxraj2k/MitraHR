@@ -19,6 +19,7 @@ import LearningCenter from './pages/training/LearningCenter';
 import MyLearning from './pages/training/MyLearning';
 import AssetManagement from './pages/assets/AssetManagement';
 import DocumentManagement from './pages/documents/DocumentManagement';
+import ReportsPage from './pages/reports/ReportsPage';
 
 function ProtectedRoute({ children }: { children: JSX.Element }) {
   const { token, loading } = useAuth();
@@ -126,6 +127,14 @@ export default function App() {
           element={
             <StaffOnlyRoute>
               <DocumentManagement />
+            </StaffOnlyRoute>
+          }
+        />
+        <Route
+          path="reports"
+          element={
+            <StaffOnlyRoute>
+              <ReportsPage />
             </StaffOnlyRoute>
           }
         />

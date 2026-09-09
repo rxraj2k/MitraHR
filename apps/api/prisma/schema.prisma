@@ -245,15 +245,31 @@ model LeaveRequest {
 // passed. markedBy is 'SELF' for a normal check-in, or the staff User id
 // when an admin logs/corrects it on someone's behalf.
 model AttendanceRecord {
-  id         String   @id @default(uuid())
+  id         String    @id @default(uuid())
   employeeId String
-  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employee   Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   date       DateTime
-  markedAt   DateTime @default(now())
-  markedBy   String   @default("SELF")
-  createdAt  DateTime @default(now())
+  markedAt   DateTime  @default(now())
+  markedBy   String    @default("SELF")
+  // Optional end-of-day clock-out, logged separately from the "mark
+  // present" check-in. Left null for anyone who never clocks out — late
+  // arrival / half-day analytics simply skip a record until it's set.
+  checkOutAt DateTime?
+  createdAt  DateTime  @default(now())
 
   @@unique([employeeId, date])
+}
+
+// Single configurable row (id is always "default") driving attendance
+// analytics: what counts as "late" and what counts as a "half day". Kept
+// separate from Employee/company-wide settings since it's the one thing
+// Sprint 11's reporting needs and nothing else touches yet.
+model AttendanceSettings {
+  id                    String   @id @default("default")
+  expectedStartTime     String   @default("09:30") // "HH:MM", 24h, interpreted in server-local time
+  graceMinutes          Int      @default(15)
+  halfDayThresholdHours Float    @default(4)
+  updatedAt             DateTime @updatedAt
 }
 
 // Employee-logged extra day worked (a weekend/holiday shift, or approved
