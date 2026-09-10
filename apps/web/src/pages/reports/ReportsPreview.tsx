@@ -24,35 +24,35 @@ import {
   XIcon,
 } from '../../components/icons';
 import {
-  ATTENDANCE_LEDGER,
-  ATTENDANCE_TREND,
-  ATTRITION_RISKS,
   AttendanceLedgerRow,
+  AttendanceStatus,
+  AttendanceTrendPoint,
   AttritionRisk,
-  COMPLIANCE_ASSET_ROSTER,
-  COMPLIANCE_RADAR,
   ComplianceAssetRow,
   ComplianceItemType,
+  ComplianceRadarSummary,
   Department,
   DEPARTMENTS,
-  KPI_CARDS,
   KpiCardData,
   KpiTone,
   FUNNEL_STAGES,
   FunnelStage,
-  RECRUITMENT_FUNNEL,
   RecruitmentFunnelRow,
   RiskTier,
-  TENURE_MOBILITY,
-  TENURE_SPREAD,
   TenureMobilityRow,
-  US_CLIENT_ALIGNMENT,
+  TenureSpreadRow,
+  UsClientAlignmentSummary,
 } from './previewMockData';
+import { useReportsData } from './useReportsData';
 
 // ---------------------------------------------------------------------------
 // DESIGN PREVIEW — mock data only, nothing on this page talks to the real
 // API yet. Built to judge the new layout/blueprint before any backend work
 // starts; see ReportsPage.tsx for the real, currently-live Reports page.
+//
+// Every dataset below is read through `useReportsData()` (see
+// useReportsData.ts) rather than imported directly, so the eventual swap to
+// real REST/GraphQL data only touches that one hook.
 // ---------------------------------------------------------------------------
 
 const DATE_RANGES = ['This Month', 'Last Quarter', 'Year-to-Date 2026', 'Trailing 12 Months', 'Custom Range'] as const;
@@ -81,13 +81,13 @@ function KpiCard({ data }: { data: KpiCardData }) {
   );
 }
 
-function AttendanceTrendChart() {
+function AttendanceTrendChart({ data }: { data: AttendanceTrendPoint[] }) {
   return (
     <div className="bg-white border border-slate-200 rounded-xl p-5">
       <h3 className="text-sm font-semibold text-slate-800 mb-1">Workforce Attendance & Absence Trends</h3>
       <p className="text-xs text-slate-400 mb-3">Monthly, trailing 6 months</p>
       <ResponsiveContainer width="100%" height={260}>
-        <LineChart data={ATTENDANCE_TREND} margin={{ top: 8, right: 12, left: 4, bottom: 0 }}>
+        <LineChart data={data} margin={{ top: 8, right: 12, left: 4, bottom: 0 }}>
           <CartesianGrid stroke="#f1f5f9" vertical={false} />
           <XAxis dataKey="month" tick={{ fontSize: 12, fill: '#64748b' }} axisLine={{ stroke: '#e2e8f0' }} tickLine={false} />
           <YAxis
@@ -120,13 +120,13 @@ function AttendanceTrendChart() {
   );
 }
 
-function TenureSpreadChart() {
+function TenureSpreadChart({ data }: { data: TenureSpreadRow[] }) {
   return (
     <div className="bg-white border border-slate-200 rounded-xl p-5">
       <h3 className="text-sm font-semibold text-slate-800 mb-1">Departmental Headcount & Tenure Spread</h3>
       <p className="text-xs text-slate-400 mb-3">Active employees by time in company</p>
       <ResponsiveContainer width="100%" height={260}>
-        <BarChart data={TENURE_SPREAD} margin={{ top: 8, right: 12, left: 4, bottom: 0 }}>
+        <BarChart data={data} margin={{ top: 8, right: 12, left: 4, bottom: 0 }}>
           <CartesianGrid stroke="#f1f5f9" vertical={false} />
           <XAxis dataKey="department" tick={{ fontSize: 11, fill: '#64748b' }} axisLine={{ stroke: '#e2e8f0' }} tickLine={false} />
           <YAxis
@@ -155,7 +155,13 @@ const RISK_TIER_CLASSES: Record<RiskTier, string> = {
   Medium: 'bg-amber-100 text-amber-700',
 };
 
-function AttritionRiskWidget({ onViewProfile }: { onViewProfile: (row: AttritionRisk) => void }) {
+function AttritionRiskWidget({
+  risks,
+  onViewProfile,
+}: {
+  risks: AttritionRisk[];
+  onViewProfile: (row: AttritionRisk) => void;
+}) {
   return (
     <div className="bg-white border border-slate-200 rounded-xl p-5">
       <div className="flex items-center gap-2 mb-3">
@@ -163,7 +169,7 @@ function AttritionRiskWidget({ onViewProfile }: { onViewProfile: (row: Attrition
         <h3 className="text-sm font-semibold text-slate-800">AI Attrition Risk Predictor</h3>
       </div>
       <div className="space-y-2.5">
-        {ATTRITION_RISKS.map((r) => (
+        {risks.map((r) => (
           <div key={r.id} className="border border-slate-100 rounded-lg p-3">
             <div className="flex items-center justify-between gap-2 mb-1">
               <span className="text-sm font-medium text-slate-700">{r.name}</span>
@@ -185,11 +191,17 @@ function AttritionRiskWidget({ onViewProfile }: { onViewProfile: (row: Attrition
   );
 }
 
-function ComplianceRadarWidget({ onSelectItem }: { onSelectItem: (itemType: ComplianceItemType) => void }) {
+function ComplianceRadarWidget({
+  radar,
+  onSelectItem,
+}: {
+  radar: ComplianceRadarSummary;
+  onSelectItem: (itemType: ComplianceItemType) => void;
+}) {
   const items: { label: string; count: number; tone: 'rose' | 'amber' | 'slate'; itemType: ComplianceItemType }[] = [
-    { label: 'Upcoming Visa Expirations', count: COMPLIANCE_RADAR.visaExpirations, tone: 'rose', itemType: 'Visa Renewal' },
-    { label: 'Pending Policy Signatures', count: COMPLIANCE_RADAR.pendingPolicySignatures, tone: 'amber', itemType: 'Policy Signature' },
-    { label: 'Unassigned Laptops', count: COMPLIANCE_RADAR.unassignedLaptops, tone: 'slate', itemType: 'Laptop Assignment' },
+    { label: 'Upcoming Visa Expirations', count: radar.visaExpirations, tone: 'rose', itemType: 'Visa Renewal' },
+    { label: 'Pending Policy Signatures', count: radar.pendingPolicySignatures, tone: 'amber', itemType: 'Policy Signature' },
+    { label: 'Unassigned Laptops', count: radar.unassignedLaptops, tone: 'slate', itemType: 'Laptop Assignment' },
   ];
   const toneClasses = { rose: 'bg-rose-100 text-rose-700', amber: 'bg-amber-100 text-amber-700', slate: 'bg-slate-100 text-slate-600' };
   return (
@@ -215,7 +227,7 @@ function ComplianceRadarWidget({ onSelectItem }: { onSelectItem: (itemType: Comp
   );
 }
 
-function UsClientAlignmentWidget() {
+function UsClientAlignmentWidget({ summary }: { summary: UsClientAlignmentSummary }) {
   return (
     <div className="bg-white border border-slate-200 rounded-xl p-5">
       <div className="flex items-center gap-2 mb-3">
@@ -224,12 +236,12 @@ function UsClientAlignmentWidget() {
       </div>
       <div className="space-y-3">
         <div>
-          <p className="text-2xl font-semibold text-slate-800">{US_CLIENT_ALIGNMENT.timezoneOverlapPercent}%</p>
-          <p className="text-xs text-slate-500">Timezone overlap · {US_CLIENT_ALIGNMENT.timezoneOverlapLabel}</p>
+          <p className="text-2xl font-semibold text-slate-800">{summary.timezoneOverlapPercent}%</p>
+          <p className="text-xs text-slate-500">Timezone overlap · {summary.timezoneOverlapLabel}</p>
         </div>
         <div>
-          <p className="text-2xl font-semibold text-slate-800">{US_CLIENT_ALIGNMENT.activeUsProjects}</p>
-          <p className="text-xs text-slate-500">Active US project assignments across {US_CLIENT_ALIGNMENT.activeUsClients} clients</p>
+          <p className="text-2xl font-semibold text-slate-800">{summary.activeUsProjects}</p>
+          <p className="text-xs text-slate-500">Active US project assignments across {summary.activeUsClients} clients</p>
         </div>
       </div>
     </div>
@@ -456,6 +468,8 @@ const TABS: TabBarItem<TabKey>[] = [
   { key: 'compliance-roster', label: 'Compliance & Asset Roster', color: 'neutral' },
 ];
 
+const ATTENDANCE_STATUSES: AttendanceStatus[] = ['On Time', 'Late', 'Absent'];
+
 type SelectedDetail =
   | { kind: 'attendance-ledger'; row: AttendanceLedgerRow }
   | { kind: 'tenure-mobility'; row: TenureMobilityRow }
@@ -467,17 +481,23 @@ export default function ReportsPreview() {
   const [tab, setTab] = useState<TabKey>('attendance-ledger');
   const [dateRange, setDateRange] = useState<(typeof DATE_RANGES)[number]>('Year-to-Date 2026');
   const [deptFilter, setDeptFilter] = useState<DeptFilter>('All Departments');
+  const [statusFilter, setStatusFilter] = useState<AttendanceStatus | 'All Statuses'>('All Statuses');
   const [stageFilter, setStageFilter] = useState<FunnelStage | 'All Stages'>('All Stages');
   const [complianceItemFilter, setComplianceItemFilter] = useState<ComplianceItemType | null>(null);
   const [exportOpen, setExportOpen] = useState(false);
   const [detail, setDetail] = useState<SelectedDetail | null>(null);
   const tableSectionRef = useRef<HTMLDivElement>(null);
 
+  const { data } = useReportsData({ dateRange, department: deptFilter });
+
   const byDept = <T extends { department: Department }>(rows: T[]): T[] =>
     deptFilter === 'All Departments' ? rows : rows.filter((r) => r.department === deptFilter);
 
-  const recruitmentRows = RECRUITMENT_FUNNEL.filter((r) => stageFilter === 'All Stages' || r.stage === stageFilter);
-  const complianceRows = byDept(COMPLIANCE_ASSET_ROSTER).filter(
+  const attendanceRows = byDept(data.attendanceLedger).filter(
+    (r) => statusFilter === 'All Statuses' || r.status === statusFilter
+  );
+  const recruitmentRows = data.recruitmentFunnel.filter((r) => stageFilter === 'All Stages' || r.stage === stageFilter);
+  const complianceRows = byDept(data.complianceAssetRoster).filter(
     (r) => !complianceItemFilter || r.itemType === complianceItemFilter
   );
 
@@ -487,8 +507,8 @@ export default function ReportsPreview() {
   }
 
   function handleExportCsv() {
-    if (tab === 'attendance-ledger') downloadCsv('attendance-ledger.csv', byDept(ATTENDANCE_LEDGER));
-    if (tab === 'tenure-mobility') downloadCsv('tenure-mobility.csv', byDept(TENURE_MOBILITY));
+    if (tab === 'attendance-ledger') downloadCsv('attendance-ledger.csv', attendanceRows);
+    if (tab === 'tenure-mobility') downloadCsv('tenure-mobility.csv', byDept(data.tenureMobility));
     if (tab === 'recruitment-funnel') downloadCsv('recruitment-funnel.csv', recruitmentRows);
     if (tab === 'compliance-roster') downloadCsv('compliance-asset-roster.csv', complianceRows);
     setExportOpen(false);
@@ -570,25 +590,29 @@ export default function ReportsPreview() {
       </p>
 
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
-        {KPI_CARDS.map((k) => (
+        {data.kpiCards.map((k) => (
           <KpiCard key={k.label} data={k} />
         ))}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        <AttendanceTrendChart />
-        <TenureSpreadChart />
+        <AttendanceTrendChart data={data.attendanceTrend} />
+        <TenureSpreadChart data={data.tenureSpread} />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-        <AttritionRiskWidget onViewProfile={(row) => setDetail({ kind: 'attrition-risk', row })} />
+        <AttritionRiskWidget
+          risks={data.attritionRisks}
+          onViewProfile={(row) => setDetail({ kind: 'attrition-risk', row })}
+        />
         <ComplianceRadarWidget
+          radar={data.complianceRadar}
           onSelectItem={(itemType) => {
             setComplianceItemFilter(itemType);
             goToTable('compliance-roster');
           }}
         />
-        <UsClientAlignmentWidget />
+        <UsClientAlignmentWidget summary={data.usClientAlignment} />
       </div>
 
       <div ref={tableSectionRef} className="bg-transparent scroll-mt-4">
@@ -596,10 +620,29 @@ export default function ReportsPreview() {
 
         {tab === 'attendance-ledger' && (
           <DataTable<AttendanceLedgerRow>
-            rows={byDept(ATTENDANCE_LEDGER)}
+            rows={attendanceRows}
             searchPlaceholder="Search by name..."
             searchFn={(r, q) => r.name.toLowerCase().includes(q)}
             onViewDetails={(row) => setDetail({ kind: 'attendance-ledger', row })}
+            toolbarExtra={(count) => (
+              <>
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value as AttendanceStatus | 'All Statuses')}
+                  className="rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white"
+                >
+                  <option>All Statuses</option>
+                  {ATTENDANCE_STATUSES.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                </select>
+                <span className="text-xs text-slate-500 whitespace-nowrap">
+                  Showing {count} record{count === 1 ? '' : 's'}
+                </span>
+              </>
+            )}
             columns={[
               { key: 'name', header: 'Name', sortValue: (r) => r.name },
               { key: 'department', header: 'Department', sortValue: (r) => r.department },
@@ -630,7 +673,7 @@ export default function ReportsPreview() {
 
         {tab === 'tenure-mobility' && (
           <DataTable<TenureMobilityRow>
-            rows={byDept(TENURE_MOBILITY)}
+            rows={byDept(data.tenureMobility)}
             searchPlaceholder="Search by name..."
             searchFn={(r, q) => r.name.toLowerCase().includes(q)}
             onViewDetails={(row) => setDetail({ kind: 'tenure-mobility', row })}

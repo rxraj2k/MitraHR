@@ -93,13 +93,26 @@ export const ATTRITION_RISKS: AttritionRisk[] = [
   },
 ];
 
-export const COMPLIANCE_RADAR = {
+export interface ComplianceRadarSummary {
+  visaExpirations: number;
+  pendingPolicySignatures: number;
+  unassignedLaptops: number;
+}
+
+export const COMPLIANCE_RADAR: ComplianceRadarSummary = {
   visaExpirations: 2,
   pendingPolicySignatures: 5,
   unassignedLaptops: 4,
 };
 
-export const US_CLIENT_ALIGNMENT = {
+export interface UsClientAlignmentSummary {
+  timezoneOverlapPercent: number;
+  timezoneOverlapLabel: string;
+  activeUsProjects: number;
+  activeUsClients: number;
+}
+
+export const US_CLIENT_ALIGNMENT: UsClientAlignmentSummary = {
   timezoneOverlapPercent: 62,
   timezoneOverlapLabel: '~5 hrs/day overlap with EST',
   activeUsProjects: 12,

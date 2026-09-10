@@ -41,9 +41,11 @@ const COLOR_CLASSES: Record<TabColor, { active: string; inactive: string }> = {
   },
   // Unified, low-key variant for tab groups that should read as one cohesive
   // control (e.g. a set of data-table tabs) rather than a row of distinct
-  // colorful buttons: neutral gray at rest, a single accent when active.
+  // colorful buttons: neutral gray at rest, the app's actual brand accent
+  // (mitra.accentFrom — same token used for "View Details" links etc.)
+  // when active, rather than a generic Tailwind color.
   neutral: {
-    active: 'bg-indigo-600 text-white shadow-sm shadow-indigo-200',
+    active: 'bg-mitra-accentFrom text-white shadow-sm shadow-mitra-accentFrom/30',
     inactive: 'bg-slate-100 text-slate-600 border border-slate-200 hover:bg-slate-200',
   },
 };
