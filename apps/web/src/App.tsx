@@ -20,6 +20,7 @@ import MyLearning from './pages/training/MyLearning';
 import AssetManagement from './pages/assets/AssetManagement';
 import DocumentManagement from './pages/documents/DocumentManagement';
 import ReportsPage from './pages/reports/ReportsPage';
+import ReportsPreview from './pages/reports/ReportsPreview';
 import StaffingSandbox from './pages/staffing/StaffingSandbox';
 
 function ProtectedRoute({ children }: { children: JSX.Element }) {
@@ -144,6 +145,14 @@ export default function App() {
           element={
             <StaffOnlyRoute>
               <ReportsPage />
+            </StaffOnlyRoute>
+          }
+        />
+        <Route
+          path="reports-preview"
+          element={
+            <StaffOnlyRoute>
+              <ReportsPreview />
             </StaffOnlyRoute>
           }
         />

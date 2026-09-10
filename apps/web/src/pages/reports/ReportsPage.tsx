@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import TabBar, { TabBarItem } from '../../components/TabBar';
+import { SparkleIcon } from '../../components/icons';
 import {
   getAbsenteeismReport,
   getAttendanceAnalytics,
@@ -309,6 +311,17 @@ export default function ReportsPage() {
     <div>
       <h1 className="text-2xl font-semibold text-slate-800 mb-1">Reports & Analytics</h1>
       <p className="text-sm text-slate-500 mb-6">Drill-down detail behind the dashboard tiles on Home.</p>
+
+      <Link
+        to="/reports-preview"
+        className="mb-6 flex items-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-700 transition hover:bg-indigo-100"
+      >
+        <SparkleIcon className="h-4 w-4 flex-shrink-0" />
+        <span>
+          <span className="font-medium">Preview a redesigned Reports experience</span>
+          {' '}&mdash; KPI cards, charts, predictive insights, and deep-dive tables (mock data, UI preview only).
+        </span>
+      </Link>
 
       <TabBar tabs={TABS} active={tab} onChange={setTab} />
 
