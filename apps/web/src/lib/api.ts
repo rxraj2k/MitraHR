@@ -32,6 +32,14 @@ import {
   AttendanceSettings,
   ProjectClosure,
   StaffingSandboxBoard,
+  ReportsPreviewOverview,
+  ReportsPreviewTrendPoint,
+  ReportsPreviewTenureSpreadRow,
+  ReportsPreviewAttendanceLedgerRow,
+  ReportsPreviewTenureMobilityRow,
+  ReportsPreviewAttritionRisk,
+  ReportsPreviewComplianceRadar,
+  ReportsPreviewComplianceRow,
 } from '../types';
 
 export const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000';
@@ -737,6 +745,40 @@ export function updateAttendanceSettings(
   data: Partial<Pick<AttendanceSettings, 'expectedStartTime' | 'graceMinutes' | 'halfDayThresholdHours'>>,
 ): Promise<AttendanceSettings> {
   return authFetch(token, '/reports/attendance-settings', { method: 'PATCH', body: JSON.stringify(data) });
+}
+
+// --- Reports & Analytics preview (/reports-preview) ---
+
+export function getReportsPreviewOverview(token: string): Promise<ReportsPreviewOverview> {
+  return authFetch(token, '/reports/preview/overview');
+}
+
+export function getReportsPreviewAttendanceTrend(token: string, months = 6): Promise<ReportsPreviewTrendPoint[]> {
+  return authFetch(token, `/reports/preview/attendance-trend?months=${months}`);
+}
+
+export function getReportsPreviewTenureSpread(token: string): Promise<ReportsPreviewTenureSpreadRow[]> {
+  return authFetch(token, '/reports/preview/tenure-spread');
+}
+
+export function getReportsPreviewAttendanceLedger(token: string): Promise<ReportsPreviewAttendanceLedgerRow[]> {
+  return authFetch(token, '/reports/preview/attendance-ledger');
+}
+
+export function getReportsPreviewTenureMobility(token: string): Promise<ReportsPreviewTenureMobilityRow[]> {
+  return authFetch(token, '/reports/preview/tenure-mobility');
+}
+
+export function getReportsPreviewAttritionRisk(token: string): Promise<ReportsPreviewAttritionRisk[]> {
+  return authFetch(token, '/reports/preview/attrition-risk');
+}
+
+export function getReportsPreviewComplianceRadar(token: string): Promise<ReportsPreviewComplianceRadar> {
+  return authFetch(token, '/reports/preview/compliance-radar');
+}
+
+export function getReportsPreviewComplianceRoster(token: string): Promise<ReportsPreviewComplianceRow[]> {
+  return authFetch(token, '/reports/preview/compliance-roster');
 }
 
 // --- Staffing Sandbox ---

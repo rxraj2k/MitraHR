@@ -1,5 +1,5 @@
 import { ReactNode, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   CartesianGrid,
   Legend,
@@ -12,6 +12,7 @@ import {
   Bar,
   BarChart,
 } from 'recharts';
+import { useAuth } from '../../context/AuthContext';
 import TabBar, { TabBarItem } from '../../components/TabBar';
 import {
   AlertTriangleIcon,
@@ -24,39 +25,44 @@ import {
   XIcon,
 } from '../../components/icons';
 import {
-  AttendanceLedgerRow,
   AttendanceStatus,
-  AttendanceTrendPoint,
-  AttritionRisk,
-  ComplianceAssetRow,
-  ComplianceItemType,
-  ComplianceRadarSummary,
-  Department,
-  DEPARTMENTS,
-  KpiCardData,
-  KpiTone,
+  ATTENDANCE_STATUSES,
   FUNNEL_STAGES,
   FunnelStage,
+  KpiCardData,
+  KpiTone,
   RecruitmentFunnelRow,
-  RiskTier,
-  TenureMobilityRow,
-  TenureSpreadRow,
   UsClientAlignmentSummary,
 } from './previewMockData';
+import {
+  ReportsPreviewAttendanceLedgerRow,
+  ReportsPreviewAttritionRisk,
+  ReportsPreviewComplianceRadar,
+  ReportsPreviewComplianceRow,
+  ReportsPreviewTenureMobilityRow,
+  ReportsPreviewTenureSpreadRow,
+  ReportsPreviewTrendPoint,
+} from '../../types';
 import { useReportsData } from './useReportsData';
 
 // ---------------------------------------------------------------------------
-// DESIGN PREVIEW — mock data only, nothing on this page talks to the real
-// API yet. Built to judge the new layout/blueprint before any backend work
-// starts; see ReportsPage.tsx for the real, currently-live Reports page.
+// DESIGN PREVIEW at /reports-preview. Most of the data on this page is now
+// real — attendance, tenure, the AI-flagged risk list, and the compliance
+// document roster all come from useReportsData.ts, which calls the
+// /reports/preview/* endpoints. A few pieces are still placeholder data
+// because the feature behind them doesn't exist yet: the Recruitment Funnel
+// tab (Sprint 13), US Client Alignment (needs a structured client region
+// field), "Pending Policy Signatures" (no acknowledgment-tracking model),
+// and 3 of the 5 KPI cards (turnover/recruitment-speed/sentiment need exit
+// tracking, an ATS, and a survey feature respectively). Each is labeled
+// "Preview data" in the UI below rather than left to blend in with the rest.
 //
-// Every dataset below is read through `useReportsData()` (see
-// useReportsData.ts) rather than imported directly, so the eventual swap to
-// real REST/GraphQL data only touches that one hook.
+// See ReportsPage.tsx for the original, simpler, fully-real Reports page
+// this preview is meant to eventually replace once the design is approved.
 // ---------------------------------------------------------------------------
 
 const DATE_RANGES = ['This Month', 'Last Quarter', 'Year-to-Date 2026', 'Trailing 12 Months', 'Custom Range'] as const;
-type DeptFilter = 'All Departments' | Department;
+type DeptFilter = 'All Departments' | string;
 
 const KPI_BADGE_CLASSES: Record<KpiTone, string> = {
   positive: 'bg-emerald-100 text-emerald-700',
@@ -64,10 +70,21 @@ const KPI_BADGE_CLASSES: Record<KpiTone, string> = {
   neutral: 'bg-slate-100 text-slate-600',
 };
 
+function PreviewDataTag() {
+  return (
+    <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-fuchsia-50 text-fuchsia-600 border border-fuchsia-200">
+      Preview data
+    </span>
+  );
+}
+
 function KpiCard({ data }: { data: KpiCardData }) {
   return (
     <div className="bg-white border border-slate-200 rounded-xl p-5">
-      <p className="text-xs font-medium text-slate-500">{data.label}</p>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs font-medium text-slate-500">{data.label}</p>
+        {data.isMock && <PreviewDataTag />}
+      </div>
       <p className="text-2xl font-semibold text-slate-800 mt-1">{data.value}</p>
       <div className="flex items-center gap-2 mt-2 flex-wrap">
         {data.badge && (
@@ -81,7 +98,7 @@ function KpiCard({ data }: { data: KpiCardData }) {
   );
 }
 
-function AttendanceTrendChart({ data }: { data: AttendanceTrendPoint[] }) {
+function AttendanceTrendChart({ data }: { data: ReportsPreviewTrendPoint[] }) {
   return (
     <div className="bg-white border border-slate-200 rounded-xl p-5">
       <h3 className="text-sm font-semibold text-slate-800 mb-1">Workforce Attendance & Absence Trends</h3>
@@ -120,7 +137,7 @@ function AttendanceTrendChart({ data }: { data: AttendanceTrendPoint[] }) {
   );
 }
 
-function TenureSpreadChart({ data }: { data: TenureSpreadRow[] }) {
+function TenureSpreadChart({ data }: { data: ReportsPreviewTenureSpreadRow[] }) {
   return (
     <div className="bg-white border border-slate-200 rounded-xl p-5">
       <h3 className="text-sm font-semibold text-slate-800 mb-1">Departmental Headcount & Tenure Spread</h3>
@@ -133,8 +150,6 @@ function TenureSpreadChart({ data }: { data: TenureSpreadRow[] }) {
             tick={{ fontSize: 12, fill: '#64748b' }}
             axisLine={false}
             tickLine={false}
-            domain={[0, 40]}
-            ticks={[0, 10, 20, 30, 40]}
             allowDecimals={false}
             width={32}
           />
@@ -150,7 +165,7 @@ function TenureSpreadChart({ data }: { data: TenureSpreadRow[] }) {
   );
 }
 
-const RISK_TIER_CLASSES: Record<RiskTier, string> = {
+const RISK_TIER_CLASSES: Record<'High' | 'Medium', string> = {
   High: 'bg-rose-100 text-rose-700',
   Medium: 'bg-amber-100 text-amber-700',
 };
@@ -159,8 +174,8 @@ function AttritionRiskWidget({
   risks,
   onViewProfile,
 }: {
-  risks: AttritionRisk[];
-  onViewProfile: (row: AttritionRisk) => void;
+  risks: ReportsPreviewAttritionRisk[];
+  onViewProfile: (row: ReportsPreviewAttritionRisk) => void;
 }) {
   return (
     <div className="bg-white border border-slate-200 rounded-xl p-5">
@@ -168,42 +183,42 @@ function AttritionRiskWidget({
         <SparkleIcon className="w-4 h-4 text-fuchsia-500" />
         <h3 className="text-sm font-semibold text-slate-800">AI Attrition Risk Predictor</h3>
       </div>
-      <div className="space-y-2.5">
-        {risks.map((r) => (
-          <div key={r.id} className="border border-slate-100 rounded-lg p-3">
-            <div className="flex items-center justify-between gap-2 mb-1">
-              <span className="text-sm font-medium text-slate-700">{r.name}</span>
-              <span className={`flex-shrink-0 text-xs font-medium px-2 py-0.5 rounded-full ${RISK_TIER_CLASSES[r.riskTier]}`}>
-                {r.riskTier} risk
-              </span>
+      {risks.length === 0 ? (
+        <p className="text-xs text-slate-400">No employees currently show a real absence or leave-pattern flag.</p>
+      ) : (
+        <div className="space-y-2.5">
+          {risks.map((r) => (
+            <div key={r.id} className="border border-slate-100 rounded-lg p-3">
+              <div className="flex items-center justify-between gap-2 mb-1">
+                <span className="text-sm font-medium text-slate-700">{r.name}</span>
+                <span className={`flex-shrink-0 text-xs font-medium px-2 py-0.5 rounded-full ${RISK_TIER_CLASSES[r.riskTier]}`}>
+                  {r.riskTier} risk
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 mb-2">{r.reason}</p>
+              <button
+                onClick={() => onViewProfile(r)}
+                className="text-xs font-medium text-mitra-accentFrom hover:underline"
+              >
+                View Profile &rarr;
+              </button>
             </div>
-            <p className="text-xs text-slate-500 mb-2">{r.reason}</p>
-            <button
-              onClick={() => onViewProfile(r)}
-              className="text-xs font-medium text-mitra-accentFrom hover:underline"
-            >
-              View Profile &rarr;
-            </button>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
 function ComplianceRadarWidget({
   radar,
-  onSelectItem,
+  onViewDocuments,
+  onViewLaptops,
 }: {
-  radar: ComplianceRadarSummary;
-  onSelectItem: (itemType: ComplianceItemType) => void;
+  radar: ReportsPreviewComplianceRadar;
+  onViewDocuments: () => void;
+  onViewLaptops: () => void;
 }) {
-  const items: { label: string; count: number; tone: 'rose' | 'amber' | 'slate'; itemType: ComplianceItemType }[] = [
-    { label: 'Upcoming Visa Expirations', count: radar.visaExpirations, tone: 'rose', itemType: 'Visa Renewal' },
-    { label: 'Pending Policy Signatures', count: radar.pendingPolicySignatures, tone: 'amber', itemType: 'Policy Signature' },
-    { label: 'Unassigned Laptops', count: radar.unassignedLaptops, tone: 'slate', itemType: 'Laptop Assignment' },
-  ];
-  const toneClasses = { rose: 'bg-rose-100 text-rose-700', amber: 'bg-amber-100 text-amber-700', slate: 'bg-slate-100 text-slate-600' };
   return (
     <div className="bg-white border border-slate-200 rounded-xl p-5">
       <div className="flex items-center gap-2 mb-3">
@@ -211,17 +226,32 @@ function ComplianceRadarWidget({
         <h3 className="text-sm font-semibold text-slate-800">Compliance & IT Asset Radar</h3>
       </div>
       <div className="space-y-1">
-        {items.map((it) => (
-          <button
-            key={it.label}
-            onClick={() => onSelectItem(it.itemType)}
-            className="w-full flex items-center justify-between text-sm rounded-lg px-1.5 py-1.5 -mx-1.5 hover:bg-slate-50 text-left"
-            title={`View the ${it.label.toLowerCase()} in the Compliance & Asset Roster table below`}
-          >
-            <span className="text-slate-600">{it.label}</span>
-            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${toneClasses[it.tone]}`}>{it.count}</span>
-          </button>
-        ))}
+        <button
+          onClick={onViewDocuments}
+          className="w-full flex items-center justify-between text-sm rounded-lg px-1.5 py-1.5 -mx-1.5 hover:bg-slate-50 text-left"
+          title="View expiring employee documents in the Compliance & Asset Roster table below"
+        >
+          <span className="text-slate-600">Documents Expiring Soon</span>
+          <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-rose-100 text-rose-700">
+            {radar.documentsExpiringSoon}
+          </span>
+        </button>
+        <button
+          onClick={onViewLaptops}
+          className="w-full flex items-center justify-between text-sm rounded-lg px-1.5 py-1.5 -mx-1.5 hover:bg-slate-50 text-left"
+          title="Open Asset Management to see unassigned laptops"
+        >
+          <span className="text-slate-600">Unassigned Laptops</span>
+          <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
+            {radar.unassignedLaptops}
+          </span>
+        </button>
+        <div className="w-full flex items-center justify-between text-sm rounded-lg px-1.5 py-1.5 -mx-1.5">
+          <span className="text-slate-400">Pending Policy Signatures</span>
+          <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-slate-50 text-slate-400 border border-slate-200">
+            Not tracked yet
+          </span>
+        </div>
       </div>
     </div>
   );
@@ -230,9 +260,12 @@ function ComplianceRadarWidget({
 function UsClientAlignmentWidget({ summary }: { summary: UsClientAlignmentSummary }) {
   return (
     <div className="bg-white border border-slate-200 rounded-xl p-5">
-      <div className="flex items-center gap-2 mb-3">
-        <GlobeIcon className="w-4 h-4 text-sky-500" />
-        <h3 className="text-sm font-semibold text-slate-800">US Client Alignment</h3>
+      <div className="flex items-center justify-between gap-2 mb-3">
+        <div className="flex items-center gap-2">
+          <GlobeIcon className="w-4 h-4 text-sky-500" />
+          <h3 className="text-sm font-semibold text-slate-800">US Client Alignment</h3>
+        </div>
+        <PreviewDataTag />
       </div>
       <div className="space-y-3">
         <div>
@@ -468,47 +501,59 @@ const TABS: TabBarItem<TabKey>[] = [
   { key: 'compliance-roster', label: 'Compliance & Asset Roster', color: 'neutral' },
 ];
 
-const ATTENDANCE_STATUSES: AttendanceStatus[] = ['On Time', 'Late', 'Absent'];
-
 type SelectedDetail =
-  | { kind: 'attendance-ledger'; row: AttendanceLedgerRow }
-  | { kind: 'tenure-mobility'; row: TenureMobilityRow }
+  | { kind: 'attendance-ledger'; row: ReportsPreviewAttendanceLedgerRow }
+  | { kind: 'tenure-mobility'; row: ReportsPreviewTenureMobilityRow }
   | { kind: 'recruitment-funnel'; row: RecruitmentFunnelRow }
-  | { kind: 'compliance-roster'; row: ComplianceAssetRow }
-  | { kind: 'attrition-risk'; row: AttritionRisk };
+  | { kind: 'compliance-roster'; row: ReportsPreviewComplianceRow }
+  | { kind: 'attrition-risk'; row: ReportsPreviewAttritionRisk };
 
 export default function ReportsPreview() {
+  const { token } = useAuth();
+  const navigate = useNavigate();
   const [tab, setTab] = useState<TabKey>('attendance-ledger');
   const [dateRange, setDateRange] = useState<(typeof DATE_RANGES)[number]>('Year-to-Date 2026');
   const [deptFilter, setDeptFilter] = useState<DeptFilter>('All Departments');
   const [statusFilter, setStatusFilter] = useState<AttendanceStatus | 'All Statuses'>('All Statuses');
   const [stageFilter, setStageFilter] = useState<FunnelStage | 'All Stages'>('All Stages');
-  const [complianceItemFilter, setComplianceItemFilter] = useState<ComplianceItemType | null>(null);
   const [exportOpen, setExportOpen] = useState(false);
   const [detail, setDetail] = useState<SelectedDetail | null>(null);
   const tableSectionRef = useRef<HTMLDivElement>(null);
 
-  const { data } = useReportsData({ dateRange, department: deptFilter });
-
-  const byDept = <T extends { department: Department }>(rows: T[]): T[] =>
-    deptFilter === 'All Departments' ? rows : rows.filter((r) => r.department === deptFilter);
-
-  const attendanceRows = byDept(data.attendanceLedger).filter(
-    (r) => statusFilter === 'All Statuses' || r.status === statusFilter
-  );
-  const recruitmentRows = data.recruitmentFunnel.filter((r) => stageFilter === 'All Stages' || r.stage === stageFilter);
-  const complianceRows = byDept(data.complianceAssetRoster).filter(
-    (r) => !complianceItemFilter || r.itemType === complianceItemFilter
-  );
+  const { data, loading, error } = useReportsData(token);
 
   function goToTable(nextTab: TabKey) {
     setTab(nextTab);
     tableSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
+  if (!token) return null;
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-2 py-24 text-center">
+        <AlertTriangleIcon className="w-6 h-6 text-rose-400" />
+        <p className="text-sm text-slate-600">Couldn't load reports data: {error}</p>
+      </div>
+    );
+  }
+
+  if (loading || !data) {
+    return <div className="flex items-center justify-center py-24 text-sm text-slate-400">Loading reports data…</div>;
+  }
+
+  const byDept = <T extends { department: string }>(rows: T[]): T[] =>
+    deptFilter === 'All Departments' ? rows : rows.filter((r) => r.department === deptFilter);
+
+  const attendanceRows = byDept(data.attendanceLedger).filter(
+    (r) => statusFilter === 'All Statuses' || r.status === statusFilter
+  );
+  const recruitmentRows = data.recruitmentFunnel.filter((r) => stageFilter === 'All Stages' || r.stage === stageFilter);
+  const complianceRows = byDept(data.complianceAssetRoster);
+
   function handleExportCsv() {
     if (tab === 'attendance-ledger') downloadCsv('attendance-ledger.csv', attendanceRows);
-    if (tab === 'tenure-mobility') downloadCsv('tenure-mobility.csv', byDept(data.tenureMobility));
+    if (tab === 'tenure-mobility') downloadCsv('tenure-mobility.csv', byDept(data!.tenureMobility));
     if (tab === 'recruitment-funnel') downloadCsv('recruitment-funnel.csv', recruitmentRows);
     if (tab === 'compliance-roster') downloadCsv('compliance-asset-roster.csv', complianceRows);
     setExportOpen(false);
@@ -542,11 +587,11 @@ export default function ReportsPreview() {
           </select>
           <select
             value={deptFilter}
-            onChange={(e) => setDeptFilter(e.target.value as DeptFilter)}
+            onChange={(e) => setDeptFilter(e.target.value)}
             className="rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white"
           >
             <option>All Departments</option>
-            {DEPARTMENTS.map((d) => (
+            {data.departments.map((d) => (
               <option key={d} value={d}>
                 {d}
               </option>
@@ -579,14 +624,17 @@ export default function ReportsPreview() {
         </div>
       </div>
 
-      <p className="text-xs text-slate-400 mb-6 flex items-center gap-1.5">
-        <AlertTriangleIcon className="w-3.5 h-3.5" />
-        Every number on this page is hardcoded mock data for layout review — nothing here is connected to the real
-        API yet. The live Reports page is still at{' '}
-        <Link to="/reports" className="underline hover:text-slate-600">
-          Reports & Analytics
-        </Link>
-        .
+      <p className="text-xs text-slate-400 mb-6 flex items-center gap-1.5 flex-wrap">
+        <AlertTriangleIcon className="w-3.5 h-3.5 flex-shrink-0" />
+        <span>
+          Attendance, tenure, compliance documents, and the risk list below are computed from real records. The
+          Recruitment Funnel tab, US Client Alignment, and cards tagged <PreviewDataTag /> are still placeholder data
+          pending features not yet built. The live, simpler Reports page is still at{' '}
+          <Link to="/reports" className="underline hover:text-slate-600">
+            Reports & Analytics
+          </Link>
+          .
+        </span>
       </p>
 
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
@@ -607,10 +655,8 @@ export default function ReportsPreview() {
         />
         <ComplianceRadarWidget
           radar={data.complianceRadar}
-          onSelectItem={(itemType) => {
-            setComplianceItemFilter(itemType);
-            goToTable('compliance-roster');
-          }}
+          onViewDocuments={() => goToTable('compliance-roster')}
+          onViewLaptops={() => navigate('/assets')}
         />
         <UsClientAlignmentWidget summary={data.usClientAlignment} />
       </div>
@@ -618,8 +664,15 @@ export default function ReportsPreview() {
       <div ref={tableSectionRef} className="bg-transparent scroll-mt-4">
         <TabBar tabs={TABS} active={tab} onChange={setTab} />
 
+        {tab === 'recruitment-funnel' && (
+          <p className="text-xs text-slate-500 mb-3 flex items-center gap-1.5">
+            <PreviewDataTag /> This tab is still placeholder data — the real recruitment pipeline is planned as a
+            later sprint.
+          </p>
+        )}
+
         {tab === 'attendance-ledger' && (
-          <DataTable<AttendanceLedgerRow>
+          <DataTable<ReportsPreviewAttendanceLedgerRow>
             rows={attendanceRows}
             searchPlaceholder="Search by name..."
             searchFn={(r, q) => r.name.toLowerCase().includes(q)}
@@ -672,7 +725,7 @@ export default function ReportsPreview() {
         )}
 
         {tab === 'tenure-mobility' && (
-          <DataTable<TenureMobilityRow>
+          <DataTable<ReportsPreviewTenureMobilityRow>
             rows={byDept(data.tenureMobility)}
             searchPlaceholder="Search by name..."
             searchFn={(r, q) => r.name.toLowerCase().includes(q)}
@@ -741,26 +794,15 @@ export default function ReportsPreview() {
         )}
 
         {tab === 'compliance-roster' && (
-          <DataTable<ComplianceAssetRow>
+          <DataTable<ReportsPreviewComplianceRow>
             rows={complianceRows}
             searchPlaceholder="Search by name..."
             searchFn={(r, q) => r.name.toLowerCase().includes(q)}
             onViewDetails={(row) => setDetail({ kind: 'compliance-roster', row })}
             toolbarExtra={(count) => (
-              <>
-                {complianceItemFilter && (
-                  <button
-                    onClick={() => setComplianceItemFilter(null)}
-                    className="flex items-center gap-1.5 text-xs font-medium pl-2.5 pr-2 py-1.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100"
-                  >
-                    {complianceItemFilter}
-                    <XIcon className="w-3 h-3" />
-                  </button>
-                )}
-                <span className="text-xs text-slate-500 whitespace-nowrap">
-                  Showing {count} record{count === 1 ? '' : 's'}
-                </span>
-              </>
+              <span className="text-xs text-slate-500 whitespace-nowrap">
+                Showing {count} record{count === 1 ? '' : 's'}
+              </span>
             )}
             columns={[
               { key: 'name', header: 'Name', sortValue: (r) => r.name },
@@ -777,9 +819,7 @@ export default function ReportsPreview() {
                         ? 'bg-emerald-100 text-emerald-700'
                         : r.status === 'Overdue'
                         ? 'bg-rose-100 text-rose-700'
-                        : r.status === 'Due Soon'
-                        ? 'bg-amber-100 text-amber-700'
-                        : 'bg-slate-100 text-slate-600'
+                        : 'bg-amber-100 text-amber-700'
                     }`}
                   >
                     {r.status}

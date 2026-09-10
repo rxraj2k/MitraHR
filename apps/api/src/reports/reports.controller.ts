@@ -47,4 +47,46 @@ export class ReportsController {
   updateAttendanceSettings(@Body() dto: UpdateAttendanceSettingsDto) {
     return this.reportsService.updateAttendanceSettings(dto);
   }
+
+  // --- Reports & Analytics preview (/reports-preview) ---
+
+  @Get('preview/overview')
+  previewOverview() {
+    return this.reportsService.previewOverview();
+  }
+
+  @Get('preview/attendance-trend')
+  previewAttendanceTrend(@Query('months') months?: string) {
+    return this.reportsService.previewAttendanceTrend(months ? parseInt(months, 10) : undefined);
+  }
+
+  @Get('preview/tenure-spread')
+  previewTenureSpread() {
+    return this.reportsService.previewTenureSpread();
+  }
+
+  @Get('preview/attendance-ledger')
+  previewAttendanceLedger() {
+    return this.reportsService.previewAttendanceLedger();
+  }
+
+  @Get('preview/tenure-mobility')
+  previewTenureMobility() {
+    return this.reportsService.previewTenureMobility();
+  }
+
+  @Get('preview/attrition-risk')
+  previewAttritionRisk() {
+    return this.reportsService.previewAttritionRisk();
+  }
+
+  @Get('preview/compliance-radar')
+  previewComplianceRadar() {
+    return this.reportsService.previewComplianceRadar();
+  }
+
+  @Get('preview/compliance-roster')
+  previewComplianceRoster() {
+    return this.reportsService.previewComplianceRoster();
+  }
 }

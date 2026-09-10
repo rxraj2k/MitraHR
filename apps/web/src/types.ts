@@ -381,6 +381,84 @@ export interface ProjectClosure {
   closureSummary: string | null;
 }
 
+// --- Reports & Analytics preview (/reports-preview) — the pieces backed by real data ---
+
+export interface ReportsPreviewOverview {
+  headcount: number;
+  newJoinersThisMonth: number;
+  attendanceRatePercentThisMonth: number;
+  attendanceRatePercentLastMonth: number;
+}
+
+export interface ReportsPreviewTrendPoint {
+  month: string;
+  present: number;
+  paidLeave: number;
+  unapprovedAbsence: number;
+}
+
+export interface ReportsPreviewTenureSpreadRow {
+  department: string;
+  lt6mo: number;
+  m6to12: number;
+  y1to3: number;
+  y3plus: number;
+}
+
+export type ReportsPreviewAttendanceStatus = 'On Time' | 'Late' | 'Absent';
+
+export interface ReportsPreviewAttendanceLedgerRow {
+  id: string;
+  name: string;
+  department: string;
+  date: string;
+  checkIn: string;
+  checkOut: string;
+  status: ReportsPreviewAttendanceStatus;
+  lateByMinutes: number;
+}
+
+export type ReportsPreviewTenureBucket = '<6 mos' | '6-12 mos' | '1-3 yrs' | '3+ yrs';
+
+export interface ReportsPreviewTenureMobilityRow {
+  id: string;
+  name: string;
+  department: string;
+  designation: string;
+  joinDate: string;
+  tenureBucket: ReportsPreviewTenureBucket;
+  lastPromotion: string;
+}
+
+export type ReportsPreviewRiskTier = 'High' | 'Medium';
+
+export interface ReportsPreviewAttritionRisk {
+  id: string;
+  name: string;
+  department: string;
+  riskTier: ReportsPreviewRiskTier;
+  reason: string;
+}
+
+export interface ReportsPreviewComplianceRadar {
+  documentsExpiringSoon: number;
+  unassignedLaptops: number;
+  // null = not tracked yet (no policy-acknowledgment model exists) rather
+  // than a made-up count.
+  pendingPolicySignatures: number | null;
+}
+
+export type ReportsPreviewComplianceStatus = 'Overdue' | 'Due Soon' | 'Complete';
+
+export interface ReportsPreviewComplianceRow {
+  id: string;
+  name: string;
+  department: string;
+  itemType: string;
+  status: ReportsPreviewComplianceStatus;
+  dueDate: string;
+}
+
 export interface SandboxEmployeeCard {
   id: string;
   fullName: string;

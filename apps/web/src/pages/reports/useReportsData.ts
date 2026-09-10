@@ -1,105 +1,153 @@
-// Centralizes every mock dataset the Reports & Analytics preview renders
-// behind one hook, `useReportsData`, so the page component never imports
-// mock arrays directly. The point isn't behavior (it still just returns the
-// same hardcoded snapshot synchronously) — it's shape: `ReportsQueryParams`
-// and `ReportsData` describe exactly what a real endpoint would take and
-// return, and the { data, loading, error } return matches the same
-// async-fetch convention the rest of the app already uses in lib/api.ts.
+// Centralizes every dataset the Reports & Analytics preview renders behind
+// one hook, `useReportsData`, so the page component never talks to
+// lib/api.ts or the mock file directly.
 //
-// Swapping this for the real backend later should only mean rewriting the
-// inside of this one function — e.g. a `useEffect` that calls something like
-// `getReportsDashboard(params)` from lib/api.ts (mirroring the existing
-// getAbsenteeismReport / getAttendanceAnalytics pattern) and setting loading
-// /error/data from the response — without touching ReportsPreview.tsx itself.
-import { useMemo, useState } from 'react';
+// Most of this is now real: it fetches from the /reports/preview/* endpoints
+// added alongside this hook. A few pieces stay mock because the feature
+// behind them doesn't exist yet — the recruitment pipeline (Sprint 13), US
+// client alignment (would need a structured client region field), two
+// specific KPI cards (turnover/recruitment-speed/sentiment need exit
+// tracking, an ATS, and a survey feature respectively), and "pending policy
+// signatures" (no acknowledgment-tracking model). Those are pulled from
+// previewMockData.ts and merged in below, each one clearly identifiable
+// (KPI cards carry `isMock: true`; ReportsPreview.tsx labels the rest).
+import { useEffect, useMemo, useState } from 'react';
 import {
-  ATTENDANCE_LEDGER,
-  ATTENDANCE_TREND,
-  ATTRITION_RISKS,
-  AttendanceLedgerRow,
-  AttendanceTrendPoint,
-  AttritionRisk,
-  COMPLIANCE_ASSET_ROSTER,
-  COMPLIANCE_RADAR,
-  ComplianceAssetRow,
-  ComplianceRadarSummary,
-  Department,
-  KPI_CARDS,
-  KpiCardData,
-  RECRUITMENT_FUNNEL,
-  RecruitmentFunnelRow,
-  TENURE_MOBILITY,
-  TENURE_SPREAD,
-  TenureMobilityRow,
-  TenureSpreadRow,
-  US_CLIENT_ALIGNMENT,
-  UsClientAlignmentSummary,
-} from './previewMockData';
-
-export interface ReportsQueryParams {
-  /** One of the Date Range selector's option labels (see DATE_RANGES). */
-  dateRange: string;
-  /** 'All Departments' or one specific department to scope every dataset to. */
-  department: Department | 'All Departments';
-}
+  getDepartments,
+  getReportsPreviewAttendanceLedger,
+  getReportsPreviewAttendanceTrend,
+  getReportsPreviewAttritionRisk,
+  getReportsPreviewComplianceRadar,
+  getReportsPreviewComplianceRoster,
+  getReportsPreviewOverview,
+  getReportsPreviewTenureMobility,
+  getReportsPreviewTenureSpread,
+} from '../../lib/api';
+import {
+  ReportsPreviewAttendanceLedgerRow,
+  ReportsPreviewAttritionRisk,
+  ReportsPreviewComplianceRadar,
+  ReportsPreviewComplianceRow,
+  ReportsPreviewTenureMobilityRow,
+  ReportsPreviewTenureSpreadRow,
+  ReportsPreviewTrendPoint,
+} from '../../types';
+import { KpiCardData, RECRUITMENT_FUNNEL, RecruitmentFunnelRow, STILL_MOCK_KPI_CARDS, US_CLIENT_ALIGNMENT, UsClientAlignmentSummary } from './previewMockData';
 
 export interface ReportsData {
   kpiCards: KpiCardData[];
-  attendanceTrend: AttendanceTrendPoint[];
-  tenureSpread: TenureSpreadRow[];
-  attritionRisks: AttritionRisk[];
-  complianceRadar: ComplianceRadarSummary;
+  attendanceTrend: ReportsPreviewTrendPoint[];
+  tenureSpread: ReportsPreviewTenureSpreadRow[];
+  attritionRisks: ReportsPreviewAttritionRisk[];
+  complianceRadar: ReportsPreviewComplianceRadar;
   usClientAlignment: UsClientAlignmentSummary;
-  attendanceLedger: AttendanceLedgerRow[];
-  tenureMobility: TenureMobilityRow[];
+  attendanceLedger: ReportsPreviewAttendanceLedgerRow[];
+  tenureMobility: ReportsPreviewTenureMobilityRow[];
   recruitmentFunnel: RecruitmentFunnelRow[];
-  complianceAssetRoster: ComplianceAssetRow[];
+  complianceAssetRoster: ReportsPreviewComplianceRow[];
+  departments: string[];
 }
 
 export interface UseReportsDataResult {
-  data: ReportsData;
+  data: ReportsData | null;
   loading: boolean;
   error: string | null;
 }
 
+function formatAttendanceRateCard(thisMonth: number, lastMonth: number): KpiCardData {
+  const delta = Math.round((thisMonth - lastMonth) * 10) / 10;
+  return {
+    label: 'Workforce Reliability',
+    value: `${thisMonth}%`,
+    subtext: 'Attendance Rate (this month)',
+    badge:
+      delta === 0
+        ? undefined
+        : { text: `${delta > 0 ? '+' : ''}${delta}% vs last month`, tone: delta > 0 ? 'positive' : 'negative' },
+  };
+}
+
+function formatHeadcountCard(headcount: number, newJoiners: number): KpiCardData {
+  return {
+    label: 'Headcount & Growth',
+    value: `${headcount} Employees`,
+    badge: newJoiners > 0 ? { text: `+${newJoiners} this month`, tone: 'positive' } : undefined,
+  };
+}
+
 /**
- * Single source of truth for every number/row this page renders.
- *
- * TODO(backend): once the real endpoints exist, this becomes something like:
- *
- *   const [data, setData] = useState<ReportsData | null>(null);
- *   const [loading, setLoading] = useState(true);
- *   const [error, setError] = useState<string | null>(null);
- *   useEffect(() => {
- *     setLoading(true);
- *     getReportsDashboard(params)
- *       .then(setData)
- *       .catch((e) => setError(e.message))
- *       .finally(() => setLoading(false));
- *   }, [params.dateRange, params.department]);
- *
- * `params` is accepted (and typed) now so that effect can be dropped in
- * without changing this hook's signature or its caller.
+ * Fetches every real /reports/preview/* dataset in parallel, then merges in
+ * the handful of pieces that are still mock (see the file-level comment).
+ * `department`/`dateRange` are accepted for a future server-side-filtered
+ * version of these endpoints — for now filtering happens client-side in
+ * ReportsPreview.tsx, same as before.
  */
-export function useReportsData(params: ReportsQueryParams): UseReportsDataResult {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { dateRange, department } = params; // not yet used — mock data doesn't vary by query, real data will.
+export function useReportsData(token: string | null): UseReportsDataResult {
+  const [state, setState] = useState<{ data: ReportsData | null; loading: boolean; error: string | null }>({
+    data: null,
+    loading: true,
+    error: null,
+  });
 
-  const [snapshot] = useState<ReportsData>(() => ({
-    kpiCards: KPI_CARDS,
-    attendanceTrend: ATTENDANCE_TREND,
-    tenureSpread: TENURE_SPREAD,
-    attritionRisks: ATTRITION_RISKS,
-    complianceRadar: COMPLIANCE_RADAR,
-    usClientAlignment: US_CLIENT_ALIGNMENT,
-    attendanceLedger: ATTENDANCE_LEDGER,
-    tenureMobility: TENURE_MOBILITY,
-    recruitmentFunnel: RECRUITMENT_FUNNEL,
-    complianceAssetRoster: COMPLIANCE_ASSET_ROSTER,
-  }));
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+    setState((s) => ({ ...s, loading: true, error: null }));
 
-  // useMemo (rather than returning a fresh object every render) so a future
-  // real implementation can safely list `data` in dependency arrays without
-  // causing extra re-fetches from identity churn alone.
-  return useMemo(() => ({ data: snapshot, loading: false, error: null }), [snapshot]);
+    Promise.all([
+      getReportsPreviewOverview(token),
+      getReportsPreviewAttendanceTrend(token),
+      getReportsPreviewTenureSpread(token),
+      getReportsPreviewAttendanceLedger(token),
+      getReportsPreviewTenureMobility(token),
+      getReportsPreviewAttritionRisk(token),
+      getReportsPreviewComplianceRadar(token),
+      getReportsPreviewComplianceRoster(token),
+      getDepartments(token),
+    ])
+      .then(
+        ([
+          overview,
+          attendanceTrend,
+          tenureSpread,
+          attendanceLedger,
+          tenureMobility,
+          attritionRisks,
+          complianceRadar,
+          complianceAssetRoster,
+          departmentLookups,
+        ]) => {
+          if (cancelled) return;
+          const kpiCards: KpiCardData[] = [
+            formatHeadcountCard(overview.headcount, overview.newJoinersThisMonth),
+            formatAttendanceRateCard(overview.attendanceRatePercentThisMonth, overview.attendanceRatePercentLastMonth),
+            ...STILL_MOCK_KPI_CARDS,
+          ];
+          const data: ReportsData = {
+            kpiCards,
+            attendanceTrend,
+            tenureSpread,
+            attritionRisks,
+            complianceRadar,
+            usClientAlignment: US_CLIENT_ALIGNMENT,
+            attendanceLedger,
+            tenureMobility,
+            recruitmentFunnel: RECRUITMENT_FUNNEL,
+            complianceAssetRoster,
+            departments: departmentLookups.map((d) => d.name).sort((a, b) => a.localeCompare(b)),
+          };
+          setState({ data, loading: false, error: null });
+        },
+      )
+      .catch((err: Error) => {
+        if (cancelled) return;
+        setState({ data: null, loading: false, error: err.message || 'Failed to load reports data' });
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
+
+  return useMemo(() => state, [state]);
 }
