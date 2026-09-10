@@ -1,4 +1,4 @@
-import { ReactNode, useState } from 'react';
+import { ReactNode, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   CartesianGrid,
@@ -28,14 +28,18 @@ import {
   ATTENDANCE_TREND,
   ATTRITION_RISKS,
   AttendanceLedgerRow,
+  AttritionRisk,
   COMPLIANCE_ASSET_ROSTER,
   COMPLIANCE_RADAR,
   ComplianceAssetRow,
+  ComplianceItemType,
   Department,
   DEPARTMENTS,
   KPI_CARDS,
   KpiCardData,
   KpiTone,
+  FUNNEL_STAGES,
+  FunnelStage,
   RECRUITMENT_FUNNEL,
   RecruitmentFunnelRow,
   RiskTier,
@@ -83,10 +87,18 @@ function AttendanceTrendChart() {
       <h3 className="text-sm font-semibold text-slate-800 mb-1">Workforce Attendance & Absence Trends</h3>
       <p className="text-xs text-slate-400 mb-3">Monthly, trailing 6 months</p>
       <ResponsiveContainer width="100%" height={260}>
-        <LineChart data={ATTENDANCE_TREND} margin={{ top: 8, right: 12, left: -18, bottom: 0 }}>
+        <LineChart data={ATTENDANCE_TREND} margin={{ top: 8, right: 12, left: 4, bottom: 0 }}>
           <CartesianGrid stroke="#f1f5f9" vertical={false} />
           <XAxis dataKey="month" tick={{ fontSize: 12, fill: '#64748b' }} axisLine={{ stroke: '#e2e8f0' }} tickLine={false} />
-          <YAxis tick={{ fontSize: 12, fill: '#64748b' }} axisLine={false} tickLine={false} unit="%" width={40} />
+          <YAxis
+            tick={{ fontSize: 12, fill: '#64748b' }}
+            axisLine={false}
+            tickLine={false}
+            domain={[0, 100]}
+            ticks={[0, 20, 40, 60, 80, 100]}
+            tickFormatter={(v: number) => `${v}%`}
+            width={42}
+          />
           <Tooltip
             formatter={(v: number) => [`${v}%`, undefined]}
             contentStyle={{ borderRadius: 8, borderColor: '#e2e8f0', fontSize: 12 }}
@@ -114,10 +126,18 @@ function TenureSpreadChart() {
       <h3 className="text-sm font-semibold text-slate-800 mb-1">Departmental Headcount & Tenure Spread</h3>
       <p className="text-xs text-slate-400 mb-3">Active employees by time in company</p>
       <ResponsiveContainer width="100%" height={260}>
-        <BarChart data={TENURE_SPREAD} margin={{ top: 8, right: 12, left: -18, bottom: 0 }}>
+        <BarChart data={TENURE_SPREAD} margin={{ top: 8, right: 12, left: 4, bottom: 0 }}>
           <CartesianGrid stroke="#f1f5f9" vertical={false} />
           <XAxis dataKey="department" tick={{ fontSize: 11, fill: '#64748b' }} axisLine={{ stroke: '#e2e8f0' }} tickLine={false} />
-          <YAxis tick={{ fontSize: 12, fill: '#64748b' }} axisLine={false} tickLine={false} width={30} />
+          <YAxis
+            tick={{ fontSize: 12, fill: '#64748b' }}
+            axisLine={false}
+            tickLine={false}
+            domain={[0, 40]}
+            ticks={[0, 10, 20, 30, 40]}
+            allowDecimals={false}
+            width={32}
+          />
           <Tooltip contentStyle={{ borderRadius: 8, borderColor: '#e2e8f0', fontSize: 12 }} />
           <Legend wrapperStyle={{ fontSize: 12 }} iconType="circle" />
           <Bar dataKey="lt6mo" name="<6 mos" stackId="a" fill="#c7d2fe" stroke="#fff" strokeWidth={2} />
@@ -135,7 +155,7 @@ const RISK_TIER_CLASSES: Record<RiskTier, string> = {
   Medium: 'bg-amber-100 text-amber-700',
 };
 
-function AttritionRiskWidget() {
+function AttritionRiskWidget({ onViewProfile }: { onViewProfile: (row: AttritionRisk) => void }) {
   return (
     <div className="bg-white border border-slate-200 rounded-xl p-5">
       <div className="flex items-center gap-2 mb-3">
@@ -151,7 +171,13 @@ function AttritionRiskWidget() {
                 {r.riskTier} risk
               </span>
             </div>
-            <p className="text-xs text-slate-500">{r.reason}</p>
+            <p className="text-xs text-slate-500 mb-2">{r.reason}</p>
+            <button
+              onClick={() => onViewProfile(r)}
+              className="text-xs font-medium text-mitra-accentFrom hover:underline"
+            >
+              View Profile &rarr;
+            </button>
           </div>
         ))}
       </div>
@@ -159,11 +185,11 @@ function AttritionRiskWidget() {
   );
 }
 
-function ComplianceRadarWidget() {
-  const items: { label: string; count: number; tone: 'rose' | 'amber' | 'slate' }[] = [
-    { label: 'Upcoming Visa Expirations', count: COMPLIANCE_RADAR.visaExpirations, tone: 'rose' },
-    { label: 'Pending Policy Signatures', count: COMPLIANCE_RADAR.pendingPolicySignatures, tone: 'amber' },
-    { label: 'Unassigned Laptops', count: COMPLIANCE_RADAR.unassignedLaptops, tone: 'slate' },
+function ComplianceRadarWidget({ onSelectItem }: { onSelectItem: (itemType: ComplianceItemType) => void }) {
+  const items: { label: string; count: number; tone: 'rose' | 'amber' | 'slate'; itemType: ComplianceItemType }[] = [
+    { label: 'Upcoming Visa Expirations', count: COMPLIANCE_RADAR.visaExpirations, tone: 'rose', itemType: 'Visa Renewal' },
+    { label: 'Pending Policy Signatures', count: COMPLIANCE_RADAR.pendingPolicySignatures, tone: 'amber', itemType: 'Policy Signature' },
+    { label: 'Unassigned Laptops', count: COMPLIANCE_RADAR.unassignedLaptops, tone: 'slate', itemType: 'Laptop Assignment' },
   ];
   const toneClasses = { rose: 'bg-rose-100 text-rose-700', amber: 'bg-amber-100 text-amber-700', slate: 'bg-slate-100 text-slate-600' };
   return (
@@ -172,12 +198,17 @@ function ComplianceRadarWidget() {
         <ShieldIcon className="w-4 h-4 text-indigo-500" />
         <h3 className="text-sm font-semibold text-slate-800">Compliance & IT Asset Radar</h3>
       </div>
-      <div className="space-y-2.5">
+      <div className="space-y-1">
         {items.map((it) => (
-          <div key={it.label} className="flex items-center justify-between text-sm">
+          <button
+            key={it.label}
+            onClick={() => onSelectItem(it.itemType)}
+            className="w-full flex items-center justify-between text-sm rounded-lg px-1.5 py-1.5 -mx-1.5 hover:bg-slate-50 text-left"
+            title={`View the ${it.label.toLowerCase()} in the Compliance & Asset Roster table below`}
+          >
             <span className="text-slate-600">{it.label}</span>
             <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${toneClasses[it.tone]}`}>{it.count}</span>
-          </div>
+          </button>
         ))}
       </div>
     </div>
@@ -279,12 +310,14 @@ function DataTable<T extends { id: string }>({
   searchPlaceholder,
   searchFn,
   onViewDetails,
+  toolbarExtra,
 }: {
   rows: T[];
   columns: ColumnDef<T>[];
   searchPlaceholder: string;
   searchFn: (row: T, query: string) => boolean;
   onViewDetails: (row: T) => void;
+  toolbarExtra?: (resultCount: number) => ReactNode;
 }) {
   const [query, setQuery] = useState('');
   const [sortKey, setSortKey] = useState<string | null>(null);
@@ -320,17 +353,20 @@ function DataTable<T extends { id: string }>({
 
   return (
     <div>
-      <div className="relative max-w-xs mb-3">
-        <SearchIcon className="w-4 h-4 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
-        <input
-          value={query}
-          onChange={(e) => {
-            setQuery(e.target.value);
-            setPage(1);
-          }}
-          placeholder={searchPlaceholder}
-          className="w-full rounded-lg border border-slate-300 pl-8 pr-3 py-2 text-sm"
-        />
+      <div className="flex items-center gap-3 flex-wrap mb-3">
+        <div className="relative max-w-xs w-full sm:w-auto flex-shrink-0">
+          <SearchIcon className="w-4 h-4 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+          <input
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setPage(1);
+            }}
+            placeholder={searchPlaceholder}
+            className="w-full rounded-lg border border-slate-300 pl-8 pr-3 py-2 text-sm"
+          />
+        </div>
+        {toolbarExtra?.(filtered.length)}
       </div>
       <div className="overflow-x-auto bg-white border border-slate-200 rounded-xl">
         <table className="w-full text-sm">
@@ -414,33 +450,47 @@ function DataTable<T extends { id: string }>({
 type TabKey = 'attendance-ledger' | 'tenure-mobility' | 'recruitment-funnel' | 'compliance-roster';
 
 const TABS: TabBarItem<TabKey>[] = [
-  { key: 'attendance-ledger', label: 'Attendance & Punctuality Ledger', color: 'rose' },
-  { key: 'tenure-mobility', label: 'Tenure & Mobility History', color: 'indigo' },
-  { key: 'recruitment-funnel', label: 'ATS & Recruitment Funnel', color: 'fuchsia' },
-  { key: 'compliance-roster', label: 'Compliance & Asset Roster', color: 'amber' },
+  { key: 'attendance-ledger', label: 'Attendance & Punctuality Ledger', color: 'neutral' },
+  { key: 'tenure-mobility', label: 'Tenure & Mobility History', color: 'neutral' },
+  { key: 'recruitment-funnel', label: 'ATS & Recruitment Funnel', color: 'neutral' },
+  { key: 'compliance-roster', label: 'Compliance & Asset Roster', color: 'neutral' },
 ];
 
 type SelectedDetail =
   | { kind: 'attendance-ledger'; row: AttendanceLedgerRow }
   | { kind: 'tenure-mobility'; row: TenureMobilityRow }
   | { kind: 'recruitment-funnel'; row: RecruitmentFunnelRow }
-  | { kind: 'compliance-roster'; row: ComplianceAssetRow };
+  | { kind: 'compliance-roster'; row: ComplianceAssetRow }
+  | { kind: 'attrition-risk'; row: AttritionRisk };
 
 export default function ReportsPreview() {
   const [tab, setTab] = useState<TabKey>('attendance-ledger');
   const [dateRange, setDateRange] = useState<(typeof DATE_RANGES)[number]>('Year-to-Date 2026');
   const [deptFilter, setDeptFilter] = useState<DeptFilter>('All Departments');
+  const [stageFilter, setStageFilter] = useState<FunnelStage | 'All Stages'>('All Stages');
+  const [complianceItemFilter, setComplianceItemFilter] = useState<ComplianceItemType | null>(null);
   const [exportOpen, setExportOpen] = useState(false);
   const [detail, setDetail] = useState<SelectedDetail | null>(null);
+  const tableSectionRef = useRef<HTMLDivElement>(null);
 
   const byDept = <T extends { department: Department }>(rows: T[]): T[] =>
     deptFilter === 'All Departments' ? rows : rows.filter((r) => r.department === deptFilter);
 
+  const recruitmentRows = RECRUITMENT_FUNNEL.filter((r) => stageFilter === 'All Stages' || r.stage === stageFilter);
+  const complianceRows = byDept(COMPLIANCE_ASSET_ROSTER).filter(
+    (r) => !complianceItemFilter || r.itemType === complianceItemFilter
+  );
+
+  function goToTable(nextTab: TabKey) {
+    setTab(nextTab);
+    tableSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
   function handleExportCsv() {
     if (tab === 'attendance-ledger') downloadCsv('attendance-ledger.csv', byDept(ATTENDANCE_LEDGER));
     if (tab === 'tenure-mobility') downloadCsv('tenure-mobility.csv', byDept(TENURE_MOBILITY));
-    if (tab === 'recruitment-funnel') downloadCsv('recruitment-funnel.csv', RECRUITMENT_FUNNEL);
-    if (tab === 'compliance-roster') downloadCsv('compliance-asset-roster.csv', byDept(COMPLIANCE_ASSET_ROSTER));
+    if (tab === 'recruitment-funnel') downloadCsv('recruitment-funnel.csv', recruitmentRows);
+    if (tab === 'compliance-roster') downloadCsv('compliance-asset-roster.csv', complianceRows);
     setExportOpen(false);
   }
 
@@ -531,12 +581,17 @@ export default function ReportsPreview() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-        <AttritionRiskWidget />
-        <ComplianceRadarWidget />
+        <AttritionRiskWidget onViewProfile={(row) => setDetail({ kind: 'attrition-risk', row })} />
+        <ComplianceRadarWidget
+          onSelectItem={(itemType) => {
+            setComplianceItemFilter(itemType);
+            goToTable('compliance-roster');
+          }}
+        />
         <UsClientAlignmentWidget />
       </div>
 
-      <div className="bg-transparent">
+      <div ref={tableSectionRef} className="bg-transparent scroll-mt-4">
         <TabBar tabs={TABS} active={tab} onChange={setTab} />
 
         {tab === 'attendance-ledger' && (
@@ -592,10 +647,29 @@ export default function ReportsPreview() {
 
         {tab === 'recruitment-funnel' && (
           <DataTable<RecruitmentFunnelRow>
-            rows={RECRUITMENT_FUNNEL}
+            rows={recruitmentRows}
             searchPlaceholder="Search by candidate..."
             searchFn={(r, q) => r.candidate.toLowerCase().includes(q)}
             onViewDetails={(row) => setDetail({ kind: 'recruitment-funnel', row })}
+            toolbarExtra={(count) => (
+              <>
+                <select
+                  value={stageFilter}
+                  onChange={(e) => setStageFilter(e.target.value as FunnelStage | 'All Stages')}
+                  className="rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white"
+                >
+                  <option>All Stages</option>
+                  {FUNNEL_STAGES.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                </select>
+                <span className="text-xs text-slate-500 whitespace-nowrap">
+                  Showing {count} candidate{count === 1 ? '' : 's'}
+                </span>
+              </>
+            )}
             columns={[
               { key: 'candidate', header: 'Candidate', sortValue: (r) => r.candidate },
               { key: 'role', header: 'Role' },
@@ -625,10 +699,26 @@ export default function ReportsPreview() {
 
         {tab === 'compliance-roster' && (
           <DataTable<ComplianceAssetRow>
-            rows={byDept(COMPLIANCE_ASSET_ROSTER)}
+            rows={complianceRows}
             searchPlaceholder="Search by name..."
             searchFn={(r, q) => r.name.toLowerCase().includes(q)}
             onViewDetails={(row) => setDetail({ kind: 'compliance-roster', row })}
+            toolbarExtra={(count) => (
+              <>
+                {complianceItemFilter && (
+                  <button
+                    onClick={() => setComplianceItemFilter(null)}
+                    className="flex items-center gap-1.5 text-xs font-medium pl-2.5 pr-2 py-1.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100"
+                  >
+                    {complianceItemFilter}
+                    <XIcon className="w-3 h-3" />
+                  </button>
+                )}
+                <span className="text-xs text-slate-500 whitespace-nowrap">
+                  Showing {count} record{count === 1 ? '' : 's'}
+                </span>
+              </>
+            )}
             columns={[
               { key: 'name', header: 'Name', sortValue: (r) => r.name },
               { key: 'department', header: 'Department', sortValue: (r) => r.department },
@@ -669,7 +759,13 @@ export default function ReportsPreview() {
             ? (detail.row as { name: string }).name
             : ''
         }
-        subtitle={detail ? TABS.find((t) => t.key === detail.kind)?.label : undefined}
+        subtitle={
+          detail?.kind === 'attrition-risk'
+            ? 'AI Attrition Risk Predictor'
+            : detail
+            ? TABS.find((t) => t.key === detail.kind)?.label
+            : undefined
+        }
       >
         {detail?.kind === 'attendance-ledger' && (
           <>
@@ -704,6 +800,20 @@ export default function ReportsPreview() {
             <DetailRow label="Item" value={detail.row.itemType} />
             <DetailRow label="Status" value={detail.row.status} />
             <DetailRow label="Due Date" value={detail.row.dueDate} />
+          </>
+        )}
+        {detail?.kind === 'attrition-risk' && (
+          <>
+            <DetailRow label="Department" value={detail.row.department} />
+            <DetailRow label="Risk Level" value={`${detail.row.riskTier} risk`} />
+            <DetailRow label="Signal" value={detail.row.reason} />
+            <button
+              disabled
+              title="Will schedule directly on the calendar once this dashboard connects to live data"
+              className="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-400 cursor-not-allowed"
+            >
+              Schedule 1:1 &mdash; Coming soon
+            </button>
           </>
         )}
       </SlideOver>

@@ -207,7 +207,8 @@ export interface RecruitmentFunnelRow {
 
 const ROLES = ['IAM Consultant', 'DevOps Engineer', 'Cloud Security Analyst', 'QA Engineer', 'Full-Stack Developer'];
 const SOURCES = ['Naukri.com', 'LinkedIn', 'Referral', 'Direct Applied'];
-const STAGES: FunnelStage[] = ['Applied', 'Screening', 'L1 Technical', 'L2 Final Round', 'HR/Offer', 'Hired', 'Rejected'];
+export const FUNNEL_STAGES: FunnelStage[] = ['Applied', 'Screening', 'L1 Technical', 'L2 Final Round', 'HR/Offer', 'Hired', 'Rejected'];
+const STAGES = FUNNEL_STAGES;
 
 export const RECRUITMENT_FUNNEL: RecruitmentFunnelRow[] = Array.from({ length: 24 }, (_, i) => ({
   id: `rec${i + 1}`,

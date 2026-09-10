@@ -2,7 +2,7 @@
 // screen into sections (Master Data, Leaves & Attendance, ...). Each tab
 // gets its own accent color so the row reads as a set of distinct buttons
 // rather than a plain underlined tab strip.
-export type TabColor = 'indigo' | 'emerald' | 'sky' | 'amber' | 'rose' | 'fuchsia' | 'teal';
+export type TabColor = 'indigo' | 'emerald' | 'sky' | 'amber' | 'rose' | 'fuchsia' | 'teal' | 'neutral';
 
 export interface TabBarItem<K extends string> {
   key: K;
@@ -38,6 +38,13 @@ const COLOR_CLASSES: Record<TabColor, { active: string; inactive: string }> = {
   teal: {
     active: 'bg-teal-600 text-white shadow-sm shadow-teal-200',
     inactive: 'bg-teal-50 text-teal-700 border border-teal-200 hover:bg-teal-100',
+  },
+  // Unified, low-key variant for tab groups that should read as one cohesive
+  // control (e.g. a set of data-table tabs) rather than a row of distinct
+  // colorful buttons: neutral gray at rest, a single accent when active.
+  neutral: {
+    active: 'bg-indigo-600 text-white shadow-sm shadow-indigo-200',
+    inactive: 'bg-slate-100 text-slate-600 border border-slate-200 hover:bg-slate-200',
   },
 };
 
