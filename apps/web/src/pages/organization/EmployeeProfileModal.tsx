@@ -12,6 +12,7 @@ import {
   UsersIcon,
   XIcon,
 } from '../../components/icons';
+import profileBannerImage from '../../assets/profile-banner.jpg';
 import { API_BASE } from '../../lib/api';
 import { Employee, FavoriteColleague, LookupItem } from '../../types';
 import { Avatar, initials } from './Organization';
@@ -94,30 +95,9 @@ export default function EmployeeProfileModal({
       <div className="absolute inset-0 bg-slate-900/40" onClick={onClose} />
       <div className="relative w-full sm:max-w-3xl bg-white sm:rounded-2xl shadow-2xl overflow-hidden my-auto">
         <div
-          className="relative h-32 sm:h-40 overflow-hidden"
-          style={{ background: 'linear-gradient(135deg, #123a52 0%, #0e6c56 55%, #17b78d 100%)' }}
+          className="relative h-32 sm:h-40 overflow-hidden bg-center bg-cover"
+          style={{ backgroundImage: `url(${profileBannerImage})` }}
         >
-          {/* Decorative tech/circuit motif — drawn in SVG rather than a stock photo, so it
-              renders instantly offline and carries no external licensing dependency. Fits an
-              IAM/Cloud/DevOps consultancy better than a generic banner photo would. */}
-          <svg className="absolute inset-0 w-full h-full" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
-            <defs>
-              <pattern id="profile-banner-circuit" width="72" height="72" patternUnits="userSpaceOnUse">
-                <path d="M0 36 H26 M46 36 H72 M36 0 V26 M36 46 V72" stroke="white" strokeOpacity="0.18" strokeWidth="1.4" fill="none" />
-                <circle cx="36" cy="36" r="2.6" fill="white" fillOpacity="0.4" />
-                <circle cx="0" cy="36" r="1.8" fill="white" fillOpacity="0.22" />
-                <circle cx="72" cy="36" r="1.8" fill="white" fillOpacity="0.22" />
-                <circle cx="36" cy="0" r="1.8" fill="white" fillOpacity="0.22" />
-                <circle cx="36" cy="72" r="1.8" fill="white" fillOpacity="0.22" />
-              </pattern>
-              <radialGradient id="profile-banner-glow" cx="30%" cy="25%" r="75%">
-                <stop offset="0%" stopColor="white" stopOpacity="0.22" />
-                <stop offset="100%" stopColor="white" stopOpacity="0" />
-              </radialGradient>
-            </defs>
-            <rect width="100%" height="100%" fill="url(#profile-banner-circuit)" />
-            <rect width="100%" height="100%" fill="url(#profile-banner-glow)" />
-          </svg>
           <button
             type="button"
             onClick={onClose}
@@ -128,7 +108,7 @@ export default function EmployeeProfileModal({
           </button>
         </div>
 
-        <div className="px-5 sm:px-8 pb-6">
+        <div className="relative z-10 px-5 sm:px-8 pb-6">
           <div className="flex flex-col sm:flex-row sm:items-end gap-4 -mt-12 sm:-mt-14">
             <div className="rounded-2xl ring-4 ring-white shadow-md flex-shrink-0 w-24 h-24 sm:w-28 sm:h-28 overflow-hidden bg-slate-200 flex items-center justify-center">
               {employee.photoUrl ? (
