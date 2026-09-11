@@ -26,21 +26,22 @@ import {
 import { CompanyDocument, Employee, FavoriteColleague, LookupItem, UpcomingBirthday } from '../../types';
 import OrgChart from '../OrgChart';
 import AnnouncementsTab from './AnnouncementsTab';
+import EmployeeProfileModal from './EmployeeProfileModal';
 
-function initials(name: string): string {
+export function initials(name: string): string {
   const parts = name.trim().split(/\s+/);
   return ((parts[0]?.[0] || '') + (parts[1]?.[0] || '')).toUpperCase();
 }
 
 // Tailwind can't resolve a class built from a runtime template string
 // (`w-${size}`), so sizes are a small literal lookup instead.
-const AVATAR_SIZE_CLASSES: Record<'sm' | 'md' | 'lg', string> = {
+export const AVATAR_SIZE_CLASSES: Record<'sm' | 'md' | 'lg', string> = {
   sm: 'w-7 h-7 text-[10px]',
   md: 'w-11 h-11 text-xs',
   lg: 'w-16 h-16 text-sm',
 };
 
-function Avatar({
+export function Avatar({
   name,
   photoUrl,
   size = 'md',
@@ -106,6 +107,7 @@ export default function Organization() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [directoryDeptFilter, setDirectoryDeptFilter] = useState<string | undefined>();
+  const [profileEmployeeId, setProfileEmployeeId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!token) return;
@@ -173,11 +175,24 @@ export default function Organization() {
               favorites={favorites}
               onToggleFavorite={handleToggleFavorite}
               initialDepartmentId={directoryDeptFilter}
+              onOpenProfile={setProfileEmployeeId}
             />
           )}
           {tab === 'birthdays' && <BirthdaysTab token={token} />}
           {tab === 'new-hires' && <NewHiresTab employees={employees} />}
         </>
+      )}
+
+      {profileEmployeeId && (
+        <EmployeeProfileModal
+          employees={employees}
+          departments={departments}
+          employeeId={profileEmployeeId}
+          favorites={favorites}
+          onToggleFavorite={handleToggleFavorite}
+          onClose={() => setProfileEmployeeId(null)}
+          onSelectEmployee={setProfileEmployeeId}
+        />
       )}
     </div>
   );
@@ -373,12 +388,14 @@ function DepartmentDirectoryTab({
   favorites,
   onToggleFavorite,
   initialDepartmentId,
+  onOpenProfile,
 }: {
   employees: Employee[];
   departments: LookupItem[];
   favorites: FavoriteColleague[];
   onToggleFavorite: (employeeId: string, isFavorite: boolean) => void;
   initialDepartmentId?: string;
+  onOpenProfile: (employeeId: string) => void;
 }) {
   const [search, setSearch] = useState('');
   const [selectedDept, setSelectedDept] = useState<string>(initialDepartmentId || 'ALL');
@@ -443,9 +460,11 @@ function DepartmentDirectoryTab({
             {shown.map((e) => {
               const isFavorite = favoriteIds.has(e.id);
               return (
-                <div
+                <button
                   key={e.id}
-                  className="bg-white border border-slate-200 rounded-2xl p-4 hover:shadow-md hover:border-slate-300 transition-all"
+                  type="button"
+                  onClick={() => onOpenProfile(e.id)}
+                  className="text-left bg-white border border-slate-200 rounded-2xl p-4 hover:shadow-md hover:border-mitra-accentFrom/40 transition-all"
                 >
                   <div className="flex items-start justify-between mb-3">
                     <div className="relative">
@@ -458,16 +477,31 @@ function DepartmentDirectoryTab({
                       />
                     </div>
                     <div className="flex flex-col items-center gap-2 pt-0.5">
-                      <button
-                        type="button"
-                        onClick={() => onToggleFavorite(e.id, isFavorite)}
+                      <span
+                        role="button"
+                        tabIndex={0}
+                        onClick={(ev) => {
+                          ev.stopPropagation();
+                          onToggleFavorite(e.id, isFavorite);
+                        }}
+                        onKeyDown={(ev) => {
+                          if (ev.key === 'Enter' || ev.key === ' ') {
+                            ev.stopPropagation();
+                            onToggleFavorite(e.id, isFavorite);
+                          }
+                        }}
                         className={isFavorite ? 'text-amber-400' : 'text-slate-300 hover:text-amber-400'}
                         title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
                       >
                         <StarIcon className="w-4 h-4" filled={isFavorite} />
-                      </button>
+                      </span>
                       {e.phone && (
-                        <a href={`tel:${e.phone}`} className="text-slate-400 hover:text-mitra-accentFrom" title={`Call ${e.phone}`}>
+                        <a
+                          href={`tel:${e.phone}`}
+                          onClick={(ev) => ev.stopPropagation()}
+                          className="text-slate-400 hover:text-mitra-accentFrom"
+                          title={`Call ${e.phone}`}
+                        >
                           <PhoneIcon className="w-4 h-4" />
                         </a>
                       )}
@@ -480,7 +514,7 @@ function DepartmentDirectoryTab({
                   <p className="text-xs text-slate-500 truncate mt-0.5">{e.email}</p>
                   <p className="text-xs text-slate-400 mt-1.5">{e.designation?.name || '—'}</p>
                   <p className="text-xs text-slate-400">{e.department?.name || 'Unassigned'}</p>
-                </div>
+                </button>
               );
             })}
           </div>
