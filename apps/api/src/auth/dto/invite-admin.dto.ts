@@ -1,10 +1,12 @@
 import { IsEmail, IsOptional, IsString, MinLength } from 'class-validator';
+import { NormalizeEmail } from '../../common/transformers';
 
 export class InviteAdminDto {
   @IsString()
   @MinLength(1)
   name: string;
 
+  @NormalizeEmail()
   @IsEmail()
   email: string;
 

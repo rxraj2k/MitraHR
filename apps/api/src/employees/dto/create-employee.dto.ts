@@ -1,4 +1,5 @@
 import { IsDateString, IsEmail, IsIn, IsOptional, IsString, IsUUID, MinLength } from 'class-validator';
+import { NormalizeEmail } from '../../common/transformers';
 
 export const EMPLOYMENT_TYPES = ['INTERN', 'FULL_TIME', 'PART_TIME', 'CONTRACTOR'] as const;
 
@@ -11,6 +12,7 @@ export class CreateEmployeeDto {
   @MinLength(1)
   fullName: string;
 
+  @NormalizeEmail()
   @IsEmail()
   email: string;
 

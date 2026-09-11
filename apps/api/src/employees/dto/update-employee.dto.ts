@@ -1,11 +1,12 @@
 import { IsDateString, IsEmail, IsIn, IsOptional, IsString, IsUUID, MinLength } from 'class-validator';
+import { NormalizeEmail } from '../../common/transformers';
 import { EMPLOYMENT_TYPES, SYSTEM_ROLES } from './create-employee.dto';
 
 export const EMPLOYEE_STATUSES = ['ACTIVE', 'INACTIVE'] as const;
 
 export class UpdateEmployeeDto {
   @IsOptional() @IsString() @MinLength(1) fullName?: string;
-  @IsOptional() @IsEmail() email?: string;
+  @IsOptional() @NormalizeEmail() @IsEmail() email?: string;
   @IsOptional() @IsString() phone?: string;
   @IsOptional() @IsString() emergencyContactName?: string;
   @IsOptional() @IsString() emergencyContactPhone?: string;
