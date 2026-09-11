@@ -16,6 +16,7 @@ import { useAuth } from '../../context/AuthContext';
 import TabBar, { TabBarItem } from '../../components/TabBar';
 import {
   AlertTriangleIcon,
+  ChevronRightIcon,
   ChevronUpDownIcon,
   DownloadIcon,
   GlobeIcon,
@@ -78,11 +79,21 @@ function PreviewDataTag() {
   );
 }
 
-function KpiCard({ data }: { data: KpiCardData }) {
+// Every KPI card drills into the deep-dive tab (or, for the two cards with
+// no backing feature yet, a short explanation) that backs its number — see
+// `handleKpiClick` below for the label -> destination mapping.
+function KpiCard({ data, onClick }: { data: KpiCardData; onClick: () => void }) {
   return (
-    <div className="bg-white border border-slate-200 rounded-xl p-5">
+    <button
+      type="button"
+      onClick={onClick}
+      className="text-left bg-white border border-slate-200 rounded-xl p-5 transition-colors hover:border-mitra-accentFrom/40 hover:shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-mitra-accentFrom/40 group"
+    >
       <div className="flex items-center justify-between gap-2">
-        <p className="text-xs font-medium text-slate-500">{data.label}</p>
+        <p className="text-xs font-medium text-slate-500 flex items-center gap-1 group-hover:text-slate-700">
+          {data.label}
+          <ChevronRightIcon className="w-3.5 h-3.5 text-slate-300 group-hover:text-mitra-accentFrom transition-colors" />
+        </p>
         {data.isMock && <PreviewDataTag />}
       </div>
       <p className="text-2xl font-semibold text-slate-800 mt-1">{data.value}</p>
@@ -94,7 +105,7 @@ function KpiCard({ data }: { data: KpiCardData }) {
         )}
         {data.subtext && <span className="text-xs text-slate-400">{data.subtext}</span>}
       </div>
-    </div>
+    </button>
   );
 }
 
@@ -506,7 +517,25 @@ type SelectedDetail =
   | { kind: 'tenure-mobility'; row: ReportsPreviewTenureMobilityRow }
   | { kind: 'recruitment-funnel'; row: RecruitmentFunnelRow }
   | { kind: 'compliance-roster'; row: ReportsPreviewComplianceRow }
-  | { kind: 'attrition-risk'; row: ReportsPreviewAttritionRisk };
+  | { kind: 'attrition-risk'; row: ReportsPreviewAttritionRisk }
+  | { kind: 'kpi-info'; card: KpiCardData };
+
+// KPI cards that map straight to one of the deep-dive tabs below — clicking
+// jumps there. Any KPI card NOT in this map (currently Turnover Index and
+// Workforce Sentiment) has no real feature behind it yet, so it opens a
+// short explanation instead — see the 'kpi-info' SlideOver body.
+const KPI_TAB_LINKS: Partial<Record<string, TabKey>> = {
+  'Headcount & Growth': 'tenure-mobility',
+  'Workforce Reliability': 'attendance-ledger',
+  'Recruitment Speed': 'recruitment-funnel',
+};
+
+// What feeds each still-mock KPI card once its sprint lands, shown in the
+// 'kpi-info' SlideOver for any card KPI_TAB_LINKS doesn't cover.
+const KPI_INFO_COPY: Partial<Record<string, string>> = {
+  'Turnover Index': 'Will show real voluntary/involuntary attrition, trended month over month, once Sprint 12 (Client Contracts + Exit & Clearance) tracks employee exits.',
+  'Workforce Sentiment': 'Will show a real eNPS-style score once Sprint 15 (Employee Engagement & Feedback) adds a pulse survey. There is no survey data behind this number today.',
+};
 
 export default function ReportsPreview() {
   const { token } = useAuth();
@@ -525,6 +554,15 @@ export default function ReportsPreview() {
   function goToTable(nextTab: TabKey) {
     setTab(nextTab);
     tableSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function handleKpiClick(card: KpiCardData) {
+    const linkedTab = KPI_TAB_LINKS[card.label];
+    if (linkedTab) {
+      goToTable(linkedTab);
+      return;
+    }
+    setDetail({ kind: 'kpi-info', card });
   }
 
   if (!token) return null;
@@ -639,7 +677,7 @@ export default function ReportsPreview() {
 
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
         {data.kpiCards.map((k) => (
-          <KpiCard key={k.label} data={k} />
+          <KpiCard key={k.label} data={k} onClick={() => handleKpiClick(k)} />
         ))}
       </div>
 
@@ -836,14 +874,18 @@ export default function ReportsPreview() {
         open={!!detail}
         onClose={() => setDetail(null)}
         title={
-          detail?.kind === 'recruitment-funnel'
+          detail?.kind === 'kpi-info'
+            ? detail.card.label
+            : detail?.kind === 'recruitment-funnel'
             ? detail.row.candidate
             : detail
             ? (detail.row as { name: string }).name
             : ''
         }
         subtitle={
-          detail?.kind === 'attrition-risk'
+          detail?.kind === 'kpi-info'
+            ? 'KPI Detail'
+            : detail?.kind === 'attrition-risk'
             ? 'AI Attrition Risk Predictor'
             : detail
             ? TABS.find((t) => t.key === detail.kind)?.label
@@ -897,6 +939,19 @@ export default function ReportsPreview() {
             >
               Schedule 1:1 &mdash; Coming soon
             </button>
+          </>
+        )}
+        {detail?.kind === 'kpi-info' && (
+          <>
+            <DetailRow label="Current Value" value={detail.card.value} />
+            {detail.card.subtext && <DetailRow label="Detail" value={detail.card.subtext} />}
+            <p className="text-sm text-slate-500 mt-4 flex items-start gap-1.5">
+              <PreviewDataTag />
+            </p>
+            <p className="text-sm text-slate-600 mt-2 leading-relaxed">
+              {KPI_INFO_COPY[detail.card.label] ??
+                'This is placeholder data — the feature that would make it real has not been built yet.'}
+            </p>
           </>
         )}
       </SlideOver>
