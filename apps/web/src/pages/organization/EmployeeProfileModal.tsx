@@ -12,8 +12,9 @@ import {
   UsersIcon,
   XIcon,
 } from '../../components/icons';
+import { API_BASE } from '../../lib/api';
 import { Employee, FavoriteColleague, LookupItem } from '../../types';
-import { Avatar } from './Organization';
+import { Avatar, initials } from './Organization';
 
 const EMPLOYMENT_TYPE_LABELS: Record<string, string> = {
   INTERN: 'Intern',
@@ -93,12 +94,30 @@ export default function EmployeeProfileModal({
       <div className="absolute inset-0 bg-slate-900/40" onClick={onClose} />
       <div className="relative w-full sm:max-w-3xl bg-white sm:rounded-2xl shadow-2xl overflow-hidden my-auto">
         <div
-          className="relative h-32 sm:h-40"
-          style={{
-            background:
-              'radial-gradient(circle at 15% 30%, rgba(255,255,255,0.10) 0, rgba(255,255,255,0) 45%), radial-gradient(circle at 85% 75%, rgba(255,255,255,0.08) 0, rgba(255,255,255,0) 40%), linear-gradient(135deg, #0f2a3d 0%, #164a42 55%, #1d6f5c 100%)',
-          }}
+          className="relative h-32 sm:h-40 overflow-hidden"
+          style={{ background: 'linear-gradient(135deg, #123a52 0%, #0e6c56 55%, #17b78d 100%)' }}
         >
+          {/* Decorative tech/circuit motif — drawn in SVG rather than a stock photo, so it
+              renders instantly offline and carries no external licensing dependency. Fits an
+              IAM/Cloud/DevOps consultancy better than a generic banner photo would. */}
+          <svg className="absolute inset-0 w-full h-full" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <pattern id="profile-banner-circuit" width="72" height="72" patternUnits="userSpaceOnUse">
+                <path d="M0 36 H26 M46 36 H72 M36 0 V26 M36 46 V72" stroke="white" strokeOpacity="0.18" strokeWidth="1.4" fill="none" />
+                <circle cx="36" cy="36" r="2.6" fill="white" fillOpacity="0.4" />
+                <circle cx="0" cy="36" r="1.8" fill="white" fillOpacity="0.22" />
+                <circle cx="72" cy="36" r="1.8" fill="white" fillOpacity="0.22" />
+                <circle cx="36" cy="0" r="1.8" fill="white" fillOpacity="0.22" />
+                <circle cx="36" cy="72" r="1.8" fill="white" fillOpacity="0.22" />
+              </pattern>
+              <radialGradient id="profile-banner-glow" cx="30%" cy="25%" r="75%">
+                <stop offset="0%" stopColor="white" stopOpacity="0.22" />
+                <stop offset="100%" stopColor="white" stopOpacity="0" />
+              </radialGradient>
+            </defs>
+            <rect width="100%" height="100%" fill="url(#profile-banner-circuit)" />
+            <rect width="100%" height="100%" fill="url(#profile-banner-glow)" />
+          </svg>
           <button
             type="button"
             onClick={onClose}
@@ -111,8 +130,16 @@ export default function EmployeeProfileModal({
 
         <div className="px-5 sm:px-8 pb-6">
           <div className="flex flex-col sm:flex-row sm:items-end gap-4 -mt-12 sm:-mt-14">
-            <div className="rounded-2xl ring-4 ring-white shadow-md flex-shrink-0 w-24 h-24 sm:w-28 sm:h-28 overflow-hidden bg-white">
-              <Avatar name={employee.fullName} photoUrl={employee.photoUrl} size="lg" shape="square" />
+            <div className="rounded-2xl ring-4 ring-white shadow-md flex-shrink-0 w-24 h-24 sm:w-28 sm:h-28 overflow-hidden bg-slate-200 flex items-center justify-center">
+              {employee.photoUrl ? (
+                <img
+                  src={`${API_BASE}${employee.photoUrl}`}
+                  alt={employee.fullName}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <span className="text-slate-500 text-2xl font-semibold">{initials(employee.fullName)}</span>
+              )}
             </div>
             <div className="flex-1 min-w-0 pb-1 flex items-start justify-between gap-3">
               <div className="min-w-0">
