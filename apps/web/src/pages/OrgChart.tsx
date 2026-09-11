@@ -120,7 +120,7 @@ function NodeCard({
   );
 }
 
-export default function OrgChart() {
+export default function OrgChart({ hideHeader = false }: { hideHeader?: boolean } = {}) {
   const { token } = useAuth();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
@@ -148,14 +148,19 @@ export default function OrgChart() {
 
   return (
     <div>
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-slate-800">Team Topology</h1>
-          <p className="text-sm text-slate-500 mt-1">
-            Click any card to open that employee's profile. Use the − / + button to collapse or expand a team.
-          </p>
+      {/* Suppressed when embedded elsewhere (Organization > Employee Tree)
+          so this reads as that tab's content, not a page called in from a
+          differently-named feature. */}
+      {!hideHeader && (
+        <div className="mb-6 flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-semibold text-slate-800">Team Topology</h1>
+            <p className="text-sm text-slate-500 mt-1">
+              Click any card to open that employee's profile. Use the − / + button to collapse or expand a team.
+            </p>
+          </div>
         </div>
-      </div>
+      )}
 
       {error && <div className="mb-4 text-sm text-red-600">{error}</div>}
 

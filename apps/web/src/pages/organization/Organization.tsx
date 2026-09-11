@@ -34,17 +34,29 @@ function initials(name: string): string {
 
 // Tailwind can't resolve a class built from a runtime template string
 // (`w-${size}`), so sizes are a small literal lookup instead.
-const AVATAR_SIZE_CLASSES: Record<'sm' | 'md', string> = {
+const AVATAR_SIZE_CLASSES: Record<'sm' | 'md' | 'lg', string> = {
   sm: 'w-7 h-7 text-[10px]',
   md: 'w-11 h-11 text-xs',
+  lg: 'w-16 h-16 text-sm',
 };
 
-function Avatar({ name, photoUrl, size = 'md' }: { name: string; photoUrl?: string | null; size?: 'sm' | 'md' }) {
+function Avatar({
+  name,
+  photoUrl,
+  size = 'md',
+  shape = 'circle',
+}: {
+  name: string;
+  photoUrl?: string | null;
+  size?: 'sm' | 'md' | 'lg';
+  shape?: 'circle' | 'square';
+}) {
   const dim = AVATAR_SIZE_CLASSES[size];
+  const rounding = shape === 'square' ? 'rounded-xl' : 'rounded-full';
   return photoUrl ? (
-    <img src={`${API_BASE}${photoUrl}`} alt="" className={`${dim} rounded-full object-cover flex-shrink-0`} />
+    <img src={`${API_BASE}${photoUrl}`} alt="" className={`${dim} ${rounding} object-cover flex-shrink-0`} />
   ) : (
-    <div className={`${dim} rounded-full bg-slate-200 flex items-center justify-center text-slate-500 flex-shrink-0`}>
+    <div className={`${dim} ${rounding} bg-slate-200 flex items-center justify-center text-slate-500 flex-shrink-0 font-medium`}>
       {initials(name)}
     </div>
   );
@@ -150,7 +162,7 @@ export default function Organization() {
             <AnnouncementsTab token={token} isStaff={isStaff} departments={departments} employees={employees} />
           )}
           {tab === 'policies' && <PoliciesTab token={token} />}
-          {tab === 'employee-tree' && <OrgChart />}
+          {tab === 'employee-tree' && <EmployeeTreeTab />}
           {tab === 'department-tree' && (
             <DepartmentTreeTab employees={employees} departments={departments} onSelectDepartment={goToDepartment} />
           )}
@@ -167,6 +179,17 @@ export default function Organization() {
           {tab === 'new-hires' && <NewHiresTab employees={employees} />}
         </>
       )}
+    </div>
+  );
+}
+
+function EmployeeTreeTab() {
+  return (
+    <div>
+      <p className="text-sm text-slate-500 mb-4">
+        Click any card to open that employee's profile. Use the − / + button to collapse or expand a team.
+      </p>
+      <OrgChart hideHeader />
     </div>
   );
 }
@@ -420,23 +443,21 @@ function DepartmentDirectoryTab({
             {shown.map((e) => {
               const isFavorite = favoriteIds.has(e.id);
               return (
-                <div key={e.id} className="bg-white border border-slate-200 rounded-xl p-4">
-                  <div className="flex items-start justify-between">
+                <div
+                  key={e.id}
+                  className="bg-white border border-slate-200 rounded-2xl p-4 hover:shadow-md hover:border-slate-300 transition-all"
+                >
+                  <div className="flex items-start justify-between mb-3">
                     <div className="relative">
-                      <Avatar name={e.fullName} photoUrl={e.photoUrl} />
+                      <Avatar name={e.fullName} photoUrl={e.photoUrl} size="lg" shape="square" />
                       <span
-                        className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-white ${
+                        className={`absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full border-2 border-white ${
                           e.status === 'ACTIVE' ? 'bg-emerald-500' : 'bg-slate-300'
                         }`}
                         title={e.status === 'ACTIVE' ? 'Active' : 'Inactive'}
                       />
                     </div>
-                    <div className="flex items-center gap-2">
-                      {e.phone && (
-                        <a href={`tel:${e.phone}`} className="text-slate-400 hover:text-mitra-accentFrom" title={`Call ${e.phone}`}>
-                          <PhoneIcon className="w-4 h-4" />
-                        </a>
-                      )}
+                    <div className="flex flex-col items-center gap-2 pt-0.5">
                       <button
                         type="button"
                         onClick={() => onToggleFavorite(e.id, isFavorite)}
@@ -445,14 +466,19 @@ function DepartmentDirectoryTab({
                       >
                         <StarIcon className="w-4 h-4" filled={isFavorite} />
                       </button>
+                      {e.phone && (
+                        <a href={`tel:${e.phone}`} className="text-slate-400 hover:text-mitra-accentFrom" title={`Call ${e.phone}`}>
+                          <PhoneIcon className="w-4 h-4" />
+                        </a>
+                      )}
                     </div>
                   </div>
-                  <p className="text-sm font-medium text-slate-800 mt-2 truncate">
-                    {e.employeeCode ? `${e.employeeCode} — ` : ''}
+                  <p className="text-sm font-semibold text-slate-800 truncate">
+                    {e.employeeCode ? `${e.employeeCode} - ` : ''}
                     {e.fullName}
                   </p>
-                  <p className="text-xs text-slate-500 truncate">{e.email}</p>
-                  <p className="text-xs text-slate-400 mt-1">{e.designation?.name || '—'}</p>
+                  <p className="text-xs text-slate-500 truncate mt-0.5">{e.email}</p>
+                  <p className="text-xs text-slate-400 mt-1.5">{e.designation?.name || '—'}</p>
                   <p className="text-xs text-slate-400">{e.department?.name || 'Unassigned'}</p>
                 </div>
               );
