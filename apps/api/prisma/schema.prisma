@@ -27,6 +27,7 @@ model User {
   updatedAt            DateTime  @updatedAt
   decidedLeaveRequests LeaveRequest[] @relation("LeaveDecidedBy")
   decidedCompOffEntries CompOffLedger[] @relation("CompOffDecidedBy")
+  announcements        Announcement[]
 }
 
 // Managed lookup list — editable from Settings (add/rename/delete).
@@ -36,6 +37,7 @@ model Department {
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
   employees Employee[]
+  announcementTargets AnnouncementDepartment[]
 }
 
 // Managed lookup list — editable from Settings (add/rename/delete).
@@ -107,6 +109,11 @@ model Employee {
   assetAssignments   AssetAssignment[]
   sandboxPlacement   SandboxPlacement?
   linkedUser User?
+  announcementRecipient AnnouncementRecipient[]
+  announcementLikes     AnnouncementLike[]
+  announcementComments  AnnouncementComment[]
+  favoritesAsOwner      FavoriteColleague[] @relation("FavoritesOwner")
+  favoritesAsTarget     FavoriteColleague[] @relation("FavoritesTarget")
 
   dateOfJoining DateTime?
   dateOfBirth   DateTime?
@@ -509,4 +516,94 @@ model Notification {
   createdAt     DateTime  @default(now())
 
   @@index([recipientKind, recipientId, readAt])
+}
+
+// --- Organization space (Sprint 17): company-wide announcements and a
+// per-employee "favorite colleagues" list, surfaced on the Organization
+// page alongside things that already existed (Employee Tree = Team
+// Topology, Policies = CompanyDocument, Birthday Folks = the existing
+// upcoming-birthdays lookup, Department Tree/Directory/New Hires/Overview
+// all read from Employee + Department directly — no new model needed for
+// those). ---
+
+// Allowed audienceType: ALL, DEPARTMENTS, INDIVIDUALS. For DEPARTMENTS,
+// the targeted departments are AnnouncementDepartment rows; for
+// INDIVIDUALS, the targeted employees are AnnouncementRecipient rows.
+model Announcement {
+  id                   String    @id @default(uuid())
+  title                String
+  body                 String
+  attachmentUrl        String?
+  attachmentName       String?
+  category             String?
+  pinned               Boolean   @default(false)
+  commentsDisabled     Boolean   @default(false)
+  audienceType         String    @default("ALL")
+  expiresAt            DateTime?
+  createdById          String
+  createdBy            User      @relation(fields: [createdById], references: [id])
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  audienceDepartments  AnnouncementDepartment[]
+  recipients           AnnouncementRecipient[]
+  likes                AnnouncementLike[]
+  comments             AnnouncementComment[]
+
+  @@index([pinned, createdAt])
+}
+
+model AnnouncementDepartment {
+  id             String       @id @default(uuid())
+  announcementId String
+  announcement   Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  departmentId   String
+  department     Department   @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+
+  @@unique([announcementId, departmentId])
+}
+
+model AnnouncementRecipient {
+  id             String       @id @default(uuid())
+  announcementId String
+  announcement   Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  employeeId     String
+  employee       Employee     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([announcementId, employeeId])
+}
+
+model AnnouncementLike {
+  id             String       @id @default(uuid())
+  announcementId String
+  announcement   Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  employeeId     String
+  employee       Employee     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+
+  @@unique([announcementId, employeeId])
+}
+
+model AnnouncementComment {
+  id             String       @id @default(uuid())
+  announcementId String
+  announcement   Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  employeeId     String
+  employee       Employee     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  body           String
+  createdAt      DateTime     @default(now())
+
+  @@index([announcementId, createdAt])
+}
+
+// A employee "starring" a colleague for quick access on Department
+// Directory. employeeId is the one doing the favoriting.
+model FavoriteColleague {
+  id                 String   @id @default(uuid())
+  employeeId         String
+  employee           Employee @relation("FavoritesOwner", fields: [employeeId], references: [id], onDelete: Cascade)
+  favoriteEmployeeId String
+  favoriteEmployee   Employee @relation("FavoritesTarget", fields: [favoriteEmployeeId], references: [id], onDelete: Cascade)
+  createdAt          DateTime @default(now())
+
+  @@unique([employeeId, favoriteEmployeeId])
 }

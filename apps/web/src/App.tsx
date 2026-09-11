@@ -9,6 +9,7 @@ import EmployeeList from './pages/employees/EmployeeList';
 import EmployeeForm from './pages/employees/EmployeeForm';
 import EmployeeDetail from './pages/employees/EmployeeDetail';
 import OrgChart from './pages/OrgChart';
+import Organization from './pages/organization/Organization';
 import MyLeave from './pages/leave/MyLeave';
 import AdminLeave from './pages/leave/AdminLeave';
 import ClientsPage from './pages/projects/ClientsPage';
@@ -66,6 +67,7 @@ export default function App() {
         />
         <Route path="employees/:id" element={<EmployeeDetail />} />
         <Route path="org-chart" element={<OrgChart />} />
+        <Route path="organization" element={<Organization />} />
         <Route
           path="leave"
           element={

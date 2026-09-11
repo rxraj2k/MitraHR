@@ -352,6 +352,23 @@ export function ChevronUpDownIcon(props: IconProps) {
   );
 }
 
+export function StarIcon(props: IconProps & { filled?: boolean }) {
+  const { filled, ...rest } = props;
+  return (
+    <svg {...base} {...rest} fill={filled ? 'currentColor' : 'none'}>
+      <path d="m12 3 2.7 5.9 6.3.7-4.7 4.4 1.2 6.4L12 17.3 6.5 20.4l1.2-6.4-4.7-4.4 6.3-.7L12 3Z" />
+    </svg>
+  );
+}
+
+export function PhoneIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M5 4h3.2l1.3 4.3-2 1.6a12 12 0 0 0 5.6 5.6l1.6-2 4.3 1.3V18a2 2 0 0 1-2 2A15 15 0 0 1 3 5a2 2 0 0 1 2-1Z" />
+    </svg>
+  );
+}
+
 export function ChevronRightIcon(props: IconProps) {
   return (
     <svg {...base} {...props}>

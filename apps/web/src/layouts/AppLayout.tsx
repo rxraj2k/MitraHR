@@ -10,6 +10,7 @@ import {
   FileTextIcon,
   GaugeIcon,
   GraduationCapIcon,
+  GridIcon,
   HomeIcon,
   PackageIcon,
   ShareNetworkIcon,
@@ -23,6 +24,7 @@ const STAFF_NAV_ITEMS = [
   { to: '/', label: 'Home', end: true, icon: HomeIcon },
   { to: '/employees', label: 'Employees', end: false, icon: UsersIcon },
   { to: '/org-chart', label: 'Team Topology', end: false, icon: ShareNetworkIcon },
+  { to: '/organization', label: 'Organization', end: false, icon: GridIcon },
   { to: '/leave', label: 'Leaves & Attendance', end: false, icon: CalendarCheckIcon },
   { to: '/clients', label: 'Client Management', end: false, icon: BuildingIcon },
   { to: '/projects', label: 'Project Management', end: false, icon: BriefcaseIcon },
@@ -39,6 +41,7 @@ const EMPLOYEE_NAV_ITEMS = [
   { to: '/', label: 'Home', end: true, icon: HomeIcon },
   { to: '/employees', label: 'Employees', end: false, icon: UsersIcon },
   { to: '/org-chart', label: 'Team Topology', end: false, icon: ShareNetworkIcon },
+  { to: '/organization', label: 'Organization', end: false, icon: GridIcon },
   { to: '/my-leave', label: 'My Leaves & Attendance', end: false, icon: CalendarCheckIcon },
   { to: '/my-learning', label: 'My Learning', end: false, icon: GraduationCapIcon },
 ];

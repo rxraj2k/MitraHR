@@ -40,6 +40,11 @@ import {
   ReportsPreviewAttritionRisk,
   ReportsPreviewComplianceRadar,
   ReportsPreviewComplianceRow,
+  Announcement,
+  AnnouncementComment,
+  CreateAnnouncementInput,
+  UpdateAnnouncementInput,
+  FavoriteColleague,
 } from '../types';
 
 export const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000';
@@ -796,4 +801,80 @@ export function placeSandboxEmployee(token: string, employeeId: string, projectI
 
 export function resetStaffingSandbox(token: string): Promise<{ success: boolean }> {
   return authFetch(token, '/staffing-sandbox/reset', { method: 'POST' });
+}
+
+// --- Organization: Announcements ---
+
+export function getAnnouncements(token: string, includeExpired = false): Promise<Announcement[]> {
+  return authFetch(token, `/announcements${includeExpired ? '?includeExpired=true' : ''}`);
+}
+
+export async function createAnnouncement(token: string, input: CreateAnnouncementInput): Promise<Announcement> {
+  const formData = new FormData();
+  formData.append('title', input.title);
+  formData.append('body', input.body);
+  if (input.category) formData.append('category', input.category);
+  formData.append('pinned', String(!!input.pinned));
+  formData.append('commentsDisabled', String(!!input.commentsDisabled));
+  formData.append('audienceType', input.audienceType);
+  if (input.audienceDepartmentIds?.length) {
+    formData.append('audienceDepartmentIds', JSON.stringify(input.audienceDepartmentIds));
+  }
+  if (input.audienceEmployeeIds?.length) {
+    formData.append('audienceEmployeeIds', JSON.stringify(input.audienceEmployeeIds));
+  }
+  if (input.expiresAt) formData.append('expiresAt', input.expiresAt);
+  if (input.file) formData.append('file', input.file);
+  const res = await fetch(`${API_BASE}/announcements`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: formData,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ message: 'Failed to post announcement' }));
+    throw new Error(err.message || 'Failed to post announcement');
+  }
+  return res.json();
+}
+
+export function updateAnnouncement(token: string, id: string, updates: UpdateAnnouncementInput): Promise<Announcement> {
+  return authFetch(token, `/announcements/${id}`, { method: 'PATCH', body: JSON.stringify(updates) });
+}
+
+export function deleteAnnouncement(token: string, id: string): Promise<void> {
+  return authFetch(token, `/announcements/${id}`, { method: 'DELETE' });
+}
+
+export function likeAnnouncement(token: string, id: string): Promise<void> {
+  return authFetch(token, `/announcements/${id}/like`, { method: 'POST' });
+}
+
+export function unlikeAnnouncement(token: string, id: string): Promise<void> {
+  return authFetch(token, `/announcements/${id}/like`, { method: 'DELETE' });
+}
+
+export function getAnnouncementComments(token: string, id: string): Promise<AnnouncementComment[]> {
+  return authFetch(token, `/announcements/${id}/comments`);
+}
+
+export function addAnnouncementComment(token: string, id: string, body: string): Promise<AnnouncementComment> {
+  return authFetch(token, `/announcements/${id}/comments`, { method: 'POST', body: JSON.stringify({ body }) });
+}
+
+export function deleteAnnouncementComment(token: string, id: string, commentId: string): Promise<void> {
+  return authFetch(token, `/announcements/${id}/comments/${commentId}`, { method: 'DELETE' });
+}
+
+// --- Organization: Favorite colleagues ---
+
+export function getMyFavorites(token: string): Promise<FavoriteColleague[]> {
+  return authFetch(token, '/favorites');
+}
+
+export function addFavorite(token: string, employeeId: string): Promise<{ success: boolean }> {
+  return authFetch(token, `/favorites/${employeeId}`, { method: 'POST' });
+}
+
+export function removeFavorite(token: string, employeeId: string): Promise<{ success: boolean }> {
+  return authFetch(token, `/favorites/${employeeId}`, { method: 'DELETE' });
 }

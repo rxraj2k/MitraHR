@@ -21,6 +21,8 @@ import { CompanyDocumentsModule } from './company-documents/company-documents.mo
 import { NotificationsModule } from './notifications/notifications.module';
 import { ReportsModule } from './reports/reports.module';
 import { StaffingSandboxModule } from './staffing-sandbox/staffing-sandbox.module';
+import { AnnouncementsModule } from './announcements/announcements.module';
+import { FavoritesModule } from './favorites/favorites.module';
 
 @Module({
   imports: [
@@ -46,6 +48,8 @@ import { StaffingSandboxModule } from './staffing-sandbox/staffing-sandbox.modul
     CompanyDocumentsModule,
     ReportsModule,
     StaffingSandboxModule,
+    AnnouncementsModule,
+    FavoritesModule,
   ],
 })
 export class AppModule {}

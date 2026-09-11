@@ -625,3 +625,63 @@ export interface UpcomingBirthday {
   photoUrl?: string | null;
   daysUntil: number;
 }
+
+// --- Organization: Announcements & Favorites (Sprint 17) ---
+
+export type AnnouncementAudienceType = 'ALL' | 'DEPARTMENTS' | 'INDIVIDUALS';
+
+export interface Announcement {
+  id: string;
+  title: string;
+  body: string;
+  attachmentUrl?: string | null;
+  attachmentName?: string | null;
+  category?: string | null;
+  pinned: boolean;
+  commentsDisabled: boolean;
+  audienceType: AnnouncementAudienceType | string;
+  audienceDepartmentIds: string[];
+  audienceEmployeeCount: number;
+  expiresAt?: string | null;
+  isExpired: boolean;
+  createdByName: string;
+  createdAt: string;
+  likeCount: number;
+  commentCount: number;
+  likedByMe: boolean;
+}
+
+export interface AnnouncementComment {
+  id: string;
+  body: string;
+  createdAt: string;
+  employee: { id: string; fullName: string; photoUrl?: string | null };
+}
+
+export interface CreateAnnouncementInput {
+  title: string;
+  body: string;
+  category?: string;
+  pinned?: boolean;
+  commentsDisabled?: boolean;
+  audienceType: AnnouncementAudienceType;
+  audienceDepartmentIds?: string[];
+  audienceEmployeeIds?: string[];
+  expiresAt?: string;
+  file?: File;
+}
+
+export interface UpdateAnnouncementInput {
+  title?: string;
+  body?: string;
+  category?: string;
+  pinned?: boolean;
+  commentsDisabled?: boolean;
+  expiresAt?: string | null;
+}
+
+export interface FavoriteColleague {
+  id: string;
+  createdAt: string;
+  favoriteEmployee: Employee;
+}
