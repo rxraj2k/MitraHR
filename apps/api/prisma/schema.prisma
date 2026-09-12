@@ -109,6 +109,8 @@ model Employee {
   assetAssignments   AssetAssignment[]
   sandboxPlacement   SandboxPlacement?
   exit               EmployeeExit?
+  handoverPrimaryFor   ExitHandover[] @relation("HandoverPrimarySuccessor")
+  handoverSecondaryFor ExitHandover[] @relation("HandoverSecondarySuccessor")
   linkedUser User?
   announcementRecipient AnnouncementRecipient[]
   announcementLikes     AnnouncementLike[]
@@ -368,6 +370,7 @@ model Project {
   updatedAt          DateTime            @updatedAt
   assignments        ProjectAssignment[]
   sandboxPlacements  SandboxPlacement[]
+  exitHandovers      ExitHandover[]
 
   @@unique([clientId, name])
 }
@@ -651,16 +654,94 @@ model ClientContract {
 // rehire-then-exit-again scenario would need a second row, not modeled
 // yet since it hasn't come up.
 model EmployeeExit {
-  id             String              @id @default(uuid())
-  employeeId     String              @unique
-  employee       Employee            @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  lastWorkingDay DateTime
-  reason         String
-  notes          String?
-  status         String              @default("IN_PROGRESS")
-  initiatedAt    DateTime            @default(now())
-  completedAt    DateTime?
-  items          ExitClearanceItem[]
+  id                 String                 @id @default(uuid())
+  employeeId         String                 @unique
+  employee           Employee               @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  // Date the employee actually gave notice — distinct from lastWorkingDay
+  // (end of notice period) and from initiatedAt (when HR created this
+  // record, which can lag a day or two behind the real resignation date).
+  resignationDate    DateTime
+  lastWorkingDay     DateTime
+  reason             String
+  notes              String?
+  status             String                 @default("IN_PROGRESS")
+  initiatedAt        DateTime               @default(now())
+  completedAt        DateTime?
+  // Scheduled date/time IT should cut system access — a tracked target,
+  // not a live integration: MitraHR has no Google Workspace/Slack/VPN API
+  // hooks, so this only drives the "overdue" flag in the daily job and on
+  // the checklist; someone still has to go pull the actual access.
+  accessRevocationAt DateTime?
+  // Exit interview & feedback — captured once, directly against the exit,
+  // rather than a separate survey system (none exists yet; see Sprint 15
+  // Employee Engagement in the roadmap for a real pulse-survey tool).
+  interviewCompletedAt DateTime?
+  cultureScore         Int?
+  managementFeedback   String?
+  rehireEligible       Boolean?
+  items              ExitClearanceItem[]
+  approvals          ExitCategoryApproval[]
+  handovers          ExitHandover[]
+  documents          ExitDocument[]
+}
+
+// One row per department-group sign-off (IT, FINANCE, HR_ADMIN — the three
+// groups the offboarding UI organizes the five item categories into).
+// Separate from ExitClearanceItem.completed: an item checkbox is "the
+// physical step happened", this is "the section owner reviewed and signed
+// off" — a team lead can approve their group once every item in it is
+// checked, without needing per-item approval granularity. approvedBy is a
+// display name/role snapshot (e.g. "Megha Sharma (Admin)") rather than a
+// foreign key, since any signed-in staff account can approve today (no
+// per-department lead role exists yet) and a snapshot survives a later
+// name change or account removal.
+model ExitCategoryApproval {
+  id         String       @id @default(uuid())
+  exitId     String
+  exit       EmployeeExit @relation(fields: [exitId], references: [id], onDelete: Cascade)
+  group      String
+  approvedBy String
+  approvedAt DateTime     @default(now())
+  notes      String?
+
+  @@unique([exitId, group])
+}
+
+// Knowledge-transfer tracking: one row per active project the departing
+// employee is on, naming who picks up their work. Primary/secondary
+// successor are optional so HR can log the project before a successor is
+// finalized. @@unique keeps it one handover row per (exit, project) pair —
+// re-saving updates the same row rather than duplicating it.
+model ExitHandover {
+  id                   String       @id @default(uuid())
+  exitId               String
+  exit                 EmployeeExit @relation(fields: [exitId], references: [id], onDelete: Cascade)
+  projectId            String
+  project              Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  primarySuccessorId   String?
+  primarySuccessor     Employee?    @relation("HandoverPrimarySuccessor", fields: [primarySuccessorId], references: [id])
+  secondarySuccessorId String?
+  secondarySuccessor   Employee?    @relation("HandoverSecondarySuccessor", fields: [secondarySuccessorId], references: [id])
+  notes                String?
+  confirmed            Boolean      @default(false)
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
+
+  @@unique([exitId, projectId])
+}
+
+// Signed exit paperwork — same diskStorage/secure-uploads convention as
+// ClientContract and CompanyDocument. Multiple documents per exit (a
+// resignation acceptance, a relieving letter, an experience certificate,
+// ...), unlike ClientContract's single optional file.
+model ExitDocument {
+  id         String       @id @default(uuid())
+  exitId     String
+  exit       EmployeeExit @relation(fields: [exitId], references: [id], onDelete: Cascade)
+  docType    String
+  fileName   String
+  fileUrl    String
+  uploadedAt DateTime     @default(now())
 }
 
 // Allowed category: IT_ASSETS, ACCESS, FINANCE, HR, ADMIN — used only to

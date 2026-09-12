@@ -744,23 +744,136 @@ export interface ExitEmployeeRef {
 
 export type EmployeeExitStatus = 'IN_PROGRESS' | 'COMPLETED';
 
+// The five item categories fold into three department sign-off groups for
+// the approval workflow — must match GROUP_CATEGORIES in
+// employee-exits.service.ts on the API side.
+export type ApprovalGroup = 'IT' | 'FINANCE' | 'HR_ADMIN';
+
+export const APPROVAL_GROUP_LABELS: Record<ApprovalGroup, string> = {
+  IT: 'IT & Assets',
+  FINANCE: 'Finance',
+  HR_ADMIN: 'HR & Admin',
+};
+
+export const APPROVAL_GROUP_CATEGORIES: Record<ApprovalGroup, ExitClearanceCategory[]> = {
+  IT: ['IT_ASSETS', 'ACCESS'],
+  FINANCE: ['FINANCE'],
+  HR_ADMIN: ['HR', 'ADMIN'],
+};
+
+export interface ExitCategoryApproval {
+  id: string;
+  exitId: string;
+  group: ApprovalGroup;
+  approvedBy: string;
+  approvedAt: string;
+  notes?: string | null;
+}
+
+export interface ExitHandoverProjectRef {
+  id: string;
+  name: string;
+  client?: { id: string; name: string } | null;
+}
+
+export interface ExitHandoverSuccessorRef {
+  id: string;
+  fullName: string;
+  employeeCode?: string | null;
+  photoUrl?: string | null;
+}
+
+export interface ExitHandover {
+  id: string;
+  exitId: string;
+  projectId: string;
+  project: ExitHandoverProjectRef;
+  primarySuccessorId?: string | null;
+  primarySuccessor?: ExitHandoverSuccessorRef | null;
+  secondarySuccessorId?: string | null;
+  secondarySuccessor?: ExitHandoverSuccessorRef | null;
+  notes?: string | null;
+  confirmed: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ExitHandoverInput {
+  projectId: string;
+  primarySuccessorId?: string;
+  secondarySuccessorId?: string;
+  notes?: string;
+  confirmed?: boolean;
+}
+
+export type ExitDocumentType = 'RESIGNATION_ACCEPTANCE' | 'RELIEVING_LETTER' | 'EXPERIENCE_CERTIFICATE' | 'NDA' | 'OTHER';
+
+export interface ExitDocument {
+  id: string;
+  exitId: string;
+  docType: ExitDocumentType;
+  fileName: string;
+  fileUrl: string;
+  uploadedAt: string;
+}
+
+// The employee's currently-active project assignments — only present on
+// the single-exit detail fetch (GET /employee-exits/:id), used to seed the
+// Project & Knowledge Handover tab with a row per project even before a
+// handover has been logged.
+export interface ExitActiveProjectAssignment {
+  id: string;
+  projectId: string;
+  project: ExitHandoverProjectRef;
+  roleOnProject?: string | null;
+  allocationPercent: number;
+}
+
 export interface EmployeeExit {
   id: string;
   employeeId: string;
   employee: ExitEmployeeRef;
+  resignationDate: string;
   lastWorkingDay: string;
   reason: string;
   notes?: string | null;
   status: EmployeeExitStatus;
   initiatedAt: string;
   completedAt?: string | null;
+  accessRevocationAt?: string | null;
+  interviewCompletedAt?: string | null;
+  cultureScore?: number | null;
+  managementFeedback?: string | null;
+  rehireEligible?: boolean | null;
   items: ExitClearanceItem[];
+  approvals: ExitCategoryApproval[];
+  handovers: ExitHandover[];
+  documents: ExitDocument[];
   pendingAssetCount: number;
+  // Only populated by the single-exit GET, not the list GET.
+  activeProjects?: ExitActiveProjectAssignment[];
 }
 
 export interface InitiateExitInput {
   employeeId: string;
+  resignationDate: string;
   lastWorkingDay: string;
   reason: string;
   notes?: string;
+  accessRevocationAt?: string;
+}
+
+export interface UpdateExitInput {
+  resignationDate?: string;
+  lastWorkingDay?: string;
+  reason?: string;
+  notes?: string;
+  accessRevocationAt?: string;
+}
+
+export interface UpdateExitFeedbackInput {
+  interviewCompletedAt?: string;
+  cultureScore?: number;
+  managementFeedback?: string;
+  rehireEligible?: boolean;
 }

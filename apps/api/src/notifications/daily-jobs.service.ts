@@ -10,6 +10,11 @@ import { NotificationsService } from './notifications.service';
 // "did we already notify for this one" bookkeeping.
 const EXPIRY_WARNING_DAYS = [7, 3, 1, 0];
 
+// Access revocation is a same-day operational reminder, not a weeks-out
+// renewal warning — one day before and on the day is enough lead time for
+// IT to actually go cut the accounts.
+const ACCESS_REVOCATION_WARNING_DAYS = [1, 0];
+
 function startOfUtcDay(d: Date): Date {
   const copy = new Date(d);
   copy.setUTCHours(0, 0, 0, 0);
@@ -38,6 +43,7 @@ export class DailyJobsService {
     await this.sendBirthdayGreetings().catch((err) => this.logger.error('Birthday check failed', err));
     await this.flagExpiringDocuments().catch((err) => this.logger.error('Document expiry check failed', err));
     await this.flagExpiringContracts().catch((err) => this.logger.error('Contract renewal check failed', err));
+    await this.flagAccessRevocations().catch((err) => this.logger.error('Access revocation check failed', err));
   }
 
   private async sendBirthdayGreetings() {
@@ -130,6 +136,38 @@ export class DailyJobsService {
     }
     if (flagged > 0) {
       this.logger.log(`Flagged ${flagged} expiring contract(s).`);
+    }
+  }
+
+  // Reminds staff that a scheduled access-cutoff date/time is imminent or
+  // has arrived — MitraHR has no Google Workspace/Slack/VPN integration to
+  // actually revoke anything, so this is a nudge to go do it manually, not
+  // an automated action. Only fires for exits still IN_PROGRESS with the
+  // ACCESS checklist item not yet checked off, so a section already
+  // cleared stops generating noise.
+  private async flagAccessRevocations() {
+    const today = new Date();
+    const exits = await this.prisma.employeeExit.findMany({
+      where: { status: 'IN_PROGRESS', accessRevocationAt: { not: null } },
+      include: { employee: { select: { fullName: true } }, items: true },
+    });
+    let flagged = 0;
+    for (const exit of exits) {
+      const accessItem = exit.items.find((i) => i.category === 'ACCESS');
+      if (accessItem?.completed) continue;
+      const daysUntil = daysBetweenUtc(today, exit.accessRevocationAt as unknown as Date);
+      if (!ACCESS_REVOCATION_WARNING_DAYS.includes(daysUntil)) continue;
+      const when = daysUntil === 0 ? 'today' : 'tomorrow';
+      await this.notifications.notifyAllStaff({
+        type: 'ACCESS_REVOCATION_DUE',
+        title: `Access revocation due ${when}: ${exit.employee.fullName}`,
+        body: 'Scheduled system/account access cutoff — revoke manually (no integration wired up yet).',
+        link: '/exits',
+      });
+      flagged += 1;
+    }
+    if (flagged > 0) {
+      this.logger.log(`Flagged ${flagged} pending access revocation(s).`);
     }
   }
 }

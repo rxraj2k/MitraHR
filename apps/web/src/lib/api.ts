@@ -49,6 +49,10 @@ import {
   ClientContractInput,
   EmployeeExit,
   InitiateExitInput,
+  UpdateExitInput,
+  UpdateExitFeedbackInput,
+  ExitHandoverInput,
+  ExitDocumentType,
 } from '../types';
 
 export const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000';
@@ -974,4 +978,71 @@ export function markExitCleared(token: string, id: string): Promise<EmployeeExit
 
 export function deleteExit(token: string, id: string): Promise<void> {
   return authFetch(token, `/employee-exits/${id}`, { method: 'DELETE' });
+}
+
+export function updateExit(token: string, id: string, data: UpdateExitInput): Promise<EmployeeExit> {
+  return authFetch(token, `/employee-exits/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+}
+
+export function updateExitFeedback(token: string, id: string, data: UpdateExitFeedbackInput): Promise<EmployeeExit> {
+  return authFetch(token, `/employee-exits/${id}/feedback`, { method: 'PATCH', body: JSON.stringify(data) });
+}
+
+// --- Exit category approvals (department sign-off) ---
+
+export function approveExitCategory(
+  token: string,
+  exitId: string,
+  group: string,
+  notes?: string,
+): Promise<EmployeeExit> {
+  return authFetch(token, `/employee-exits/${exitId}/approvals/${group}`, {
+    method: 'POST',
+    body: JSON.stringify({ notes }),
+  });
+}
+
+export function revokeExitCategoryApproval(token: string, exitId: string, group: string): Promise<EmployeeExit> {
+  return authFetch(token, `/employee-exits/${exitId}/approvals/${group}`, { method: 'DELETE' });
+}
+
+// --- Exit handovers (Project & Knowledge Handover tab) ---
+
+export function upsertExitHandover(token: string, exitId: string, data: ExitHandoverInput): Promise<EmployeeExit> {
+  return authFetch(token, `/employee-exits/${exitId}/handovers`, { method: 'POST', body: JSON.stringify(data) });
+}
+
+export function deleteExitHandover(token: string, exitId: string, handoverId: string): Promise<EmployeeExit> {
+  return authFetch(token, `/employee-exits/${exitId}/handovers/${handoverId}`, { method: 'DELETE' });
+}
+
+// --- Exit documents (Documents Locker tab) ---
+
+export async function uploadExitDocument(
+  token: string,
+  exitId: string,
+  docType: ExitDocumentType,
+  file: File,
+): Promise<EmployeeExit> {
+  const formData = new FormData();
+  formData.append('docType', docType);
+  formData.append('file', file);
+  const res = await fetch(`${API_BASE}/employee-exits/${exitId}/documents`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: formData,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ message: 'Document upload failed' }));
+    throw new Error(err.message || 'Document upload failed');
+  }
+  return res.json();
+}
+
+export function openExitDocumentFile(token: string, exitId: string, docId: string) {
+  return openAuthedFile(token, `/employee-exits/${exitId}/documents/${docId}/file`);
+}
+
+export function deleteExitDocument(token: string, exitId: string, docId: string): Promise<EmployeeExit> {
+  return authFetch(token, `/employee-exits/${exitId}/documents/${docId}`, { method: 'DELETE' });
 }
