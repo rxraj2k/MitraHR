@@ -37,6 +37,7 @@ export class DailyJobsService {
   async runDailyChecks() {
     await this.sendBirthdayGreetings().catch((err) => this.logger.error('Birthday check failed', err));
     await this.flagExpiringDocuments().catch((err) => this.logger.error('Document expiry check failed', err));
+    await this.flagExpiringContracts().catch((err) => this.logger.error('Contract renewal check failed', err));
   }
 
   private async sendBirthdayGreetings() {
@@ -98,6 +99,37 @@ export class DailyJobsService {
     }
     if (flagged > 0) {
       this.logger.log(`Flagged ${flagged} expiring document(s).`);
+    }
+  }
+
+  // Same fixed-lead-time pattern as flagExpiringDocuments, but for client
+  // contracts — staff-only concern (clients aren't shown to employees), so
+  // this only ever notifies staff, never notifyEmployee.
+  private async flagExpiringContracts() {
+    const today = new Date();
+    const contracts = await this.prisma.clientContract.findMany({
+      where: { endDate: { not: null }, status: { in: ['ACTIVE', 'RENEWED'] } },
+      include: { client: { select: { name: true } } },
+    });
+    let flagged = 0;
+    for (const contract of contracts) {
+      const daysUntil = daysBetweenUtc(today, contract.endDate as unknown as Date);
+      if (!EXPIRY_WARNING_DAYS.includes(daysUntil)) continue;
+      const when = daysUntil === 0 ? 'today' : daysUntil === 1 ? 'tomorrow' : `in ${daysUntil} days`;
+      const title =
+        daysUntil <= 0
+          ? `Contract with ${contract.client.name} has expired`
+          : `Contract with ${contract.client.name} expires ${when}`;
+      await this.notifications.notifyAllStaff({
+        type: 'CONTRACT_EXPIRING',
+        title,
+        body: contract.title,
+        link: '/clients',
+      });
+      flagged += 1;
+    }
+    if (flagged > 0) {
+      this.logger.log(`Flagged ${flagged} expiring contract(s).`);
     }
   }
 }

@@ -23,6 +23,8 @@ import { ReportsModule } from './reports/reports.module';
 import { StaffingSandboxModule } from './staffing-sandbox/staffing-sandbox.module';
 import { AnnouncementsModule } from './announcements/announcements.module';
 import { FavoritesModule } from './favorites/favorites.module';
+import { ClientContractsModule } from './client-contracts/client-contracts.module';
+import { EmployeeExitsModule } from './employee-exits/employee-exits.module';
 
 @Module({
   imports: [
@@ -50,6 +52,8 @@ import { FavoritesModule } from './favorites/favorites.module';
     StaffingSandboxModule,
     AnnouncementsModule,
     FavoritesModule,
+    ClientContractsModule,
+    EmployeeExitsModule,
   ],
 })
 export class AppModule {}

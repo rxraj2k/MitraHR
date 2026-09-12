@@ -45,6 +45,10 @@ import {
   CreateAnnouncementInput,
   UpdateAnnouncementInput,
   FavoriteColleague,
+  ClientContract,
+  ClientContractInput,
+  EmployeeExit,
+  InitiateExitInput,
 } from '../types';
 
 export const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000';
@@ -877,4 +881,97 @@ export function addFavorite(token: string, employeeId: string): Promise<{ succes
 
 export function removeFavorite(token: string, employeeId: string): Promise<{ success: boolean }> {
   return authFetch(token, `/favorites/${employeeId}`, { method: 'DELETE' });
+}
+
+
+// --- Client Contracts ---
+
+export function getClientContracts(token: string, clientId?: string): Promise<ClientContract[]> {
+  const qs = clientId ? `?clientId=${clientId}` : '';
+  return authFetch(token, `/client-contracts${qs}`);
+}
+
+export function getClientContract(token: string, id: string): Promise<ClientContract> {
+  return authFetch(token, `/client-contracts/${id}`);
+}
+
+// Multipart create — the signed contract file is optional (a contract can be
+// logged before the scanned copy is on hand), same bypass-authFetch pattern
+// as uploadEmployeeDocument.
+export async function createClientContract(
+  token: string,
+  data: ClientContractInput,
+  file?: File,
+): Promise<ClientContract> {
+  const formData = new FormData();
+  formData.append('clientId', data.clientId);
+  formData.append('title', data.title);
+  if (data.contractType) formData.append('contractType', data.contractType);
+  if (data.startDate) formData.append('startDate', data.startDate);
+  if (data.endDate) formData.append('endDate', data.endDate);
+  if (data.value) formData.append('value', data.value);
+  if (data.status) formData.append('status', data.status);
+  if (data.notes) formData.append('notes', data.notes);
+  if (file) formData.append('file', file);
+  const res = await fetch(`${API_BASE}/client-contracts`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: formData,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ message: 'Contract could not be saved' }));
+    throw new Error(err.message || 'Contract could not be saved');
+  }
+  return res.json();
+}
+
+export function updateClientContract(
+  token: string,
+  id: string,
+  data: Partial<ClientContractInput>,
+): Promise<ClientContract> {
+  return authFetch(token, `/client-contracts/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+}
+
+export function deleteClientContract(token: string, id: string): Promise<void> {
+  return authFetch(token, `/client-contracts/${id}`, { method: 'DELETE' });
+}
+
+export function openClientContractFile(token: string, id: string) {
+  return openAuthedFile(token, `/client-contracts/${id}/file`);
+}
+
+// --- Employee Exits (Exit & Clearance) ---
+
+export function getEmployeeExits(token: string, status?: string): Promise<EmployeeExit[]> {
+  const qs = status ? `?status=${status}` : '';
+  return authFetch(token, `/employee-exits${qs}`);
+}
+
+export function getEmployeeExit(token: string, id: string): Promise<EmployeeExit> {
+  return authFetch(token, `/employee-exits/${id}`);
+}
+
+export function initiateExit(token: string, data: InitiateExitInput): Promise<EmployeeExit> {
+  return authFetch(token, '/employee-exits', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export function updateExitClearanceItem(
+  token: string,
+  exitId: string,
+  itemId: string,
+  data: { completed?: boolean; notes?: string },
+): Promise<EmployeeExit['items'][number]> {
+  return authFetch(token, `/employee-exits/${exitId}/items/${itemId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  });
+}
+
+export function markExitCleared(token: string, id: string): Promise<EmployeeExit> {
+  return authFetch(token, `/employee-exits/${id}/clear`, { method: 'POST' });
+}
+
+export function deleteExit(token: string, id: string): Promise<void> {
+  return authFetch(token, `/employee-exits/${id}`, { method: 'DELETE' });
 }

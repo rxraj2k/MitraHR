@@ -23,6 +23,7 @@ import DocumentManagement from './pages/documents/DocumentManagement';
 import ReportsPage from './pages/reports/ReportsPage';
 import ReportsPreview from './pages/reports/ReportsPreview';
 import StaffingSandbox from './pages/staffing/StaffingSandbox';
+import ExitClearance from './pages/exits/ExitClearance';
 
 function ProtectedRoute({ children }: { children: JSX.Element }) {
   const { token, loading } = useAuth();
@@ -139,6 +140,14 @@ export default function App() {
           element={
             <StaffOnlyRoute>
               <DocumentManagement />
+            </StaffOnlyRoute>
+          }
+        />
+        <Route
+          path="exits"
+          element={
+            <StaffOnlyRoute>
+              <ExitClearance />
             </StaffOnlyRoute>
           }
         />

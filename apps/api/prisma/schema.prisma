@@ -108,6 +108,7 @@ model Employee {
   trainingAssignments EmployeeTraining[]
   assetAssignments   AssetAssignment[]
   sandboxPlacement   SandboxPlacement?
+  exit               EmployeeExit?
   linkedUser User?
   announcementRecipient AnnouncementRecipient[]
   announcementLikes     AnnouncementLike[]
@@ -329,6 +330,7 @@ model Client {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
   projects     Project[]
+  contracts    ClientContract[]
 }
 
 // Allowed status: ACTIVE, ON_HOLD, COMPLETED, CANCELLED.
@@ -606,4 +608,77 @@ model FavoriteColleague {
   createdAt          DateTime @default(now())
 
   @@unique([employeeId, favoriteEmployeeId])
+}
+
+// --- Sprint 12: Client contracts + Exit & Clearance workflow ---
+
+// A signed agreement with a client (MSA, SOW, renewal, etc.) — separate
+// from Project.contractType (which just tags how one project is billed):
+// a single contract can predate or span several projects, and this is
+// what the renewal-alert daily job actually watches. Allowed status:
+// ACTIVE, RENEWED, TERMINATED — "expiring soon" / "expired" are derived
+// at read time from endDate vs today (see getExpiryStatus on the
+// frontend, same helper Employee/Company documents already use), not a
+// separate stored field. fileUrl/fileName are optional — a contract can
+// be logged before the signed copy is scanned in.
+model ClientContract {
+  id           String    @id @default(uuid())
+  clientId     String
+  client       Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  title        String
+  contractType String?
+  startDate    DateTime?
+  endDate      DateTime?
+  value        String?
+  status       String    @default("ACTIVE")
+  notes        String?
+  fileName     String?
+  fileUrl      String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
+// One row per employee's offboarding. Clearance items are seeded from a
+// fixed checklist (CLEARANCE_ITEMS in employee-exits.service.ts) the
+// moment the exit is initiated — same pattern as EmployeeTraining being
+// seeded from the Training Catalog. Employee.status stays ACTIVE for the
+// whole notice period (they're still working, and every other screen's
+// "active employee" filter should still include them) and only flips to
+// INACTIVE when every item is checked off and staff hits "Mark Fully
+// Cleared" — mirrors how a Project only flips to COMPLETED at formal
+// closure, not when someone starts the end-project form. Allowed status:
+// IN_PROGRESS, COMPLETED. One exit per employee for now (@unique) — a
+// rehire-then-exit-again scenario would need a second row, not modeled
+// yet since it hasn't come up.
+model EmployeeExit {
+  id             String              @id @default(uuid())
+  employeeId     String              @unique
+  employee       Employee            @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  lastWorkingDay DateTime
+  reason         String
+  notes          String?
+  status         String              @default("IN_PROGRESS")
+  initiatedAt    DateTime            @default(now())
+  completedAt    DateTime?
+  items          ExitClearanceItem[]
+}
+
+// Allowed category: IT_ASSETS, ACCESS, FINANCE, HR, ADMIN — used only to
+// group the checklist visually. completed is a plain manual checkbox
+// (staff confirming the real-world step happened); the UI additionally
+// surfaces a live hint next to the IT_ASSETS item (count of the
+// employee's still-unreturned AssetAssignments) so staff know before
+// checking it off, but nothing here is auto-completed from that data —
+// physical asset return needs a human to confirm it actually happened.
+model ExitClearanceItem {
+  id          String       @id @default(uuid())
+  exitId      String
+  exit        EmployeeExit @relation(fields: [exitId], references: [id], onDelete: Cascade)
+  category    String
+  label       String
+  completed   Boolean      @default(false)
+  completedAt DateTime?
+  notes       String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
 }

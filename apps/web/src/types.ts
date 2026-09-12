@@ -685,3 +685,82 @@ export interface FavoriteColleague {
   createdAt: string;
   favoriteEmployee: Employee;
 }
+
+// --- Sprint 12: Client contracts + Exit & Clearance workflow ---
+
+export type ClientContractStatus = 'ACTIVE' | 'RENEWED' | 'TERMINATED';
+
+export interface ClientContract {
+  id: string;
+  clientId: string;
+  client?: { id: string; name: string };
+  title: string;
+  contractType?: string | null;
+  startDate?: string | null;
+  endDate?: string | null;
+  value?: string | null;
+  status: ClientContractStatus;
+  notes?: string | null;
+  fileName?: string | null;
+  fileUrl?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ClientContractInput {
+  clientId: string;
+  title: string;
+  contractType?: string;
+  startDate?: string;
+  endDate?: string;
+  value?: string;
+  status?: ClientContractStatus;
+  notes?: string;
+}
+
+export type ExitClearanceCategory = 'IT_ASSETS' | 'ACCESS' | 'FINANCE' | 'HR' | 'ADMIN';
+
+export interface ExitClearanceItem {
+  id: string;
+  exitId: string;
+  category: ExitClearanceCategory;
+  label: string;
+  completed: boolean;
+  completedAt?: string | null;
+  notes?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ExitEmployeeRef {
+  id: string;
+  fullName: string;
+  employeeCode?: string | null;
+  email: string;
+  photoUrl?: string | null;
+  department?: LookupItem | null;
+  designation?: LookupItem | null;
+}
+
+export type EmployeeExitStatus = 'IN_PROGRESS' | 'COMPLETED';
+
+export interface EmployeeExit {
+  id: string;
+  employeeId: string;
+  employee: ExitEmployeeRef;
+  lastWorkingDay: string;
+  reason: string;
+  notes?: string | null;
+  status: EmployeeExitStatus;
+  initiatedAt: string;
+  completedAt?: string | null;
+  items: ExitClearanceItem[];
+  pendingAssetCount: number;
+}
+
+export interface InitiateExitInput {
+  employeeId: string;
+  lastWorkingDay: string;
+  reason: string;
+  notes?: string;
+}
