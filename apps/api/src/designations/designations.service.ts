@@ -5,8 +5,14 @@ import { PrismaService } from '../prisma/prisma.service';
 export class DesignationsService {
   constructor(private prisma: PrismaService) {}
 
-  findAll() {
-    return this.prisma.designation.findMany({ orderBy: { name: 'asc' } });
+  async findAll() {
+    const rows = await this.prisma.designation.findMany({ orderBy: { name: 'asc' } });
+    const counts = await Promise.all(rows.map((r) => this.prisma.employee.count({ where: { designationId: r.id } })));
+    return rows.map((r, i) => ({
+      ...r,
+      usageCount: counts[i],
+      usageLabel: counts[i] === 1 ? 'employee holds this' : 'employees hold this',
+    }));
   }
 
   create(name: string) {

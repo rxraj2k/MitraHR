@@ -17,6 +17,7 @@ export class AssetsService {
     return this.prisma.asset.findMany({
       where: { category: filters.category || undefined, status: filters.status || undefined },
       include: {
+        vendor: true,
         assignments: {
           where: { returnedAt: null },
           include: { employee: { select: EMPLOYEE_REF_SELECT } },
@@ -30,6 +31,7 @@ export class AssetsService {
     const asset = await this.prisma.asset.findUnique({
       where: { id },
       include: {
+        vendor: true,
         assignments: {
           include: { employee: { select: EMPLOYEE_REF_SELECT } },
           orderBy: [{ returnedAt: 'asc' }, { assignedAt: 'desc' }],
@@ -40,7 +42,16 @@ export class AssetsService {
     return asset;
   }
 
-  async create(input: { assetTag: string; category: string; name: string; serialNumber?: string; purchaseDate?: string; notes?: string }) {
+  async create(input: {
+    assetTag: string;
+    category: string;
+    name: string;
+    serialNumber?: string;
+    purchaseDate?: string;
+    purchaseValue?: number;
+    notes?: string;
+    vendorId?: string;
+  }) {
     const clash = await this.prisma.asset.findUnique({ where: { assetTag: input.assetTag } });
     if (clash) throw new BadRequestException('An asset with this tag already exists');
     return this.prisma.asset.create({
@@ -50,14 +61,26 @@ export class AssetsService {
         name: input.name,
         serialNumber: input.serialNumber || undefined,
         purchaseDate: input.purchaseDate ? new Date(input.purchaseDate) : undefined,
+        purchaseValue: input.purchaseValue,
         notes: input.notes || undefined,
+        vendorId: input.vendorId || undefined,
       },
+      include: { vendor: true },
     });
   }
 
   async update(
     id: string,
-    input: { assetTag?: string; category?: string; name?: string; serialNumber?: string; purchaseDate?: string; notes?: string },
+    input: {
+      assetTag?: string;
+      category?: string;
+      name?: string;
+      serialNumber?: string;
+      purchaseDate?: string;
+      purchaseValue?: number;
+      notes?: string;
+      vendorId?: string | null;
+    },
   ) {
     const existing = await this.prisma.asset.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException('Asset not found');
@@ -73,8 +96,11 @@ export class AssetsService {
         name: input.name,
         serialNumber: input.serialNumber === '' ? null : input.serialNumber,
         purchaseDate: input.purchaseDate ? new Date(input.purchaseDate) : input.purchaseDate === '' ? null : undefined,
+        purchaseValue: input.purchaseValue,
         notes: input.notes === '' ? null : input.notes,
+        vendorId: input.vendorId === '' ? null : input.vendorId,
       },
+      include: { vendor: true },
     });
   }
 

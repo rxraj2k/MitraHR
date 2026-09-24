@@ -1,4 +1,4 @@
-import { IsIn, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsIn, IsOptional, IsString } from 'class-validator';
 
 export const COMPANY_DOCUMENT_CATEGORIES = ['POLICY', 'TEMPLATE', 'HANDBOOK', 'OTHER'] as const;
 
@@ -10,4 +10,12 @@ export class UpdateCompanyDocumentDto {
   @IsOptional()
   @IsString()
   title?: string;
+
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  requiresAcknowledgment?: boolean;
 }

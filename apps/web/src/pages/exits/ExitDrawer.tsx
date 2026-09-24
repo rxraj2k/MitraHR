@@ -15,6 +15,7 @@ import {
   updateExitFeedback,
   uploadExitDocument,
   upsertExitHandover,
+  API_BASE,
 } from '../../lib/api';
 import {
   APPROVAL_GROUP_CATEGORIES,
@@ -27,11 +28,14 @@ import {
 } from '../../types';
 
 type DrawerTab = 'checklist' | 'handover' | 'feedback' | 'documents';
+// Neutral gray tab styling — matches the Reports & Analytics preview page's
+// TabBar usage, so a set of sub-navigation tabs inside one workflow reads as
+// a cohesive control rather than a row of distinct colorful buttons.
 const DRAWER_TABS: TabBarItem<DrawerTab>[] = [
-  { key: 'checklist', label: 'Checklist & Approvals', color: 'indigo' },
-  { key: 'handover', label: 'Project Handover', color: 'sky' },
-  { key: 'feedback', label: 'Exit Interview', color: 'amber' },
-  { key: 'documents', label: 'Documents Locker', color: 'teal' },
+  { key: 'checklist', label: 'Checklist & Approvals', color: 'neutral' },
+  { key: 'handover', label: 'Project Handover', color: 'neutral' },
+  { key: 'feedback', label: 'Exit Interview', color: 'neutral' },
+  { key: 'documents', label: 'Documents Locker', color: 'neutral' },
 ];
 
 const CATEGORY_LABELS: Record<ExitClearanceCategory, string> = {
@@ -531,7 +535,7 @@ function FeedbackTab({ exit, onChange }: { exit: EmployeeExit; onChange: () => v
       <button
         type="submit"
         disabled={saving}
-        className="rounded-lg bg-gradient-to-r from-mitra-accentFrom to-mitra-accentTo text-white text-sm font-medium px-4 py-2 disabled:opacity-50"
+        className="rounded-lg bg-gradient-to-r from-mitra-accentFrom to-mitra-accentTo text-white text-sm font-medium px-4 py-2 disabled:opacity-50 shadow-[0_6px_16px_-4px_rgba(124,111,255,0.55)] hover:-translate-y-0.5 hover:shadow-[0_10px_20px_-4px_rgba(124,111,255,0.6)] active:translate-y-0 active:shadow-[0_3px_8px_-2px_rgba(124,111,255,0.5)] transition-all duration-150"
       >
         {saving ? 'Saving...' : 'Save Feedback'}
       </button>
@@ -604,7 +608,7 @@ function DocumentsTab({ exit, onChange }: { exit: EmployeeExit; onChange: () => 
           <button
             type="submit"
             disabled={uploading}
-            className="rounded-lg bg-gradient-to-r from-mitra-accentFrom to-mitra-accentTo text-white text-sm font-medium px-4 py-2 disabled:opacity-50"
+            className="rounded-lg bg-gradient-to-r from-mitra-accentFrom to-mitra-accentTo text-white text-sm font-medium px-4 py-2 disabled:opacity-50 shadow-[0_6px_16px_-4px_rgba(124,111,255,0.55)] hover:-translate-y-0.5 hover:shadow-[0_10px_20px_-4px_rgba(124,111,255,0.6)] active:translate-y-0 active:shadow-[0_3px_8px_-2px_rgba(124,111,255,0.5)] transition-all duration-150"
           >
             {uploading ? 'Uploading...' : 'Upload'}
           </button>
@@ -711,7 +715,7 @@ export default function ExitDrawer({
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center gap-3">
                   {exit.employee.photoUrl ? (
-                    <img src={exit.employee.photoUrl} alt="" className="w-11 h-11 rounded-full object-cover" />
+                    <img src={`${API_BASE}${exit.employee.photoUrl}`} alt="" className="w-11 h-11 rounded-full object-cover" />
                   ) : (
                     <div className="w-11 h-11 rounded-full bg-slate-200 flex items-center justify-center text-slate-500 font-medium">
                       {exit.employee.fullName.charAt(0)}
@@ -745,7 +749,7 @@ export default function ExitDrawer({
                   <button
                     onClick={handleClear}
                     disabled={clearing}
-                    className="rounded-lg bg-gradient-to-r from-mitra-accentFrom to-mitra-accentTo text-white text-xs font-medium px-3 py-1.5 disabled:opacity-50"
+                    className="rounded-lg bg-gradient-to-r from-mitra-accentFrom to-mitra-accentTo text-white text-xs font-medium px-3 py-1.5 disabled:opacity-50 shadow-[0_6px_16px_-4px_rgba(124,111,255,0.55)] hover:-translate-y-0.5 hover:shadow-[0_10px_20px_-4px_rgba(124,111,255,0.6)] active:translate-y-0 active:shadow-[0_3px_8px_-2px_rgba(124,111,255,0.5)] transition-all duration-150"
                   >
                     {clearing ? 'Clearing...' : 'Mark Fully Cleared'}
                   </button>

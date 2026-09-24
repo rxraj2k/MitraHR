@@ -3,6 +3,10 @@ import { useAuth } from '../../context/AuthContext';
 import ExitDrawer from './ExitDrawer';
 import { getEmployeeExits, getEmployees, initiateExit } from '../../lib/api';
 import { APPROVAL_GROUP_CATEGORIES, ApprovalGroup, Employee, EmployeeExit } from '../../types';
+import { CheckCircleIcon, ClockIcon, FileTextIcon, LaptopIcon } from '../../components/icons';
+import MetricTile from '../../components/MetricTile';
+import Progress3DBar from '../../components/Progress3DBar';
+import { TILE_THEMES, tileWrapperClass } from '../../lib/tileThemes';
 
 const APPROVAL_GROUPS: ApprovalGroup[] = ['IT', 'FINANCE', 'HR_ADMIN'];
 const GROUP_DOT_LABEL: Record<ApprovalGroup, string> = { IT: 'IT', FINANCE: 'Fin', HR_ADMIN: 'HR' };
@@ -27,9 +31,11 @@ const DOT_CLASS: Record<'approved' | 'ready' | 'pending', string> = {
 
 function ClearanceStepper({ exit }: { exit: EmployeeExit }) {
   const completedItems = exit.items.filter((i) => i.completed).length;
+  const total = exit.items.length;
+  const pct = total === 0 ? 0 : Math.round((completedItems / total) * 100);
   return (
-    <div>
-      <div className="flex items-center gap-1.5 mb-1">
+    <div className="min-w-[132px]">
+      <div className="flex items-center gap-1.5 mb-1.5">
         {APPROVAL_GROUPS.map((g) => (
           <span
             key={g}
@@ -38,9 +44,16 @@ function ClearanceStepper({ exit }: { exit: EmployeeExit }) {
           />
         ))}
         <span className="text-xs text-slate-500 ml-1">
-          {completedItems}/{exit.items.length}
+          {completedItems}/{total}
         </span>
       </div>
+      {/* Small completion bar so overall clearance progress reads at a
+          glance, alongside the group sign-off dots above. */}
+      <Progress3DBar
+        percent={pct}
+        height="h-1.5"
+        fillClassName={pct === 100 ? 'bg-gradient-to-r from-emerald-400 to-emerald-600' : 'bg-gradient-to-r from-mitra-accentFrom to-mitra-accentTo'}
+      />
     </div>
   );
 }
@@ -184,7 +197,7 @@ function InitiateModal({
             <button
               type="submit"
               disabled={saving}
-              className="rounded-lg bg-gradient-to-r from-mitra-accentFrom to-mitra-accentTo text-white text-sm font-medium px-4 py-2 disabled:opacity-50"
+              className="rounded-lg bg-gradient-to-r from-mitra-accentFrom to-mitra-accentTo text-white text-sm font-medium px-4 py-2 disabled:opacity-50 shadow-[0_6px_16px_-4px_rgba(124,111,255,0.55)] hover:-translate-y-0.5 hover:shadow-[0_10px_20px_-4px_rgba(124,111,255,0.6)] active:translate-y-0 active:shadow-[0_3px_8px_-2px_rgba(124,111,255,0.5)] transition-all duration-150"
             >
               {saving ? 'Starting...' : 'Initiate Exit'}
             </button>
@@ -195,11 +208,23 @@ function InitiateModal({
   );
 }
 
-function KpiCard({ label, value, accent }: { label: string; value: number; accent: string }) {
+// Static class lookup (never build the class string dynamically) — Tailwind's
+// JIT compiler only picks up classes it can see literally in source, same
+// pattern as the Home dashboard's tinted summary cards.
+function KpiCard({
+  label,
+  value,
+  icon,
+  theme,
+}: {
+  label: string;
+  value: number;
+  icon: Parameters<typeof MetricTile>[0]['icon'];
+  theme: (typeof TILE_THEMES)[number];
+}) {
   return (
-    <div className="bg-white border border-slate-200 rounded-xl p-4">
-      <div className={`text-2xl font-semibold ${accent}`}>{value}</div>
-      <div className="text-xs text-slate-500 mt-1">{label}</div>
+    <div className={tileWrapperClass(theme)}>
+      <MetricTile icon={icon} label={label} value={value} />
     </div>
   );
 }
@@ -214,14 +239,20 @@ export default function ExitClearance() {
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'IN_PROGRESS' | 'COMPLETED'>('IN_PROGRESS');
   const [showInitiate, setShowInitiate] = useState(false);
   const [openExitId, setOpenExitId] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState('');
 
   async function load() {
     if (!token) return;
     setLoading(true);
+    setLoadError('');
     try {
       const [ex, emp] = await Promise.all([getEmployeeExits(token), getEmployees(token)]);
       setExits(ex);
       setEmployees(emp);
+    } catch (err: any) {
+      // Surface fetch failures instead of silently leaving exits/employees
+      // empty — an empty state and a failed load look identical otherwise.
+      setLoadError(err?.message || 'Failed to load exits data.');
     } finally {
       setLoading(false);
     }
@@ -277,17 +308,23 @@ export default function ExitClearance() {
         </div>
         <button
           onClick={() => setShowInitiate(true)}
-          className="rounded-lg bg-gradient-to-r from-mitra-accentFrom to-mitra-accentTo text-white text-sm font-medium px-4 py-2"
+          className="rounded-lg bg-gradient-to-r from-mitra-accentFrom to-mitra-accentTo text-white text-sm font-medium px-4 py-2 shadow-[0_6px_16px_-4px_rgba(124,111,255,0.55)] hover:-translate-y-0.5 hover:shadow-[0_10px_20px_-4px_rgba(124,111,255,0.6)] active:translate-y-0 active:shadow-[0_3px_8px_-2px_rgba(124,111,255,0.5)] transition-all duration-150"
         >
           + Initiate Exit
         </button>
       </div>
 
+      {loadError && (
+        <div className="rounded-lg border border-red-200 bg-red-50 text-red-700 text-sm px-4 py-3">
+          Couldn't load exits data: {loadError}
+        </div>
+      )}
+
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <KpiCard label="Active Exits" value={kpis.activeExits} accent="text-amber-600" />
-        <KpiCard label="Pending IT Clearances" value={kpis.pendingIT} accent="text-rose-600" />
-        <KpiCard label="Pending Financial Settlements" value={kpis.pendingFinance} accent="text-orange-600" />
-        <KpiCard label="Completed Exits (This Month)" value={kpis.completedThisMonth} accent="text-emerald-600" />
+        <KpiCard label="Active Exits" value={kpis.activeExits} icon={ClockIcon} theme={TILE_THEMES[1]} />
+        <KpiCard label="Pending IT Clearances" value={kpis.pendingIT} icon={LaptopIcon} theme={TILE_THEMES[4]} />
+        <KpiCard label="Pending Financial Settlements" value={kpis.pendingFinance} icon={FileTextIcon} theme={TILE_THEMES[6]} />
+        <KpiCard label="Completed Exits (This Month)" value={kpis.completedThisMonth} icon={CheckCircleIcon} theme={TILE_THEMES[3]} />
       </div>
 
       <div className="bg-white border border-slate-200 rounded-xl p-6">

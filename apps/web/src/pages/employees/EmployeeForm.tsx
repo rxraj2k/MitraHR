@@ -7,17 +7,19 @@ import {
   deleteEmployee,
   deleteEmployeeDocument,
   getDepartments,
+  getDesignationHistory,
   getDesignations,
   getEmployee,
   getEmployees,
   getSkills,
+  getWorkLocations,
   openAuthedFile,
   replaceEmployeeSkills,
   updateEmployee,
   uploadEmployeeDocument,
   uploadEmployeePhoto,
 } from '../../lib/api';
-import { Employee, EmployeeInput, EmployeeSkillEntry, LookupItem } from '../../types';
+import { DesignationHistoryEntry, Employee, EmployeeInput, EmployeeSkillEntry, LookupItem } from '../../types';
 import SearchableSelect from '../../components/SearchableSelect';
 import {
   EMPLOYEE_DOCUMENT_TYPES,
@@ -26,6 +28,7 @@ import {
   EXPIRY_STATUS_LABELS,
   getExpiryStatus,
 } from '../../lib/documentCategories';
+import { DEPLOYMENT_STATUSES, DEPLOYMENT_STATUS_LABELS, EXPERIENCE_LEVELS, EXPERIENCE_LEVEL_LABELS } from '../../lib/talentDirectory';
 
 const EMPTY: EmployeeInput = {
   fullName: '',
@@ -41,6 +44,8 @@ const EMPTY: EmployeeInput = {
   workLocation: '',
   reportingManagerId: '',
   systemRole: '',
+  experienceLevel: 'MID',
+  deploymentStatus: 'BENCH',
   dateOfJoining: '',
   dateOfBirth: '',
 };
@@ -54,14 +59,21 @@ interface PendingDocument {
 export default function EmployeeForm() {
   const { id } = useParams();
   const isEdit = Boolean(id);
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const navigate = useNavigate();
+  // Roles & Permissions (minimal, Sprint 19 follow-up): only Admin/HR staff
+  // may change these two Talent Directory fields — enforced for real on the
+  // backend (EmployeesController.assertCanEditTalentDirectoryFields); this
+  // just disables the controls so a Manager/IT Support account isn't
+  // shown a control that would 403 on save.
+  const canEditTalentFields = user?.role === 'ADMIN' || user?.role === 'HR';
   const [form, setForm] = useState<EmployeeInput>(EMPTY);
   const [status, setStatus] = useState('ACTIVE');
   const [employeeCode, setEmployeeCode] = useState<string | null>(null);
   const [departments, setDepartments] = useState<LookupItem[]>([]);
   const [designations, setDesignations] = useState<LookupItem[]>([]);
   const [skills, setSkills] = useState<LookupItem[]>([]);
+  const [workLocations, setWorkLocations] = useState<LookupItem[]>([]);
   const [allEmployees, setAllEmployees] = useState<Employee[]>([]);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [existingPhotoUrl, setExistingPhotoUrl] = useState<string | null>(null);
@@ -74,18 +86,27 @@ export default function EmployeeForm() {
   const [loading, setLoading] = useState(isEdit);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [designationHistory, setDesignationHistory] = useState<DesignationHistoryEntry[]>([]);
 
   useEffect(() => {
     if (!token) return;
-    Promise.all([getDepartments(token), getDesignations(token), getSkills(token), getEmployees(token)])
-      .then(([depts, desigs, sk, emps]) => {
+    Promise.all([getDepartments(token), getDesignations(token), getSkills(token), getEmployees(token), getWorkLocations(token)])
+      .then(([depts, desigs, sk, emps, locs]) => {
         setDepartments(depts);
         setDesignations(desigs);
         setSkills(sk);
         setAllEmployees(emps);
+        setWorkLocations(locs);
       })
       .catch((err) => setError(err.message));
   }, [token]);
+
+  useEffect(() => {
+    if (!isEdit || !token || !id) return;
+    getDesignationHistory(token, id)
+      .then(setDesignationHistory)
+      .catch(() => {});
+  }, [isEdit, token, id]);
 
   useEffect(() => {
     if (!isEdit || !token || !id) return;
@@ -105,6 +126,8 @@ export default function EmployeeForm() {
           workLocation: emp.workLocation || '',
           reportingManagerId: emp.reportingManagerId || '',
           systemRole: emp.systemRole || '',
+          experienceLevel: emp.experienceLevel,
+          deploymentStatus: emp.deploymentStatus,
           dateOfJoining: emp.dateOfJoining ? emp.dateOfJoining.slice(0, 10) : '',
           dateOfBirth: emp.dateOfBirth ? emp.dateOfBirth.slice(0, 10) : '',
         });
@@ -180,6 +203,12 @@ export default function EmployeeForm() {
         designationId: form.designationId || undefined,
         reportingManagerId: form.reportingManagerId || undefined,
         systemRole: form.systemRole || undefined,
+        // Omit entirely (rather than send the unchanged value) when this
+        // account can't edit them — the backend only 403s when these keys
+        // are actually present, so a Manager/IT Support saving any other
+        // field on the form must not trip that check.
+        experienceLevel: canEditTalentFields ? form.experienceLevel : undefined,
+        deploymentStatus: canEditTalentFields ? form.deploymentStatus : undefined,
       };
       let employeeId = id;
       if (isEdit && id) {
@@ -226,7 +255,7 @@ export default function EmployeeForm() {
   return (
     <div className="max-w-3xl">
       <div className="flex items-center gap-3 mb-6">
-        <h1 className="text-2xl font-semibold text-slate-800">{isEdit ? 'Edit Employee' : 'Onboard Employee'}</h1>
+        <h1 className="text-2xl font-semibold text-slate-800">{isEdit ? 'Edit Talent Profile' : 'Onboard New Talent'}</h1>
         {employeeCode && (
           <span className="inline-flex items-center rounded-full bg-slate-100 text-slate-600 text-xs font-medium px-2.5 py-1">
             {employeeCode}
@@ -432,14 +461,75 @@ export default function EmployeeForm() {
                 value={form.workLocation}
                 onChange={(e) => update('workLocation', e.target.value)}
                 placeholder="e.g. Pune (Hybrid)"
+                list="work-locations-datalist"
                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
               />
+              {/* Suggestions from Master Data's Locations tab — still a
+                  free-text field underneath, so an existing value that
+                  isn't (yet) in that managed list keeps working. */}
+              <datalist id="work-locations-datalist">
+                {workLocations.map((loc) => (
+                  <option key={loc.id} value={loc.name} />
+                ))}
+              </datalist>
             </div>
           </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm text-slate-600 mb-1">Experience level</label>
+              <select
+                value={form.experienceLevel}
+                onChange={(e) => update('experienceLevel', e.target.value as EmployeeInput['experienceLevel'])}
+                disabled={!canEditTalentFields}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm disabled:bg-slate-50 disabled:text-slate-400"
+              >
+                {EXPERIENCE_LEVELS.map((lvl) => (
+                  <option key={lvl} value={lvl}>
+                    {EXPERIENCE_LEVEL_LABELS[lvl]}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm text-slate-600 mb-1">Deployment status</label>
+              <select
+                value={form.deploymentStatus}
+                onChange={(e) => update('deploymentStatus', e.target.value as EmployeeInput['deploymentStatus'])}
+                disabled={!canEditTalentFields}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm disabled:bg-slate-50 disabled:text-slate-400"
+              >
+                {DEPLOYMENT_STATUSES.map((s) => (
+                  <option key={s} value={s}>
+                    {DEPLOYMENT_STATUS_LABELS[s]}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          {!canEditTalentFields && (
+            <p className="text-xs text-slate-400">Only Admin or HR can change Experience Level or Deployment Status.</p>
+          )}
           <p className="text-xs text-slate-400">
             Don't see the right department or designation? Add it from the Settings page — it'll show up here right
             away.
           </p>
+          {isEdit && designationHistory.length > 0 && (
+            <div className="pt-2 border-t border-slate-100">
+              <p className="text-xs font-medium text-slate-500 mb-1.5">Designation history</p>
+              <ul className="space-y-1">
+                {designationHistory.map((h) => (
+                  <li key={h.id} className="text-xs text-slate-500 flex items-center gap-1.5">
+                    <span className="text-slate-400">{new Date(h.changedAt).toLocaleDateString()}</span>
+                    <span>
+                      {h.fromDesignation
+                        ? `${h.fromDesignation.name} → ${h.toDesignation?.name ?? '—'}`
+                        : `Hired as ${h.toDesignation?.name ?? '—'}`}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </section>
 
         {/* Skills & Security */}
@@ -463,8 +553,7 @@ export default function EmployeeForm() {
               <option value="IT_SUPPORT">IT Support</option>
             </select>
             <p className="text-xs text-slate-400 mt-1">
-              Captured for now — this doesn't yet grant or restrict login access. Access enforcement is coming in a
-              later sprint.
+              Used for reporting and directory context — doesn't grant or restrict login access on its own.
             </p>
           </div>
 
@@ -649,7 +738,7 @@ export default function EmployeeForm() {
             <button
               type="submit"
               disabled={saving}
-              className="rounded-lg bg-gradient-to-r from-mitra-accentFrom to-mitra-accentTo text-white text-sm font-medium px-4 py-2 disabled:opacity-60"
+              className="rounded-lg bg-gradient-to-r from-mitra-accentFrom to-mitra-accentTo text-white text-sm font-medium px-4 py-2 disabled:opacity-60 shadow-[0_6px_16px_-4px_rgba(124,111,255,0.55)] hover:-translate-y-0.5 hover:shadow-[0_10px_20px_-4px_rgba(124,111,255,0.6)] active:translate-y-0 active:shadow-[0_3px_8px_-2px_rgba(124,111,255,0.5)] transition-all duration-150"
             >
               {saving ? 'Saving...' : 'Save'}
             </button>

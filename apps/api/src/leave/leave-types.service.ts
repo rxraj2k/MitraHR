@@ -16,8 +16,14 @@ export interface UpsertLeaveTypeInput {
 export class LeaveTypesService {
   constructor(private prisma: PrismaService) {}
 
-  findAll() {
-    return this.prisma.leaveType.findMany({ orderBy: { name: 'asc' } });
+  async findAll() {
+    const rows = await this.prisma.leaveType.findMany({ orderBy: { name: 'asc' } });
+    const counts = await Promise.all(rows.map((r) => this.prisma.leaveRequest.count({ where: { leaveTypeId: r.id } })));
+    return rows.map((r, i) => ({
+      ...r,
+      usageCount: counts[i],
+      usageLabel: counts[i] === 1 ? 'leave request uses this' : 'leave requests use this',
+    }));
   }
 
   create(input: UpsertLeaveTypeInput) {

@@ -1,9 +1,11 @@
-import { Body, Controller, Get, HttpCode, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { RequestOtpDto } from './dto/request-otp.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { InviteAdminDto } from './dto/invite-admin.dto';
+import { UpdateAdminEmployeeLinkDto } from './dto/update-admin-employee-link.dto';
+import { UpdateAdminRoleDto } from './dto/update-admin-role.dto';
 import { SetPasswordDto } from './dto/set-password.dto';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { StaffOnlyGuard } from './staff-only.guard';
@@ -38,7 +40,19 @@ export class AuthController {
   @UseGuards(JwtAuthGuard, StaffOnlyGuard)
   @Post('admin/invite')
   async inviteAdmin(@Body() dto: InviteAdminDto) {
-    return this.authService.inviteAdmin(dto.name, dto.email, dto.employeeId);
+    return this.authService.inviteAdmin(dto.name, dto.email, dto.employeeId, dto.role);
+  }
+
+  @UseGuards(JwtAuthGuard, StaffOnlyGuard)
+  @Patch('admin/:id/employee-link')
+  async updateAdminEmployeeLink(@Param('id') id: string, @Body() dto: UpdateAdminEmployeeLinkDto) {
+    return this.authService.updateAdminEmployeeLink(id, dto.employeeId || null);
+  }
+
+  @UseGuards(JwtAuthGuard, StaffOnlyGuard)
+  @Patch('admin/:id/role')
+  async updateAdminRole(@Param('id') id: string, @Body() dto: UpdateAdminRoleDto) {
+    return this.authService.updateAdminRole(id, dto.role);
   }
 
   @Post('admin/set-password')

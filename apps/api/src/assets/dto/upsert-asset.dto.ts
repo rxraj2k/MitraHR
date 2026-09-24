@@ -1,9 +1,10 @@
-import { IsDateString, IsIn, IsOptional, IsString, MinLength } from 'class-validator';
+import { IsDateString, IsIn, IsNumber, IsOptional, IsString, MinLength } from 'class-validator';
 
 // Keep in sync with the frontend's ASSET_CATEGORIES / CATEGORY_LABELS.
 export const ASSET_CATEGORIES = [
   'LAPTOP',
   'MONITOR',
+  'PERIPHERALS',
   'MOBILE_PHONE',
   'ID_CARD',
   'SOFTWARE_LICENSE',
@@ -35,6 +36,14 @@ export class UpsertAssetDto {
   purchaseDate?: string;
 
   @IsOptional()
+  @IsNumber()
+  purchaseValue?: number;
+
+  @IsOptional()
   @IsString()
   notes?: string;
+
+  @IsOptional()
+  @IsString()
+  vendorId?: string;
 }

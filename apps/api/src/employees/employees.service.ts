@@ -5,6 +5,11 @@ import { CreateEmployeeDto } from './dto/create-employee.dto';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
 import { ReplaceSkillsDto } from './dto/replace-skills.dto';
 
+// Talent Directory (Sprint 19): only OPEN (endDate: null) assignments — same
+// "currently active" convention ProjectsService.end() uses when it closes an
+// assignment out. This backs the Talent Directory table's "Client
+// Allocation" tag; the drawer's full history (including past/closed
+// assignments) is fetched separately via GET /projects/my?employeeId=.
 const BASE_INCLUDE = {
   department: true,
   designation: true,
@@ -12,6 +17,11 @@ const BASE_INCLUDE = {
     select: { id: true, fullName: true, employeeCode: true },
   },
   skills: { include: { skill: true } },
+  projectAssignments: {
+    where: { endDate: null },
+    include: { project: { include: { client: { select: { id: true, name: true } } } } },
+    orderBy: [{ allocationPercent: 'desc' as const }, { startDate: 'desc' as const }],
+  },
 };
 
 // Documents (offer letters, ID proofs, etc.) are only ever attached to a
@@ -55,7 +65,7 @@ export class EmployeesService {
 
   async create(dto: CreateEmployeeDto) {
     const employeeCode = await this.nextEmployeeCode();
-    return this.prisma.employee.create({
+    const employee = await this.prisma.employee.create({
       data: {
         ...dto,
         employeeCode,
@@ -64,11 +74,19 @@ export class EmployeesService {
       },
       include: BASE_INCLUDE,
     });
+    // Log the starting designation as the first history entry (fromDesignationId
+    // stays null — there's genuinely no prior one for a new hire).
+    if (dto.designationId) {
+      await this.prisma.designationHistory.create({
+        data: { employeeId: employee.id, fromDesignationId: null, toDesignationId: dto.designationId, note: 'Hired' },
+      });
+    }
+    return employee;
   }
 
   async update(id: string, dto: UpdateEmployeeDto) {
-    await this.findOne(id);
-    return this.prisma.employee.update({
+    const existing = await this.findOne(id);
+    const updated = await this.prisma.employee.update({
       where: { id },
       data: {
         ...dto,
@@ -76,6 +94,28 @@ export class EmployeesService {
         dateOfBirth: dto.dateOfBirth ? new Date(dto.dateOfBirth) : undefined,
       },
       include: BASE_INCLUDE,
+    });
+    // Sprint 16: auto-log a designation change — never a separate manual
+    // step, so the history can't drift out of sync with what was actually
+    // saved on the employee record.
+    if (dto.designationId !== undefined) {
+      const nextDesignationId = dto.designationId || null;
+      const prevDesignationId = existing.designationId || null;
+      if (nextDesignationId !== prevDesignationId) {
+        await this.prisma.designationHistory.create({
+          data: { employeeId: id, fromDesignationId: prevDesignationId, toDesignationId: nextDesignationId },
+        });
+      }
+    }
+    return updated;
+  }
+
+  async getDesignationHistory(id: string) {
+    await this.findOne(id);
+    return this.prisma.designationHistory.findMany({
+      where: { employeeId: id },
+      include: { fromDesignation: { select: { name: true } }, toDesignation: { select: { name: true } } },
+      orderBy: { changedAt: 'desc' },
     });
   }
 
@@ -112,6 +152,8 @@ export class EmployeesService {
     fileName: string,
     fileUrl: string,
     expiryDate?: string,
+    fileSize?: number,
+    notes?: string,
   ) {
     await this.findOne(id);
     await this.prisma.employeeDocument.create({
@@ -120,6 +162,8 @@ export class EmployeesService {
         documentType,
         fileName,
         fileUrl,
+        fileSize,
+        notes,
         expiryDate: expiryDate ? new Date(expiryDate) : undefined,
       },
     });
@@ -129,7 +173,7 @@ export class EmployeesService {
   async updateDocument(
     id: string,
     documentId: string,
-    updates: { documentType?: string; expiryDate?: string | null },
+    updates: { documentType?: string; expiryDate?: string | null; notes?: string | null },
   ) {
     await this.findOne(id);
     const doc = await this.prisma.employeeDocument.findUnique({ where: { id: documentId } });
@@ -138,6 +182,7 @@ export class EmployeesService {
       where: { id: documentId },
       data: {
         documentType: updates.documentType,
+        notes: updates.notes === undefined ? undefined : updates.notes === null ? null : updates.notes,
         expiryDate:
           updates.expiryDate === undefined
             ? undefined
@@ -184,7 +229,11 @@ export class EmployeesService {
 
   findAllDocuments() {
     return this.prisma.employeeDocument.findMany({
-      include: { employee: { select: { id: true, fullName: true, photoUrl: true, employeeCode: true } } },
+      include: {
+        employee: {
+          select: { id: true, fullName: true, photoUrl: true, employeeCode: true, designation: { select: { name: true } } },
+        },
+      },
       orderBy: { uploadedAt: 'desc' },
     });
   }

@@ -25,4 +25,16 @@ export class StaffingSandboxController {
   reset() {
     return this.sandboxService.reset();
   }
+
+  // Preview of what "Apply & Save Plan" would do — never mutates anything.
+  @Get('plan')
+  getPlan() {
+    return this.sandboxService.getPlan();
+  }
+
+  // Commits the plan above into real ProjectAssignment rows.
+  @Post('apply')
+  apply() {
+    return this.sandboxService.applyPlan();
+  }
 }

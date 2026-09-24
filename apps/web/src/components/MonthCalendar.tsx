@@ -65,18 +65,30 @@ export default function MonthCalendar({ year, month, days, onPrev, onNext }: Pro
     return arr;
   }, [days, firstWeekday]);
 
+  // "Total Absent" used to be a raw sum of every employee's un-marked
+  // working days across the whole company for the month — for a roster of
+  // any real size that number balloons (N employees x M un-checked-in
+  // days) and reads as an alarming, meaningless figure rather than a
+  // useful one. This is a company-wide calendar (no single "active user"
+  // to scope it to — see PersonalMonthCalendar for that per-employee
+  // view), so the fix is the "team average" the metric should have been
+  // all along: mean absentees per working day elapsed this month.
   const totals = useMemo(() => {
     let present = 0;
     let leave = 0;
-    let absent = 0;
+    let absentTotal = 0;
     let holidays = 0;
+    let workingDaysElapsed = 0;
+    const todayIso = new Date().toISOString().slice(0, 10);
     for (const d of days) {
       present += d.present.length + d.presentOnHoliday.length + d.presentOnWeekend.length;
       leave += d.onLeave.length;
-      absent += d.absent.length;
+      absentTotal += d.absent.length;
       if (d.holiday) holidays++;
+      if (!d.holiday && !d.isWeekend && d.date < todayIso) workingDaysElapsed++;
     }
-    return { present, leave, absent, holidays };
+    const absentAvg = workingDaysElapsed > 0 ? absentTotal / workingDaysElapsed : 0;
+    return { present, leave, absentAvg, holidays };
   }, [days]);
 
   const selectedDay = days.find((d) => d.date === selected) || null;
@@ -106,8 +118,9 @@ export default function MonthCalendar({ year, month, days, onPrev, onNext }: Pro
           <p className="text-xl font-semibold text-amber-800">{totals.leave}</p>
         </div>
         <div className="rounded-lg bg-red-50 border border-red-200 p-3">
-          <p className="text-xs text-red-500 font-medium">Total Absent</p>
-          <p className="text-xl font-semibold text-red-700">{totals.absent}</p>
+          <p className="text-xs text-red-500 font-medium">Avg. Absent / Day</p>
+          <p className="text-xl font-semibold text-red-700">{totals.absentAvg.toFixed(1)}</p>
+          <p className="text-[10px] text-red-400 mt-0.5">per working day this month</p>
         </div>
         <div className="rounded-lg bg-indigo-50 border border-indigo-100 p-3">
           <p className="text-xs text-indigo-500 font-medium">Holidays</p>

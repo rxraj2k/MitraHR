@@ -44,6 +44,7 @@
   width: 50%;
   height: 28px;
   border-top: 2px solid #cbd5e1;
+  transition: border-color 150ms ease;
 }
 .org-tree li:not(.org-root)::before {
   left: 0;
@@ -51,6 +52,10 @@
 .org-tree li:not(.org-root)::after {
   left: 50%;
   border-left: 2px solid #cbd5e1;
+  /* Rounds the elbow where the horizontal bar bends down into this node's
+     own drop stub, instead of a sharp right angle — "standardize
+     connection line curves" from the Team Topology redesign. */
+  border-top-left-radius: 10px;
 }
 
 /* trim the bar past the outer edges of a sibling row */
@@ -59,6 +64,7 @@
 }
 .org-tree li:not(.org-root):last-child::after {
   border-top: none;
+  border-top-left-radius: 0;
 }
 
 /* a lone child hangs straight down from its parent — no fork needed */
@@ -79,4 +85,37 @@
   border-left: 2px solid #cbd5e1;
   width: 0;
   height: 28px;
+  transition: border-color 150ms ease;
+}
+
+/* Hovering a node card elevates it (see the card's own Tailwind classes)
+   and, here, recolors its own incoming connector segments so the reporting
+   line into that specific card reads clearly against the rest of the
+   tree. Scoped with :has() to the directly-hovered card only, so it
+   doesn't light up the whole ancestor chain up to the root. */
+.org-tree li:not(.org-root):has(> .topology-card:hover)::before,
+.org-tree li:not(.org-root):has(> .topology-card:hover)::after {
+  border-color: theme('colors.mitra.accentFrom');
+}
+
+/* Team Topology canvas — a real scrollable element, so it gets its own
+   lightly-styled scrollbars instead of the browser's bare default ones. */
+.topology-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 #f1f5f9;
+}
+.topology-scroll::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+.topology-scroll::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+.topology-scroll::-webkit-scrollbar-thumb {
+  background-color: #cbd5e1;
+  border-radius: 9999px;
+  border: 3px solid #f1f5f9;
+}
+.topology-scroll::-webkit-scrollbar-thumb:hover {
+  background-color: #94a3b8;
 }

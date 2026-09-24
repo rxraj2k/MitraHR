@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useRef, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useAutoRefresh } from '../hooks/useAutoRefresh';
 import {
@@ -10,15 +10,18 @@ import {
   getLeaveRequests,
   getLeaveTypes,
   openAuthedFile,
+  updateLeaveRequest,
   uploadLeaveAttachment,
 } from '../lib/api';
 import { CompOffEntry, LeaveBalance, LeaveRequest, LeaveType } from '../types';
+import FileDropzone from './FileDropzone';
+import { CalendarCheckIcon, ChevronDownIcon, ClipboardListIcon, EyeIcon, PaperclipIcon } from './icons';
 
 const STATUS_STYLES: Record<string, string> = {
-  PENDING: 'bg-amber-100 text-amber-700',
-  APPROVED: 'bg-green-100 text-green-700',
-  REJECTED: 'bg-red-100 text-red-700',
-  CANCELLED: 'bg-slate-100 text-slate-500',
+  PENDING: 'bg-amber-500 text-white',
+  APPROVED: 'bg-emerald-500 text-white',
+  REJECTED: 'bg-red-500 text-white',
+  CANCELLED: 'bg-slate-400 text-white',
 };
 
 interface Props {
@@ -26,16 +29,134 @@ interface Props {
   title?: string;
 }
 
-// Cycled by card index so it scales to however many leave types Settings
-// ends up with, rather than hardcoding colors per leave type name.
-const CARD_STYLES = [
-  { bg: 'bg-blue-50', border: 'border-blue-200', label: 'text-blue-600', value: 'text-blue-900', sub: 'text-blue-500' },
-  { bg: 'bg-violet-50', border: 'border-violet-200', label: 'text-violet-600', value: 'text-violet-900', sub: 'text-violet-500' },
-  { bg: 'bg-rose-50', border: 'border-rose-200', label: 'text-rose-600', value: 'text-rose-900', sub: 'text-rose-500' },
-  { bg: 'bg-amber-50', border: 'border-amber-200', label: 'text-amber-600', value: 'text-amber-900', sub: 'text-amber-500' },
-  { bg: 'bg-teal-50', border: 'border-teal-200', label: 'text-teal-600', value: 'text-teal-900', sub: 'text-teal-500' },
-  { bg: 'bg-fuchsia-50', border: 'border-fuchsia-200', label: 'text-fuchsia-600', value: 'text-fuchsia-900', sub: 'text-fuchsia-500' },
+interface CardStyle {
+  bg: string;
+  border: string;
+  label: string;
+  value: string;
+  sub: string;
+  bar: string;
+}
+
+// Each recognized leave-type code gets its own soft gradient identity —
+// blue for Paid Leave, gray for Loss of Pay, teal for Comp Off, and a
+// distinct family-leave pair for Maternity/Paternity (see
+// GENDER_SPECIFIC_CODES below — those two are collapsed behind a "show
+// more" toggle by default, since there's no gender field anywhere in this
+// schema to filter them automatically; the toggle is the honest
+// alternative rather than a fabricated filter).
+const CARD_STYLE_BY_CODE: Record<string, CardStyle> = {
+  PL: {
+    bg: 'bg-gradient-to-br from-sky-50 to-blue-100/70',
+    border: 'border-blue-200/70',
+    label: 'text-blue-700',
+    value: 'text-blue-900',
+    sub: 'text-blue-500',
+    bar: 'bg-blue-500',
+  },
+  LOP: {
+    bg: 'bg-gradient-to-br from-slate-50 to-slate-200/60',
+    border: 'border-slate-200',
+    label: 'text-slate-600',
+    value: 'text-slate-800',
+    sub: 'text-slate-400',
+    bar: 'bg-slate-400',
+  },
+  COMP_OFF: {
+    bg: 'bg-gradient-to-br from-teal-50 to-emerald-100/70',
+    border: 'border-teal-200/70',
+    label: 'text-teal-700',
+    value: 'text-teal-900',
+    sub: 'text-teal-500',
+    bar: 'bg-teal-500',
+  },
+  MATERNITY: {
+    bg: 'bg-gradient-to-br from-rose-50 to-pink-100/70',
+    border: 'border-rose-200/70',
+    label: 'text-rose-700',
+    value: 'text-rose-900',
+    sub: 'text-rose-500',
+    bar: 'bg-rose-500',
+  },
+  PATERNITY: {
+    bg: 'bg-gradient-to-br from-indigo-50 to-violet-100/70',
+    border: 'border-indigo-200/70',
+    label: 'text-indigo-700',
+    value: 'text-indigo-900',
+    sub: 'text-indigo-500',
+    bar: 'bg-indigo-500',
+  },
+};
+
+// Any future leave type Settings adds without a recognized code cycles
+// through this fallback set rather than falling back to one neutral style.
+const FALLBACK_CARD_STYLES: CardStyle[] = [
+  {
+    bg: 'bg-gradient-to-br from-violet-50 to-purple-100/70',
+    border: 'border-violet-200/70',
+    label: 'text-violet-700',
+    value: 'text-violet-900',
+    sub: 'text-violet-500',
+    bar: 'bg-violet-500',
+  },
+  {
+    bg: 'bg-gradient-to-br from-amber-50 to-orange-100/70',
+    border: 'border-amber-200/70',
+    label: 'text-amber-700',
+    value: 'text-amber-900',
+    sub: 'text-amber-500',
+    bar: 'bg-amber-500',
+  },
+  {
+    bg: 'bg-gradient-to-br from-fuchsia-50 to-pink-100/70',
+    border: 'border-fuchsia-200/70',
+    label: 'text-fuchsia-700',
+    value: 'text-fuchsia-900',
+    sub: 'text-fuchsia-500',
+    bar: 'bg-fuchsia-500',
+  },
 ];
+
+function cardStyleFor(code: string | null | undefined, fallbackIndex: number): CardStyle {
+  if (code && CARD_STYLE_BY_CODE[code]) return CARD_STYLE_BY_CODE[code];
+  return FALLBACK_CARD_STYLES[fallbackIndex % FALLBACK_CARD_STYLES.length];
+}
+
+// Collapsed behind "show more" by default — see the comment on
+// CARD_STYLE_BY_CODE above for why this is a code-based toggle rather than
+// a gender-based filter.
+const GENDER_SPECIFIC_CODES = new Set(['MATERNITY', 'PATERNITY']);
+
+const inputClass =
+  'w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-mitra-accentFrom/20 focus:border-mitra-accentFrom transition-colors';
+
+function LeaveBalanceCard({ balance, style }: { balance: LeaveBalance; style: CardStyle }) {
+  const pct =
+    balance.remaining != null && balance.accrued
+      ? Math.max(0, Math.min(100, (balance.remaining / balance.accrued) * 100))
+      : null;
+  return (
+    <div className={`relative overflow-hidden rounded-2xl border ${style.border} ${style.bg} p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.6)]`}>
+      <p className={`text-xs font-medium ${style.label}`}>{balance.leaveTypeName}</p>
+      <div className="flex items-baseline gap-1.5 mt-1">
+        <p className={`text-3xl font-bold ${style.value}`}>{balance.remaining == null ? '—' : balance.remaining}</p>
+        {balance.remaining != null && <span className={`text-xs ${style.sub}`}>/ {balance.accrued} days</span>}
+      </div>
+      <p className={`text-[11px] ${style.sub} mt-1`}>{balance.remaining == null ? 'Unlimited' : `${balance.used} used`}</p>
+      {pct != null && (
+        <div
+          role="progressbar"
+          aria-valuenow={pct}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          className="mt-2.5 h-1.5 rounded-full bg-white/60 overflow-hidden shadow-inner"
+        >
+          <div className={`h-full rounded-full ${style.bar} shadow-[inset_0_1px_0_rgba(255,255,255,0.5)]`} style={{ width: `${pct}%` }} />
+        </div>
+      )}
+    </div>
+  );
+}
 
 function accrualDescription(lt: LeaveType) {
   if (lt.isCompOff) return 'Earned by logging extra days worked, approved by admin';
@@ -58,9 +179,10 @@ export default function MyLeavePanel({ employeeId, title = 'My Leaves' }: Props)
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState({ leaveTypeId: '', startDate: '', endDate: '', dayPart: 'FULL', reason: '' });
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [attachFile, setAttachFile] = useState<File | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const [attachingId, setAttachingId] = useState<string | null>(null);
+  const [showAllLeaveTypes, setShowAllLeaveTypes] = useState(false);
 
   const [compOffForm, setCompOffForm] = useState({ workedDate: '', reason: '', daysEarned: '1' });
   const [compOffSubmitting, setCompOffSubmitting] = useState(false);
@@ -88,23 +210,30 @@ export default function MyLeavePanel({ employeeId, title = 'My Leaves' }: Props)
   useEffect(load, [token, employeeId]);
   useAutoRefresh(load);
 
+  const primaryBalances = useMemo(() => balances.filter((b) => !GENDER_SPECIFIC_CODES.has(b.leaveTypeCode || '')), [balances]);
+  const secondaryBalances = useMemo(() => balances.filter((b) => GENDER_SPECIFIC_CODES.has(b.leaveTypeCode || '')), [balances]);
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (!token) return;
     setError('');
     setSubmitting(true);
     try {
-      const created = await createLeaveRequest(token, { ...form, employeeId });
-      if (attachFile) {
-        try {
-          await uploadLeaveAttachment(token, created.id, attachFile);
-        } catch (attachErr: any) {
-          setError(`Request submitted, but the attachment failed to upload: ${attachErr.message}`);
+      if (editingId) {
+        await updateLeaveRequest(token, editingId, form);
+        setEditingId(null);
+      } else {
+        const created = await createLeaveRequest(token, { ...form, employeeId });
+        if (attachFile) {
+          try {
+            await uploadLeaveAttachment(token, created.id, attachFile);
+          } catch (attachErr: any) {
+            setError(`Request submitted, but the attachment failed to upload: ${attachErr.message}`);
+          }
         }
       }
       setForm({ leaveTypeId: '', startDate: '', endDate: '', dayPart: 'FULL', reason: '' });
       setAttachFile(null);
-      if (fileInputRef.current) fileInputRef.current.value = '';
       load();
     } catch (err: any) {
       setError(err.message);
@@ -113,9 +242,31 @@ export default function MyLeavePanel({ employeeId, title = 'My Leaves' }: Props)
     }
   }
 
-  async function handleCancel(id: string) {
+  function handleEditClick(r: LeaveRequest) {
+    setEditingId(r.id);
+    setForm({
+      leaveTypeId: r.leaveTypeId,
+      startDate: r.startDate.slice(0, 10),
+      endDate: r.endDate.slice(0, 10),
+      dayPart: r.dayPart,
+      reason: r.reason || '',
+    });
+    setError('');
+  }
+
+  function handleCancelEdit() {
+    setEditingId(null);
+    setForm({ leaveTypeId: '', startDate: '', endDate: '', dayPart: 'FULL', reason: '' });
+    setError('');
+  }
+
+  async function handleCancel(id: string, status: string) {
     if (!token) return;
-    if (!confirm('Cancel this leave request?')) return;
+    const message =
+      status === 'APPROVED'
+        ? 'This leave is already approved. Cancel it anyway?'
+        : 'Cancel this leave request?';
+    if (!confirm(message)) return;
     try {
       await cancelLeaveRequest(token, id);
       load();
@@ -158,8 +309,6 @@ export default function MyLeavePanel({ employeeId, title = 'My Leaves' }: Props)
     }
   }
 
-  const sameDay = !!form.startDate && form.startDate === form.endDate;
-
   return (
     <div className="space-y-6">
       <h2 className="text-2xl font-semibold text-slate-800">{title}</h2>
@@ -167,34 +316,43 @@ export default function MyLeavePanel({ employeeId, title = 'My Leaves' }: Props)
       {loading ? (
         <p className="text-slate-500 text-sm">Loading...</p>
       ) : (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {balances.map((b, i) => {
-            const style = CARD_STYLES[i % CARD_STYLES.length];
-            return (
-              <div key={b.leaveTypeId} className={`${style.bg} border ${style.border} rounded-xl p-4`}>
-                <p className={`text-xs font-medium ${style.label}`}>{b.leaveTypeName}</p>
-                <p className={`text-2xl font-semibold ${style.value} mt-1`}>{b.remaining == null ? '—' : b.remaining}</p>
-                <p className={`text-xs ${style.sub} mt-1`}>
-                  {b.remaining == null ? 'Unlimited' : `of ${b.accrued} accrued · ${b.used} used`}
-                </p>
-              </div>
-            );
-          })}
+        <div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {primaryBalances.map((b, i) => (
+              <LeaveBalanceCard key={b.leaveTypeId} balance={b} style={cardStyleFor(b.leaveTypeCode, i)} />
+            ))}
+            {showAllLeaveTypes &&
+              secondaryBalances.map((b, i) => (
+                <LeaveBalanceCard key={b.leaveTypeId} balance={b} style={cardStyleFor(b.leaveTypeCode, primaryBalances.length + i)} />
+              ))}
+          </div>
+          {secondaryBalances.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowAllLeaveTypes((v) => !v)}
+              className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-slate-500 hover:text-mitra-accentFrom"
+            >
+              <ChevronDownIcon className={`w-3.5 h-3.5 transition-transform ${showAllLeaveTypes ? 'rotate-180' : ''}`} />
+              {showAllLeaveTypes
+                ? 'Show fewer leave types'
+                : `Show ${secondaryBalances.length} more leave type${secondaryBalances.length === 1 ? '' : 's'}`}
+            </button>
+          )}
         </div>
       )}
 
       {error && <div className="text-sm text-red-600">{error}</div>}
 
-      <div className="bg-white border border-slate-200 rounded-xl p-6">
-        <h3 className="text-sm font-semibold text-slate-800 mb-4">Request Leaves</h3>
-        <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-6">
+        <h3 className="text-sm font-semibold text-slate-800 mb-4">{editingId ? 'Edit Leave Request' : 'Request Leaves'}</h3>
+        <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-5">
           <div>
             <label className="block text-xs text-slate-500 mb-1">Leave Type</label>
             <select
               required
               value={form.leaveTypeId}
               onChange={(e) => setForm({ ...form, leaveTypeId: e.target.value })}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              className={inputClass}
             >
               <option value="">Select...</option>
               {leaveTypes.map((lt) => (
@@ -208,14 +366,19 @@ export default function MyLeavePanel({ employeeId, title = 'My Leaves' }: Props)
             <label className="block text-xs text-slate-500 mb-1">Day Part</label>
             <select
               value={form.dayPart}
-              onChange={(e) => setForm({ ...form, dayPart: e.target.value })}
-              disabled={!sameDay}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm disabled:bg-slate-50 disabled:text-slate-400"
+              onChange={(e) => {
+                const dayPart = e.target.value;
+                setForm((f) => ({ ...f, dayPart, endDate: dayPart !== 'FULL' ? f.startDate : f.endDate }));
+              }}
+              className={inputClass}
             >
               <option value="FULL">Full day</option>
               <option value="FIRST_HALF">First half</option>
               <option value="SECOND_HALF">Second half</option>
             </select>
+            {form.dayPart !== 'FULL' && (
+              <p className="text-[11px] text-slate-400 mt-1">Half-day requests are for a single day.</p>
+            )}
           </div>
           <div>
             <label className="block text-xs text-slate-500 mb-1">Start Date</label>
@@ -223,8 +386,11 @@ export default function MyLeavePanel({ employeeId, title = 'My Leaves' }: Props)
               type="date"
               required
               value={form.startDate}
-              onChange={(e) => setForm({ ...form, startDate: e.target.value })}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              onChange={(e) => {
+                const startDate = e.target.value;
+                setForm((f) => ({ ...f, startDate, endDate: f.dayPart !== 'FULL' ? startDate : f.endDate }));
+              }}
+              className={inputClass}
             />
           </div>
           <div>
@@ -233,49 +399,58 @@ export default function MyLeavePanel({ employeeId, title = 'My Leaves' }: Props)
               type="date"
               required
               value={form.endDate}
-              onChange={(e) => setForm({ ...form, endDate: e.target.value })}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              onChange={(e) => {
+                const endDate = e.target.value;
+                setForm((f) => ({ ...f, endDate, dayPart: f.dayPart !== 'FULL' && endDate !== f.startDate ? 'FULL' : f.dayPart }));
+              }}
+              className={inputClass}
             />
           </div>
           <div className="md:col-span-2">
             <label className="block text-xs text-slate-500 mb-1">Reason</label>
             <textarea
-              rows={2}
+              rows={3}
               required
               minLength={1}
               value={form.reason}
               onChange={(e) => setForm({ ...form, reason: e.target.value })}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              className={inputClass}
             />
           </div>
           <div className="md:col-span-2">
             <label className="block text-xs text-slate-500 mb-1">
               Supporting document <span className="text-slate-400">(optional — e.g. medical certificate)</span>
             </label>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*,application/pdf"
-              onChange={(e) => setAttachFile(e.target.files?.[0] || null)}
-              className="w-full text-xs text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-100 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-slate-600 hover:file:bg-slate-200"
-            />
+            <FileDropzone file={attachFile} onChange={setAttachFile} accept="image/*,application/pdf" hint="Image or PDF" />
           </div>
-          <div className="md:col-span-2">
+          <div className="md:col-span-2 flex items-center gap-3">
             <button
               type="submit"
               disabled={submitting}
-              className="rounded-lg bg-gradient-to-r from-mitra-accentFrom to-mitra-accentTo text-white text-sm font-medium px-4 py-2 disabled:opacity-50"
+              className="rounded-lg bg-gradient-to-r from-mitra-accentFrom to-mitra-accentTo text-white text-sm font-medium px-4 py-2 disabled:opacity-50 shadow-[0_6px_16px_-4px_rgba(124,111,255,0.55)] hover:-translate-y-0.5 hover:shadow-[0_10px_20px_-4px_rgba(124,111,255,0.6)] active:translate-y-0 active:shadow-[0_3px_8px_-2px_rgba(124,111,255,0.5)] transition-all duration-150"
             >
-              {submitting ? 'Submitting...' : 'Submit Request'}
+              {submitting ? (editingId ? 'Updating...' : 'Submitting...') : editingId ? 'Update Request' : 'Submit Request'}
             </button>
+            {editingId && (
+              <button
+                type="button"
+                onClick={handleCancelEdit}
+                className="text-sm text-slate-500 hover:text-slate-700"
+              >
+                Cancel edit
+              </button>
+            )}
           </div>
         </form>
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-xl p-6">
+      <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-6">
         <h3 className="text-sm font-semibold text-slate-800 mb-4">My Leave Requests</h3>
         {requests.length === 0 ? (
-          <p className="text-slate-500 text-sm">No leave requests yet.</p>
+          <div className="flex flex-col items-center justify-center gap-2 rounded-xl bg-slate-50 py-10 text-center">
+            <CalendarCheckIcon className="w-6 h-6 text-slate-300" />
+            <p className="text-slate-400 text-sm">No leave requests yet.</p>
+          </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -300,22 +475,28 @@ export default function MyLeavePanel({ employeeId, title = 'My Leaves' }: Props)
                     </td>
                     <td className="py-2">{r.totalDays}</td>
                     <td className="py-2">
-                      <span className={`px-2 py-0.5 rounded-full text-xs ${STATUS_STYLES[r.status]}`}>{r.status}</span>
+                      <span className={`px-2.5 py-1 rounded-full text-[11px] font-semibold ${STATUS_STYLES[r.status]}`}>{r.status}</span>
                     </td>
                     <td className="py-2">
                       {r.attachmentUrl ? (
                         <button
                           type="button"
                           onClick={() => token && openAuthedFile(token, `/leave-requests/${r.id}/attachment`)}
-                          className="text-mitra-accentFrom hover:underline text-xs"
+                          title="View attachment"
+                          className="inline-flex items-center justify-center w-7 h-7 rounded-lg text-slate-400 hover:text-mitra-accentFrom hover:bg-slate-50"
                         >
-                          View
+                          <EyeIcon className="w-4 h-4" />
                         </button>
                       ) : r.status === 'CANCELLED' ? (
                         <span className="text-slate-300 text-xs">—</span>
                       ) : (
-                        <label className="text-xs text-slate-400 hover:text-mitra-accentFrom cursor-pointer">
-                          {attachingId === r.id ? 'Uploading...' : 'Attach'}
+                        <label
+                          title="Attach a document"
+                          className={`inline-flex items-center justify-center w-7 h-7 rounded-lg cursor-pointer ${
+                            attachingId === r.id ? 'text-slate-300' : 'text-slate-400 hover:text-mitra-accentFrom hover:bg-slate-50'
+                          }`}
+                        >
+                          <PaperclipIcon className="w-4 h-4" />
                           <input
                             type="file"
                             accept="image/*,application/pdf"
@@ -329,9 +510,14 @@ export default function MyLeavePanel({ employeeId, title = 'My Leaves' }: Props)
                         </label>
                       )}
                     </td>
-                    <td className="py-2 text-right">
+                    <td className="py-2 text-right space-x-3">
                       {r.status === 'PENDING' && (
-                        <button onClick={() => handleCancel(r.id)} className="text-red-500 hover:text-red-700 text-xs">
+                        <button onClick={() => handleEditClick(r)} className="text-mitra-accentFrom hover:text-mitra-accentTo text-xs font-medium">
+                          Edit
+                        </button>
+                      )}
+                      {(r.status === 'PENDING' || r.status === 'APPROVED') && (
+                        <button onClick={() => handleCancel(r.id, r.status)} className="text-red-500 hover:text-red-700 text-xs">
                           Cancel
                         </button>
                       )}
@@ -344,14 +530,14 @@ export default function MyLeavePanel({ employeeId, title = 'My Leaves' }: Props)
         )}
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-xl p-6">
+      <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-6">
         <h3 className="text-sm font-semibold text-slate-800 mb-1">Compensatory Off</h3>
         <p className="text-xs text-slate-500 mb-4">
           Worked an extra weekend or holiday? Log it here — once an admin approves it, the day is added to your
           Compensatory Off balance above and you can request it back as time off.
         </p>
         {compOffMessage && <div className="text-sm text-slate-600 mb-3">{compOffMessage}</div>}
-        <form onSubmit={handleCompOffSubmit} className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <form onSubmit={handleCompOffSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-5 mb-6">
           <div>
             <label className="block text-xs text-slate-500 mb-1">Date Worked</label>
             <input
@@ -360,7 +546,7 @@ export default function MyLeavePanel({ employeeId, title = 'My Leaves' }: Props)
               max={new Date().toISOString().slice(0, 10)}
               value={compOffForm.workedDate}
               onChange={(e) => setCompOffForm({ ...compOffForm, workedDate: e.target.value })}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              className={inputClass}
             />
           </div>
           <div>
@@ -368,7 +554,7 @@ export default function MyLeavePanel({ employeeId, title = 'My Leaves' }: Props)
             <select
               value={compOffForm.daysEarned}
               onChange={(e) => setCompOffForm({ ...compOffForm, daysEarned: e.target.value })}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              className={inputClass}
             >
               <option value="1">Full day</option>
               <option value="0.5">Half day</option>
@@ -382,14 +568,14 @@ export default function MyLeavePanel({ employeeId, title = 'My Leaves' }: Props)
               value={compOffForm.reason}
               onChange={(e) => setCompOffForm({ ...compOffForm, reason: e.target.value })}
               placeholder="e.g. Weekend production deployment"
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              className={inputClass}
             />
           </div>
-          <div className="md:col-span-4">
+          <div className="md:col-span-2">
             <button
               type="submit"
               disabled={compOffSubmitting}
-              className="rounded-lg bg-gradient-to-r from-mitra-accentFrom to-mitra-accentTo text-white text-sm font-medium px-4 py-2 disabled:opacity-50"
+              className="rounded-lg bg-gradient-to-r from-mitra-accentFrom to-mitra-accentTo text-white text-sm font-medium px-4 py-2 disabled:opacity-50 shadow-[0_6px_16px_-4px_rgba(124,111,255,0.55)] hover:-translate-y-0.5 hover:shadow-[0_10px_20px_-4px_rgba(124,111,255,0.6)] active:translate-y-0 active:shadow-[0_3px_8px_-2px_rgba(124,111,255,0.5)] transition-all duration-150"
             >
               {compOffSubmitting ? 'Logging...' : 'Log Day Worked'}
             </button>
@@ -397,7 +583,10 @@ export default function MyLeavePanel({ employeeId, title = 'My Leaves' }: Props)
         </form>
 
         {compOffEntries.length === 0 ? (
-          <p className="text-slate-500 text-sm">No comp-off entries yet.</p>
+          <div className="flex flex-col items-center justify-center gap-2 rounded-xl bg-slate-50 py-10 text-center">
+            <ClipboardListIcon className="w-6 h-6 text-slate-300" />
+            <p className="text-slate-400 text-sm">No comp-off entries yet.</p>
+          </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -418,7 +607,7 @@ export default function MyLeavePanel({ employeeId, title = 'My Leaves' }: Props)
                       {c.reason}
                     </td>
                     <td className="py-2">
-                      <span className={`px-2 py-0.5 rounded-full text-xs ${STATUS_STYLES[c.status]}`}>{c.status}</span>
+                      <span className={`px-2.5 py-1 rounded-full text-[11px] font-semibold ${STATUS_STYLES[c.status]}`}>{c.status}</span>
                     </td>
                   </tr>
                 ))}

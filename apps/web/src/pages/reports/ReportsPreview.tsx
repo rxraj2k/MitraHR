@@ -1,5 +1,5 @@
-import { ReactNode, useRef, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { ReactNode, useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   CartesianGrid,
   Legend,
@@ -14,17 +14,21 @@ import {
 } from 'recharts';
 import { useAuth } from '../../context/AuthContext';
 import TabBar, { TabBarItem } from '../../components/TabBar';
+import { getAttendanceSettings, getProjectClosureReports, updateAttendanceSettings } from '../../lib/api';
 import {
   AlertTriangleIcon,
   ChevronRightIcon,
   ChevronUpDownIcon,
+  ClockIcon,
   DownloadIcon,
   GlobeIcon,
   SearchIcon,
   ShieldIcon,
   SparkleIcon,
+  TargetIcon,
   XIcon,
 } from '../../components/icons';
+import { TILE_THEMES, tileWrapperClass } from '../../lib/tileThemes';
 import {
   AttendanceStatus,
   ATTENDANCE_STATUSES,
@@ -32,34 +36,62 @@ import {
   FunnelStage,
   KpiCardData,
   KpiTone,
-  RecruitmentFunnelRow,
-  UsClientAlignmentSummary,
 } from './previewMockData';
 import {
+  AttendanceSettings,
+  ProjectClosure,
   ReportsPreviewAttendanceLedgerRow,
+  ReportsPreviewAttendanceTimeliness,
+  ReportsPreviewAttendanceTimelinessRow,
   ReportsPreviewAttritionRisk,
   ReportsPreviewComplianceRadar,
   ReportsPreviewComplianceRow,
+  ReportsPreviewFunnelRow,
+  ReportsPreviewPerformanceEngagement,
   ReportsPreviewTenureMobilityRow,
   ReportsPreviewTenureSpreadRow,
   ReportsPreviewTrendPoint,
+  ReportsPreviewUsClientAlignment,
 } from '../../types';
 import { useReportsData } from './useReportsData';
 
+// "17:00" -> "5:00 PM" for display; falls back to the raw value if it
+// somehow isn't a clean HH:MM (defensive only — the backend validates this
+// shape before it's ever stored).
+function formatHHMM(hhmm: string): string {
+  const match = /^(\d{2}):(\d{2})$/.exec(hhmm);
+  if (!match) return hhmm;
+  let h = parseInt(match[1], 10);
+  const m = match[2];
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  h = h % 12 || 12;
+  return `${h}:${m} ${ampm}`;
+}
+
 // ---------------------------------------------------------------------------
-// DESIGN PREVIEW at /reports-preview. Most of the data on this page is now
-// real — attendance, tenure, the AI-flagged risk list, and the compliance
-// document roster all come from useReportsData.ts, which calls the
-// /reports/preview/* endpoints. A few pieces are still placeholder data
-// because the feature behind them doesn't exist yet: the Recruitment Funnel
-// tab (Sprint 13), US Client Alignment (needs a structured client region
-// field), "Pending Policy Signatures" (no acknowledgment-tracking model),
-// and 3 of the 5 KPI cards (turnover/recruitment-speed/sentiment need exit
-// tracking, an ATS, and a survey feature respectively). Each is labeled
-// "Preview data" in the UI below rather than left to blend in with the rest.
+// The primary Reports & Analytics page, at /reports. As of Sprint 18, every
+// widget, tab, and KPI card here is computed from real records via
+// useReportsData.ts, which calls the /reports/preview/* endpoints (named
+// for when this was still a design preview; the routes/types keep that
+// name, the page itself no longer is one) — each sprint since Sprint 11 has
+// been wired in as it landed rather than left as mock: US Client Alignment
+// and Pending Policy Signatures (Sprint 16), Last Promotion (Sprint 16's
+// DesignationHistory), Turnover Index (Exit & Clearance), Recruitment Speed
+// & the ATS/Recruitment Funnel tab (Recruitment/ATS), the Performance &
+// Engagement widget (Goals/Reviews/Recognition), and Workforce Sentiment
+// (Sprint 15's pulse-survey eNPS). The only "Preview data" tags left mark a
+// genuine empty state — no pulse-survey responses yet, or nobody hired
+// through the ATS yet — not a fabricated number.
 //
-// See ReportsPage.tsx for the original, simpler, fully-real Reports page
-// this preview is meant to eventually replace once the design is approved.
+// Sprint 18 also added the Attendance Timeliness tab: this company's shift
+// is aligned to fixed US client hours (5 PM IST normally, 6 PM IST during
+// US Daylight Saving — India itself never observes DST), and this tab is
+// the "who's logged in early, late, or on time" view distinct from the raw
+// day-by-day Attendance & Punctuality Ledger tab.
+//
+// The Attendance Policy editor and Project Closures tab were carried over
+// from the old, retired ReportsPage.tsx so no functionality was lost when
+// this page was promoted to be the default.
 // ---------------------------------------------------------------------------
 
 const DATE_RANGES = ['This Month', 'Last Quarter', 'Year-to-Date 2026', 'Trailing 12 Months', 'Custom Range'] as const;
@@ -69,6 +101,14 @@ const KPI_BADGE_CLASSES: Record<KpiTone, string> = {
   positive: 'bg-emerald-100 text-emerald-700',
   negative: 'bg-amber-100 text-amber-700',
   neutral: 'bg-slate-100 text-slate-600',
+};
+// Small colored dot per tone for the 3D card badge (bg-white/25 chip stays
+// the same on every card regardless of hue, so the tone signal — good /
+// caution / neutral — now comes from this dot instead of a tinted pill).
+const KPI_TONE_DOT: Record<KpiTone, string> = {
+  positive: 'bg-emerald-300',
+  negative: 'bg-amber-300',
+  neutral: 'bg-white/60',
 };
 
 function PreviewDataTag() {
@@ -82,28 +122,33 @@ function PreviewDataTag() {
 // Every KPI card drills into the deep-dive tab (or, for the two cards with
 // no backing feature yet, a short explanation) that backs its number — see
 // `handleKpiClick` below for the label -> destination mapping.
-function KpiCard({ data, onClick }: { data: KpiCardData; onClick: () => void }) {
+function KpiCard({ data, index, onClick }: { data: KpiCardData; index: number; onClick: () => void }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="text-left bg-white border border-slate-200 rounded-xl p-5 transition-colors hover:border-mitra-accentFrom/40 hover:shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-mitra-accentFrom/40 group"
+      className={`${tileWrapperClass(TILE_THEMES[index % TILE_THEMES.length])} focus:outline-none focus-visible:ring-4 focus-visible:ring-white/70 group`}
     >
       <div className="flex items-center justify-between gap-2">
-        <p className="text-xs font-medium text-slate-500 flex items-center gap-1 group-hover:text-slate-700">
+        <p className="text-xs font-semibold text-white/90 flex items-center gap-1">
           {data.label}
-          <ChevronRightIcon className="w-3.5 h-3.5 text-slate-300 group-hover:text-mitra-accentFrom transition-colors" />
+          <ChevronRightIcon className="w-3.5 h-3.5 text-white/60 group-hover:text-white transition-colors" />
         </p>
-        {data.isMock && <PreviewDataTag />}
+        {data.isMock && (
+          <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-white/25 text-white border border-white/30">
+            Preview
+          </span>
+        )}
       </div>
-      <p className="text-2xl font-semibold text-slate-800 mt-1">{data.value}</p>
+      <p className="text-3xl font-bold text-white mt-3 drop-shadow-sm">{data.value}</p>
       <div className="flex items-center gap-2 mt-2 flex-wrap">
         {data.badge && (
-          <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${KPI_BADGE_CLASSES[data.badge.tone]}`}>
+          <span className="inline-flex items-center gap-1.5 text-xs font-medium px-2 py-0.5 rounded-full bg-white/25 text-white">
+            <span className={`w-1.5 h-1.5 rounded-full ${KPI_TONE_DOT[data.badge.tone]}`} />
             {data.badge.text}
           </span>
         )}
-        {data.subtext && <span className="text-xs text-slate-400">{data.subtext}</span>}
+        {data.subtext && <span className="text-xs text-white/80">{data.subtext}</span>}
       </div>
     </button>
   );
@@ -258,9 +303,13 @@ function ComplianceRadarWidget({
           </span>
         </button>
         <div className="w-full flex items-center justify-between text-sm rounded-lg px-1.5 py-1.5 -mx-1.5">
-          <span className="text-slate-400">Pending Policy Signatures</span>
-          <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-slate-50 text-slate-400 border border-slate-200">
-            Not tracked yet
+          <span className="text-slate-600">Pending Policy Signatures</span>
+          <span
+            className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+              radar.pendingPolicySignatures === 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
+            }`}
+          >
+            {radar.pendingPolicySignatures}
           </span>
         </div>
       </div>
@@ -268,15 +317,12 @@ function ComplianceRadarWidget({
   );
 }
 
-function UsClientAlignmentWidget({ summary }: { summary: UsClientAlignmentSummary }) {
+function UsClientAlignmentWidget({ summary }: { summary: ReportsPreviewUsClientAlignment }) {
   return (
     <div className="bg-white border border-slate-200 rounded-xl p-5">
-      <div className="flex items-center justify-between gap-2 mb-3">
-        <div className="flex items-center gap-2">
-          <GlobeIcon className="w-4 h-4 text-sky-500" />
-          <h3 className="text-sm font-semibold text-slate-800">US Client Alignment</h3>
-        </div>
-        <PreviewDataTag />
+      <div className="flex items-center gap-2 mb-3">
+        <GlobeIcon className="w-4 h-4 text-sky-500" />
+        <h3 className="text-sm font-semibold text-slate-800">US Client Alignment</h3>
       </div>
       <div className="space-y-3">
         <div>
@@ -288,6 +334,60 @@ function UsClientAlignmentWidget({ summary }: { summary: UsClientAlignmentSummar
           <p className="text-xs text-slate-500">Active US project assignments across {summary.activeUsClients} clients</p>
         </div>
       </div>
+    </div>
+  );
+}
+
+// Sprint 18: the one widget covering Performance & Goals and Recognition on
+// Reports & Analytics — neither had any representation here before. A
+// compact pointer to /performance and /engagement rather than a duplicate
+// of either page's own detail.
+function PerformanceEngagementWidget({
+  data,
+  onOpenPerformance,
+  onOpenEngagement,
+}: {
+  data: ReportsPreviewPerformanceEngagement;
+  onOpenPerformance: () => void;
+  onOpenEngagement: () => void;
+}) {
+  return (
+    <div className="bg-white border border-slate-200 rounded-xl p-5">
+      <div className="flex items-center gap-2 mb-3">
+        <TargetIcon className="w-4 h-4 text-violet-500" />
+        <h3 className="text-sm font-semibold text-slate-800">Performance &amp; Engagement</h3>
+      </div>
+      {data.activeCycleName ? (
+        <div className="space-y-3 mb-3">
+          <div>
+            <p className="text-2xl font-semibold text-slate-800">
+              {data.reviewsFinalizedCount}/{data.reviewsTotalCount}
+            </p>
+            <p className="text-xs text-slate-500">Reviews finalized · {data.activeCycleName}</p>
+          </div>
+          <div>
+            <p className="text-2xl font-semibold text-slate-800">
+              {data.avgGoalProgressPercent != null ? `${data.avgGoalProgressPercent}%` : '—'}
+            </p>
+            <p className="text-xs text-slate-500">Avg. goal progress this cycle</p>
+          </div>
+        </div>
+      ) : (
+        <p className="text-xs text-slate-400 mb-3">No active review cycle right now.</p>
+      )}
+      <button
+        onClick={onOpenEngagement}
+        className="w-full flex items-center justify-between text-sm rounded-lg px-1.5 py-1.5 -mx-1.5 hover:bg-slate-50 text-left border-t border-slate-100 pt-3"
+        title="Open Employee Engagement & Feedback"
+      >
+        <span className="text-slate-600">Kudos Given (30 days)</span>
+        <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-violet-100 text-violet-700">
+          {data.kudosLast30Days}
+        </span>
+      </button>
+      <button onClick={onOpenPerformance} className="text-xs font-medium text-mitra-accentFrom hover:underline mt-2">
+        View Performance &amp; Goals &rarr;
+      </button>
     </div>
   );
 }
@@ -503,38 +603,274 @@ function DataTable<T extends { id: string }>({
   );
 }
 
-type TabKey = 'attendance-ledger' | 'tenure-mobility' | 'recruitment-funnel' | 'compliance-roster';
+// Carried over from the old, retired ReportsPage.tsx (the "Late Arrivals &
+// Half Days" tab) so the ability to actually edit the lateness/half-day
+// policy isn't lost now that this page is the default — the Attendance &
+// Punctuality Ledger tab below only ever displayed that data, it never had
+// an editor for the policy driving it.
+function AttendancePolicyBar({ token }: { token: string }) {
+  const [settings, setSettings] = useState<AttendanceSettings | null>(null);
+  const [form, setForm] = useState({
+    expectedStartTime: '17:00',
+    expectedStartTimeDst: '18:00',
+    graceMinutes: 15,
+    earlyThresholdMinutes: 10,
+    halfDayThresholdHours: 4,
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    getAttendanceSettings(token)
+      .then((s) => {
+        if (cancelled) return;
+        setSettings(s);
+        setForm({
+          expectedStartTime: s.expectedStartTime,
+          expectedStartTimeDst: s.expectedStartTimeDst,
+          graceMinutes: s.graceMinutes,
+          earlyThresholdMinutes: s.earlyThresholdMinutes,
+          halfDayThresholdHours: s.halfDayThresholdHours,
+        });
+      })
+      .catch((e: any) => !cancelled && setError(e.message));
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
+
+  async function save() {
+    setSaving(true);
+    setError('');
+    setSaved(false);
+    try {
+      const updated = await updateAttendanceSettings(token, form);
+      setSettings(updated);
+      setSaved(true);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (!settings) return null;
+
+  return (
+    <div className="bg-white border border-slate-200 rounded-xl p-4 mb-4">
+      <p className="text-xs text-slate-400 mb-3">
+        This company's shift is aligned to fixed US client hours, so the expected IST start time itself shifts during
+        US Daylight Saving (India doesn't observe DST, but the US side does).
+      </p>
+      <div className="flex flex-wrap items-end gap-4">
+        <div>
+          <label className="block text-xs font-medium text-slate-500 mb-1">Standard start time (IST)</label>
+          <input
+            type="time"
+            value={form.expectedStartTime}
+            onChange={(e) => setForm({ ...form, expectedStartTime: e.target.value })}
+            className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-slate-500 mb-1">During US DST (IST)</label>
+          <input
+            type="time"
+            value={form.expectedStartTimeDst}
+            onChange={(e) => setForm({ ...form, expectedStartTimeDst: e.target.value })}
+            className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-slate-500 mb-1">Grace period (minutes)</label>
+          <input
+            type="number"
+            min={0}
+            max={180}
+            value={form.graceMinutes}
+            onChange={(e) => setForm({ ...form, graceMinutes: parseInt(e.target.value, 10) || 0 })}
+            className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm w-28"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-slate-500 mb-1">Early threshold (minutes)</label>
+          <input
+            type="number"
+            min={0}
+            max={180}
+            value={form.earlyThresholdMinutes}
+            onChange={(e) => setForm({ ...form, earlyThresholdMinutes: parseInt(e.target.value, 10) || 0 })}
+            className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm w-28"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-slate-500 mb-1">Half-day threshold (hours)</label>
+          <input
+            type="number"
+            min={0}
+            max={12}
+            step={0.5}
+            value={form.halfDayThresholdHours}
+            onChange={(e) => setForm({ ...form, halfDayThresholdHours: parseFloat(e.target.value) || 0 })}
+            className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm w-28"
+          />
+        </div>
+        <button
+          onClick={save}
+          disabled={saving}
+          className="rounded-lg bg-gradient-to-r from-mitra-accentFrom to-mitra-accentTo text-white text-sm font-medium px-4 py-2 disabled:opacity-50 shadow-[0_6px_16px_-4px_rgba(124,111,255,0.55)] hover:-translate-y-0.5 hover:shadow-[0_10px_20px_-4px_rgba(124,111,255,0.6)] active:translate-y-0 active:shadow-[0_3px_8px_-2px_rgba(124,111,255,0.5)] transition-all duration-150"
+        >
+          {saving ? 'Saving...' : 'Save Policy'}
+        </button>
+        {saved && <span className="text-xs text-emerald-600">Saved.</span>}
+        {error && <span className="text-xs text-red-600">{error}</span>}
+      </div>
+    </div>
+  );
+}
+
+// Sprint 18: company-wide punctuality totals for the trailing 30 days,
+// shown at the top of the new Attendance Timeliness tab — the per-employee
+// breakdown table below it is what answers "who's logged in late, early, or
+// on time."
+function AttendanceTimelinessSummary({ data }: { data: ReportsPreviewAttendanceTimeliness }) {
+  const tiles: { label: string; value: number; className: string }[] = [
+    { label: 'Early', value: data.totals.early, className: 'bg-sky-50 text-sky-700 border-sky-200' },
+    { label: 'On Time', value: data.totals.onTime, className: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+    { label: 'Late', value: data.totals.late, className: 'bg-amber-50 text-amber-700 border-amber-200' },
+    { label: 'Absent', value: data.totals.absent, className: 'bg-rose-50 text-rose-700 border-rose-200' },
+  ];
+  return (
+    <div className="bg-white border border-slate-200 rounded-xl p-4 mb-4">
+      <div className="flex items-center gap-2 mb-3">
+        <ClockIcon className="w-4 h-4 text-sky-500" />
+        <h3 className="text-sm font-semibold text-slate-800">Who's Early, Late, or On Time</h3>
+      </div>
+      <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
+        <p className="text-xs text-slate-500">
+          Standard shift start <span className="font-medium text-slate-700">{formatHHMM(data.expectedStartTime)}</span> IST
+          {' '}· during US Daylight Saving{' '}
+          <span className="font-medium text-slate-700">{formatHHMM(data.expectedStartTimeDst)}</span> IST · trailing{' '}
+          {data.windowDays + 1} days
+        </p>
+        <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700">
+          {data.totals.onTimeRatePercent}% on time or early
+        </span>
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {tiles.map((t) => (
+          <div key={t.label} className={`rounded-lg border px-3 py-2 ${t.className}`}>
+            <p className="text-lg font-semibold">{t.value}</p>
+            <p className="text-xs">{t.label}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Also carried over from ReportsPage.tsx — no equivalent tab exists in the
+// new layout, so it's added as a 5th tab rather than dropped.
+function ProjectClosuresPanel({ token }: { token: string }) {
+  const [rows, setRows] = useState<ProjectClosure[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    getProjectClosureReports(token)
+      .then((r) => !cancelled && setRows(r))
+      .catch((e: any) => !cancelled && setError(e.message))
+      .finally(() => !cancelled && setLoading(false));
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
+
+  return (
+    <div>
+      <p className="text-sm text-slate-500 mb-4">
+        Every project that's been through the formal "End Project" workflow, with its closing summary and duration.
+      </p>
+      {error && <p className="text-sm text-red-600 mb-3">{error}</p>}
+      {loading ? (
+        <p className="text-slate-500 text-sm">Loading...</p>
+      ) : rows.length === 0 ? (
+        <p className="text-slate-500 text-sm">No projects have been formally closed out yet.</p>
+      ) : (
+        <div className="space-y-4">
+          {rows.map((p) => (
+            <div key={p.id} className="bg-white border border-slate-200 rounded-xl p-5">
+              <div className="flex items-start justify-between flex-wrap gap-2">
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-800">{p.name}</h3>
+                  <p className="text-xs text-slate-500">{p.clientName}</p>
+                </div>
+                <div className="text-right text-xs text-slate-500">
+                  {p.startDate && p.endDate && (
+                    <p>
+                      {new Date(p.startDate).toLocaleDateString()} – {new Date(p.endDate).toLocaleDateString()}
+                    </p>
+                  )}
+                  {p.durationDays != null && <p className="font-medium text-slate-700">{p.durationDays} days</p>}
+                </div>
+              </div>
+              {p.closureSummary && <p className="text-sm text-slate-600 mt-3">{p.closureSummary}</p>}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+type TabKey =
+  | 'attendance-ledger'
+  | 'attendance-timeliness'
+  | 'tenure-mobility'
+  | 'recruitment-funnel'
+  | 'compliance-roster'
+  | 'project-closures';
 
 const TABS: TabBarItem<TabKey>[] = [
   { key: 'attendance-ledger', label: 'Attendance & Punctuality Ledger', color: 'neutral' },
+  { key: 'attendance-timeliness', label: 'Attendance Timeliness', color: 'neutral' },
   { key: 'tenure-mobility', label: 'Tenure & Mobility History', color: 'neutral' },
   { key: 'recruitment-funnel', label: 'ATS & Recruitment Funnel', color: 'neutral' },
   { key: 'compliance-roster', label: 'Compliance & Asset Roster', color: 'neutral' },
+  { key: 'project-closures', label: 'Project Closures', color: 'neutral' },
 ];
 
 type SelectedDetail =
   | { kind: 'attendance-ledger'; row: ReportsPreviewAttendanceLedgerRow }
+  | { kind: 'attendance-timeliness'; row: ReportsPreviewAttendanceTimelinessRow }
   | { kind: 'tenure-mobility'; row: ReportsPreviewTenureMobilityRow }
-  | { kind: 'recruitment-funnel'; row: RecruitmentFunnelRow }
+  | { kind: 'recruitment-funnel'; row: ReportsPreviewFunnelRow }
   | { kind: 'compliance-roster'; row: ReportsPreviewComplianceRow }
   | { kind: 'attrition-risk'; row: ReportsPreviewAttritionRisk }
   | { kind: 'kpi-info'; card: KpiCardData };
 
 // KPI cards that map straight to one of the deep-dive tabs below — clicking
-// jumps there. Any KPI card NOT in this map (currently Turnover Index and
-// Workforce Sentiment) has no real feature behind it yet, so it opens a
-// short explanation instead — see the 'kpi-info' SlideOver body.
+// jumps there. Turnover Index and Workforce Sentiment are handled as
+// special cases in handleKpiClick instead (they link out to /exits and
+// /engagement respectively rather than an in-page tab). Any KPI card in
+// neither place opens a short explanation — see the 'kpi-info' SlideOver
+// body — which today only ever fires for Workforce Sentiment before any
+// survey response exists.
 const KPI_TAB_LINKS: Partial<Record<string, TabKey>> = {
   'Headcount & Growth': 'tenure-mobility',
   'Workforce Reliability': 'attendance-ledger',
   'Recruitment Speed': 'recruitment-funnel',
 };
 
-// What feeds each still-mock KPI card once its sprint lands, shown in the
-// 'kpi-info' SlideOver for any card KPI_TAB_LINKS doesn't cover.
+// Shown in the 'kpi-info' SlideOver for a KPI card that's real but
+// genuinely has no data yet (contrast with KPI_TAB_LINKS/the
+// Turnover-Index/Workforce-Sentiment special cases, which cover every card
+// once it has data).
 const KPI_INFO_COPY: Partial<Record<string, string>> = {
-  'Turnover Index': 'Will show real voluntary/involuntary attrition, trended month over month, once Sprint 12 (Client Contracts + Exit & Clearance) tracks employee exits.',
-  'Workforce Sentiment': 'Will show a real eNPS-style score once Sprint 15 (Employee Engagement & Feedback) adds a pulse survey. There is no survey data behind this number today.',
+  'Workforce Sentiment': 'Will show a real eNPS-style score as soon as employees answer at least one rating question in a Pulse Survey — see the Engagement & Feedback page.',
 };
 
 export default function ReportsPreview() {
@@ -557,6 +893,19 @@ export default function ReportsPreview() {
   }
 
   function handleKpiClick(card: KpiCardData) {
+    // Turnover Index is always real (Exit & Clearance) — jump straight to
+    // its source rather than an in-page tab or an info panel.
+    if (card.label === 'Turnover Index') {
+      navigate('/exits');
+      return;
+    }
+    // Workforce Sentiment has real data once at least one survey response
+    // exists (see formatWorkforceSentimentCard) — jump to the source instead
+    // of showing the "not built yet" info panel in that case.
+    if (card.label === 'Workforce Sentiment' && !card.isMock) {
+      navigate('/engagement');
+      return;
+    }
     const linkedTab = KPI_TAB_LINKS[card.label];
     if (linkedTab) {
       goToTable(linkedTab);
@@ -591,6 +940,7 @@ export default function ReportsPreview() {
 
   function handleExportCsv() {
     if (tab === 'attendance-ledger') downloadCsv('attendance-ledger.csv', attendanceRows);
+    if (tab === 'attendance-timeliness') downloadCsv('attendance-timeliness.csv', data!.attendanceTimeliness.rows);
     if (tab === 'tenure-mobility') downloadCsv('tenure-mobility.csv', byDept(data!.tenureMobility));
     if (tab === 'recruitment-funnel') downloadCsv('recruitment-funnel.csv', recruitmentRows);
     if (tab === 'compliance-roster') downloadCsv('compliance-asset-roster.csv', complianceRows);
@@ -601,12 +951,7 @@ export default function ReportsPreview() {
     <div>
       <div className="flex items-start justify-between flex-wrap gap-4 mb-1">
         <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-semibold text-slate-800">Reports & Analytics</h1>
-            <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-fuchsia-100 text-fuchsia-700">
-              Design Preview
-            </span>
-          </div>
+          <h1 className="text-2xl font-semibold text-slate-800">Reports & Analytics</h1>
           <p className="text-sm text-slate-500 mt-1 max-w-2xl">
             Comprehensive workforce health, predictive AI insights, compliance, and recruitment metrics.
           </p>
@@ -665,19 +1010,14 @@ export default function ReportsPreview() {
       <p className="text-xs text-slate-400 mb-6 flex items-center gap-1.5 flex-wrap">
         <AlertTriangleIcon className="w-3.5 h-3.5 flex-shrink-0" />
         <span>
-          Attendance, tenure, compliance documents, and the risk list below are computed from real records. The
-          Recruitment Funnel tab, US Client Alignment, and cards tagged <PreviewDataTag /> are still placeholder data
-          pending features not yet built. The live, simpler Reports page is still at{' '}
-          <Link to="/reports" className="underline hover:text-slate-600">
-            Reports & Analytics
-          </Link>
-          .
+          Every widget, tab, and KPI card on this page is computed from real records. A card tagged{' '}
+          <PreviewDataTag /> just means that specific feature has no data yet — not that it's placeholder.
         </span>
       </p>
 
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
-        {data.kpiCards.map((k) => (
-          <KpiCard key={k.label} data={k} onClick={() => handleKpiClick(k)} />
+        {data.kpiCards.map((k, i) => (
+          <KpiCard key={k.label} data={k} index={i} onClick={() => handleKpiClick(k)} />
         ))}
       </div>
 
@@ -686,7 +1026,7 @@ export default function ReportsPreview() {
         <TenureSpreadChart data={data.tenureSpread} />
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-6">
         <AttritionRiskWidget
           risks={data.attritionRisks}
           onViewProfile={(row) => setDetail({ kind: 'attrition-risk', row })}
@@ -697,17 +1037,19 @@ export default function ReportsPreview() {
           onViewLaptops={() => navigate('/assets')}
         />
         <UsClientAlignmentWidget summary={data.usClientAlignment} />
+        <PerformanceEngagementWidget
+          data={data.performanceEngagement}
+          onOpenPerformance={() => navigate('/performance')}
+          onOpenEngagement={() => navigate('/engagement')}
+        />
       </div>
 
       <div ref={tableSectionRef} className="bg-transparent scroll-mt-4">
         <TabBar tabs={TABS} active={tab} onChange={setTab} />
 
-        {tab === 'recruitment-funnel' && (
-          <p className="text-xs text-slate-500 mb-3 flex items-center gap-1.5">
-            <PreviewDataTag /> This tab is still placeholder data — the real recruitment pipeline is planned as a
-            later sprint.
-          </p>
-        )}
+        {tab === 'attendance-ledger' && <AttendancePolicyBar token={token} />}
+
+        {tab === 'attendance-timeliness' && <AttendanceTimelinessSummary data={data.attendanceTimeliness} />}
 
         {tab === 'attendance-ledger' && (
           <DataTable<ReportsPreviewAttendanceLedgerRow>
@@ -747,7 +1089,9 @@ export default function ReportsPreview() {
                 render: (r) => (
                   <span
                     className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                      r.status === 'On Time'
+                      r.status === 'Early'
+                        ? 'bg-sky-100 text-sky-700'
+                        : r.status === 'On Time'
                         ? 'bg-emerald-100 text-emerald-700'
                         : r.status === 'Late'
                         ? 'bg-amber-100 text-amber-700'
@@ -757,6 +1101,34 @@ export default function ReportsPreview() {
                     {r.status}
                   </span>
                 ),
+              },
+            ]}
+          />
+        )}
+
+        {tab === 'attendance-timeliness' && (
+          <DataTable<ReportsPreviewAttendanceTimelinessRow>
+            rows={byDept(data.attendanceTimeliness.rows)}
+            searchPlaceholder="Search by name..."
+            searchFn={(r, q) => r.name.toLowerCase().includes(q)}
+            onViewDetails={(row) => setDetail({ kind: 'attendance-timeliness', row })}
+            toolbarExtra={(count) => (
+              <span className="text-xs text-slate-500 whitespace-nowrap">
+                Showing {count} employee{count === 1 ? '' : 's'}
+              </span>
+            )}
+            columns={[
+              { key: 'name', header: 'Name', sortValue: (r) => r.name },
+              { key: 'department', header: 'Department', sortValue: (r) => r.department },
+              { key: 'earlyDays', header: 'Early', sortValue: (r) => r.earlyDays },
+              { key: 'onTimeDays', header: 'On Time', sortValue: (r) => r.onTimeDays },
+              { key: 'lateDays', header: 'Late', sortValue: (r) => r.lateDays },
+              { key: 'absentDays', header: 'Absent', sortValue: (r) => r.absentDays },
+              {
+                key: 'avgLateMinutes',
+                header: 'Avg Late By',
+                sortValue: (r) => r.avgLateMinutes,
+                render: (r) => (r.avgLateMinutes > 0 ? `${r.avgLateMinutes} min` : '—'),
               },
             ]}
           />
@@ -780,7 +1152,7 @@ export default function ReportsPreview() {
         )}
 
         {tab === 'recruitment-funnel' && (
-          <DataTable<RecruitmentFunnelRow>
+          <DataTable<ReportsPreviewFunnelRow>
             rows={recruitmentRows}
             searchPlaceholder="Search by candidate..."
             searchFn={(r, q) => r.candidate.toLowerCase().includes(q)}
@@ -868,6 +1240,8 @@ export default function ReportsPreview() {
             ]}
           />
         )}
+
+        {tab === 'project-closures' && <ProjectClosuresPanel token={token} />}
       </div>
 
       <SlideOver
@@ -900,6 +1274,18 @@ export default function ReportsPreview() {
             <DetailRow label="Check Out" value={detail.row.checkOut} />
             <DetailRow label="Status" value={detail.row.status} />
             {detail.row.lateByMinutes > 0 && <DetailRow label="Late By" value={`${detail.row.lateByMinutes} min`} />}
+            {detail.row.earlyByMinutes > 0 && <DetailRow label="Early By" value={`${detail.row.earlyByMinutes} min`} />}
+          </>
+        )}
+        {detail?.kind === 'attendance-timeliness' && (
+          <>
+            <DetailRow label="Department" value={detail.row.department} />
+            <DetailRow label="Early Days" value={detail.row.earlyDays} />
+            <DetailRow label="On Time Days" value={detail.row.onTimeDays} />
+            <DetailRow label="Late Days" value={detail.row.lateDays} />
+            <DetailRow label="Absent Days" value={detail.row.absentDays} />
+            {detail.row.avgLateMinutes > 0 && <DetailRow label="Avg Late By" value={`${detail.row.avgLateMinutes} min`} />}
+            {detail.row.avgEarlyMinutes > 0 && <DetailRow label="Avg Early By" value={`${detail.row.avgEarlyMinutes} min`} />}
           </>
         )}
         {detail?.kind === 'tenure-mobility' && (

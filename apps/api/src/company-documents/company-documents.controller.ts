@@ -3,10 +3,12 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   Param,
   Patch,
   Post,
+  Req,
   Res,
   UploadedFile,
   UseGuards,
@@ -24,6 +26,14 @@ import { COMPANY_DOCUMENT_CATEGORIES, UpdateCompanyDocumentDto } from './dto/upd
 const DOCUMENT_DIR = join(process.cwd(), 'secure-uploads', 'company-documents');
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'application/pdf'];
 
+// Same "resolve whichever session kind this is" helper used throughout the
+// app (recognitions, announcements) — an OTP-logged-in employee acts as
+// themselves; a staff account can only act as an employee if their User is
+// linked to one (see auth.service.ts's updateAdminEmployeeLink).
+function resolveEmployeeId(user: any): string | null {
+  return user.kind === 'EMPLOYEE' ? user.sub : user.employeeId ?? null;
+}
+
 // Readable by any logged-in user (staff or employee) — these are company
 // policies/templates, not private records. Managed by staff only.
 @UseGuards(JwtAuthGuard)
@@ -32,8 +42,8 @@ export class CompanyDocumentsController {
   constructor(private service: CompanyDocumentsService) {}
 
   @Get()
-  findAll() {
-    return this.service.findAll();
+  findAll(@Req() req: any) {
+    return this.service.findAll(resolveEmployeeId(req.user));
   }
 
   @UseGuards(StaffOnlyGuard)
@@ -58,6 +68,8 @@ export class CompanyDocumentsController {
   create(
     @Body('category') category: string,
     @Body('title') title: string,
+    @Body('description') description: string | undefined,
+    @Body('requiresAcknowledgment') requiresAcknowledgment: string | undefined,
     @UploadedFile() file: Express.Multer.File,
   ) {
     if (!file) throw new BadRequestException('No file uploaded');
@@ -65,7 +77,15 @@ export class CompanyDocumentsController {
     if (!COMPANY_DOCUMENT_CATEGORIES.includes(category as any)) {
       throw new BadRequestException('Invalid category');
     }
-    return this.service.create(category, title, file.originalname, `/secure-uploads/company-documents/${file.filename}`);
+    return this.service.create(
+      category,
+      title,
+      file.originalname,
+      `/secure-uploads/company-documents/${file.filename}`,
+      file.size,
+      requiresAcknowledgment === 'true',
+      description || undefined,
+    );
   }
 
   @UseGuards(StaffOnlyGuard)
@@ -84,5 +104,18 @@ export class CompanyDocumentsController {
   async download(@Param('id') id: string, @Res() res: Response) {
     const { path, fileName } = await this.service.getFile(id);
     res.download(path, fileName);
+  }
+
+  @Post(':id/acknowledge')
+  acknowledge(@Req() req: any, @Param('id') id: string) {
+    const employeeId = resolveEmployeeId(req.user);
+    if (!employeeId) throw new ForbiddenException('This action requires an employee record linked to your account');
+    return this.service.acknowledge(id, employeeId);
+  }
+
+  @UseGuards(StaffOnlyGuard)
+  @Get(':id/acknowledgments')
+  getAcknowledgmentStatus(@Param('id') id: string) {
+    return this.service.getAcknowledgmentStatus(id);
   }
 }

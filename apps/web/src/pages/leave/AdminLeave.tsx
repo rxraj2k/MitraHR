@@ -4,9 +4,11 @@ import { useAutoRefresh } from '../../hooks/useAutoRefresh';
 import AttendanceCheckIn from '../../components/AttendanceCheckIn';
 import MyLeavePanel from '../../components/MyLeavePanel';
 import MonthCalendar from '../../components/MonthCalendar';
+import { HUE_GRADIENTS, TOGGLE_3D_INACTIVE, toggle3dActive } from '../../lib/buttonStyles';
 import SearchableSelect from '../../components/SearchableSelect';
 import TabBar, { TabBarItem } from '../../components/TabBar';
 import {
+  cancelLeaveRequest,
   createLeaveRequest,
   decideCompOffEntry,
   decideLeaveRequest,
@@ -18,12 +20,13 @@ import {
   openAuthedFile,
 } from '../../lib/api';
 import { AttendanceDay, CompOffEntry, Employee, LeaveRequest, LeaveType } from '../../types';
+import { EyeIcon } from '../../components/icons';
 
 const STATUS_STYLES: Record<string, string> = {
-  PENDING: 'bg-amber-100 text-amber-700',
-  APPROVED: 'bg-green-100 text-green-700',
-  REJECTED: 'bg-red-100 text-red-700',
-  CANCELLED: 'bg-slate-100 text-slate-500',
+  PENDING: 'bg-amber-500 text-white',
+  APPROVED: 'bg-emerald-500 text-white',
+  REJECTED: 'bg-red-500 text-white',
+  CANCELLED: 'bg-slate-400 text-white',
 };
 
 type LeaveSection = 'overview' | 'calendar';
@@ -134,6 +137,24 @@ export default function AdminLeave() {
     }
   }
 
+  async function handleCancel(id: string, status: string) {
+    if (!token) return;
+    const message =
+      status === 'APPROVED'
+        ? 'This leave is already approved. Cancel it anyway?'
+        : 'Cancel this leave request?';
+    if (!confirm(message)) return;
+    setError('');
+    try {
+      await cancelLeaveRequest(token, id);
+      load();
+      loadCalendar();
+      loadToday();
+    } catch (err: any) {
+      setError(err.message);
+    }
+  }
+
   async function handleDecideCompOff(id: string, status: 'APPROVED' | 'REJECTED') {
     if (!token) return;
     setError('');
@@ -167,8 +188,6 @@ export default function AdminLeave() {
   const pending = requests.filter((r) => r.status === 'PENDING');
   const shown = tab === 'pending' ? pending : requests;
   const employeeOptions = employees.map((e) => ({ id: e.id, name: e.fullName }));
-  const sameDay = !!onBehalf.startDate && onBehalf.startDate === onBehalf.endDate;
-
   const compOffPending = compOffEntries.filter((c) => c.status === 'PENDING');
   const compOffShown = compOffTab === 'pending' ? compOffPending : compOffEntries;
 
@@ -300,14 +319,19 @@ export default function AdminLeave() {
             <label className="block text-xs text-slate-500 mb-1">Day Part</label>
             <select
               value={onBehalf.dayPart}
-              onChange={(e) => setOnBehalf({ ...onBehalf, dayPart: e.target.value })}
-              disabled={!sameDay}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm disabled:bg-slate-50 disabled:text-slate-400"
+              onChange={(e) => {
+                const dayPart = e.target.value;
+                setOnBehalf((f) => ({ ...f, dayPart, endDate: dayPart !== 'FULL' ? f.startDate : f.endDate }));
+              }}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
             >
               <option value="FULL">Full day</option>
               <option value="FIRST_HALF">First half</option>
               <option value="SECOND_HALF">Second half</option>
             </select>
+            {onBehalf.dayPart !== 'FULL' && (
+              <p className="text-[11px] text-slate-400 mt-1">Half-day requests are for a single day.</p>
+            )}
           </div>
           <div>
             <label className="block text-xs text-slate-500 mb-1">Start Date</label>
@@ -315,7 +339,10 @@ export default function AdminLeave() {
               type="date"
               required
               value={onBehalf.startDate}
-              onChange={(e) => setOnBehalf({ ...onBehalf, startDate: e.target.value })}
+              onChange={(e) => {
+                const startDate = e.target.value;
+                setOnBehalf((f) => ({ ...f, startDate, endDate: f.dayPart !== 'FULL' ? startDate : f.endDate }));
+              }}
               className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
             />
           </div>
@@ -325,7 +352,10 @@ export default function AdminLeave() {
               type="date"
               required
               value={onBehalf.endDate}
-              onChange={(e) => setOnBehalf({ ...onBehalf, endDate: e.target.value })}
+              onChange={(e) => {
+                const endDate = e.target.value;
+                setOnBehalf((f) => ({ ...f, endDate, dayPart: f.dayPart !== 'FULL' && endDate !== f.startDate ? 'FULL' : f.dayPart }));
+              }}
               className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
             />
           </div>
@@ -343,7 +373,7 @@ export default function AdminLeave() {
             <button
               type="submit"
               disabled={onBehalfSubmitting || !onBehalf.employeeId}
-              className="rounded-lg bg-gradient-to-r from-mitra-accentFrom to-mitra-accentTo text-white text-sm font-medium px-4 py-2 disabled:opacity-50"
+              className="rounded-lg bg-gradient-to-r from-mitra-accentFrom to-mitra-accentTo text-white text-sm font-medium px-4 py-2 disabled:opacity-50 shadow-[0_6px_16px_-4px_rgba(124,111,255,0.55)] hover:-translate-y-0.5 hover:shadow-[0_10px_20px_-4px_rgba(124,111,255,0.6)] active:translate-y-0 active:shadow-[0_3px_8px_-2px_rgba(124,111,255,0.5)] transition-all duration-150"
             >
               {onBehalfSubmitting ? 'Submitting...' : 'Submit'}
             </button>
@@ -357,13 +387,13 @@ export default function AdminLeave() {
           <div className="flex gap-2 text-sm">
             <button
               onClick={() => setTab('pending')}
-              className={`px-3 py-1 rounded-lg ${tab === 'pending' ? 'bg-mitra-navy text-white' : 'text-slate-500'}`}
+              className={`px-3 py-1 rounded-lg transition-all duration-150 ${tab === 'pending' ? toggle3dActive(HUE_GRADIENTS.slate) : TOGGLE_3D_INACTIVE}`}
             >
               Pending ({pending.length})
             </button>
             <button
               onClick={() => setTab('all')}
-              className={`px-3 py-1 rounded-lg ${tab === 'all' ? 'bg-mitra-navy text-white' : 'text-slate-500'}`}
+              className={`px-3 py-1 rounded-lg transition-all duration-150 ${tab === 'all' ? toggle3dActive(HUE_GRADIENTS.slate) : TOGGLE_3D_INACTIVE}`}
             >
               All
             </button>
@@ -386,7 +416,7 @@ export default function AdminLeave() {
                   <th className="pb-2 font-medium">Reason</th>
                   <th className="pb-2 font-medium">Document</th>
                   <th className="pb-2 font-medium">Status</th>
-                  {tab === 'pending' && <th className="pb-2 font-medium">Decide</th>}
+                  <th className="pb-2 font-medium">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -404,41 +434,55 @@ export default function AdminLeave() {
                         <button
                           type="button"
                           onClick={() => token && openAuthedFile(token, `/leave-requests/${r.id}/attachment`)}
-                          className="text-mitra-accentFrom hover:underline text-xs"
+                          title="View attachment"
+                          className="inline-flex items-center justify-center w-7 h-7 rounded-lg text-slate-400 hover:text-mitra-accentFrom hover:bg-slate-50"
                         >
-                          View
+                          <EyeIcon className="w-4 h-4" />
                         </button>
                       ) : (
                         <span className="text-slate-300 text-xs">—</span>
                       )}
                     </td>
                     <td className="py-2">
-                      <span className={`px-2 py-0.5 rounded-full text-xs ${STATUS_STYLES[r.status]}`}>{r.status}</span>
+                      <span className={`px-2.5 py-1 rounded-full text-[11px] font-semibold ${STATUS_STYLES[r.status]}`}>{r.status}</span>
                     </td>
-                    {tab === 'pending' && (
-                      <td className="py-2">
-                        <div className="flex items-center gap-2">
-                          <input
-                            placeholder="note (optional)"
-                            value={notes[r.id] || ''}
-                            onChange={(e) => setNotes({ ...notes, [r.id]: e.target.value })}
-                            className="w-28 rounded border border-slate-300 px-2 py-1 text-xs"
-                          />
+                    <td className="py-2">
+                      <div className="flex items-center gap-2">
+                        {r.status === 'PENDING' && (
+                          <>
+                            <input
+                              placeholder="note (optional)"
+                              value={notes[r.id] || ''}
+                              onChange={(e) => setNotes({ ...notes, [r.id]: e.target.value })}
+                              className="w-28 rounded border border-slate-300 px-2 py-1 text-xs"
+                            />
+                            <button
+                              onClick={() => handleDecide(r.id, 'APPROVED')}
+                              className="text-green-600 hover:text-green-800 text-xs font-medium"
+                            >
+                              Approve
+                            </button>
+                            <button
+                              onClick={() => handleDecide(r.id, 'REJECTED')}
+                              className="text-red-500 hover:text-red-700 text-xs font-medium"
+                            >
+                              Reject
+                            </button>
+                          </>
+                        )}
+                        {(r.status === 'PENDING' || r.status === 'APPROVED') && (
                           <button
-                            onClick={() => handleDecide(r.id, 'APPROVED')}
-                            className="text-green-600 hover:text-green-800 text-xs font-medium"
-                          >
-                            Approve
-                          </button>
-                          <button
-                            onClick={() => handleDecide(r.id, 'REJECTED')}
+                            onClick={() => handleCancel(r.id, r.status)}
                             className="text-red-500 hover:text-red-700 text-xs font-medium"
                           >
-                            Reject
+                            Cancel
                           </button>
-                        </div>
-                      </td>
-                    )}
+                        )}
+                        {r.status !== 'PENDING' && r.status !== 'APPROVED' && (
+                          <span className="text-slate-300 text-xs">—</span>
+                        )}
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -453,13 +497,13 @@ export default function AdminLeave() {
           <div className="flex gap-2 text-sm">
             <button
               onClick={() => setCompOffTab('pending')}
-              className={`px-3 py-1 rounded-lg ${compOffTab === 'pending' ? 'bg-mitra-navy text-white' : 'text-slate-500'}`}
+              className={`px-3 py-1 rounded-lg transition-all duration-150 ${compOffTab === 'pending' ? toggle3dActive(HUE_GRADIENTS.slate) : TOGGLE_3D_INACTIVE}`}
             >
               Pending ({compOffPending.length})
             </button>
             <button
               onClick={() => setCompOffTab('all')}
-              className={`px-3 py-1 rounded-lg ${compOffTab === 'all' ? 'bg-mitra-navy text-white' : 'text-slate-500'}`}
+              className={`px-3 py-1 rounded-lg transition-all duration-150 ${compOffTab === 'all' ? toggle3dActive(HUE_GRADIENTS.slate) : TOGGLE_3D_INACTIVE}`}
             >
               All
             </button>
@@ -493,7 +537,7 @@ export default function AdminLeave() {
                       {c.reason}
                     </td>
                     <td className="py-2">
-                      <span className={`px-2 py-0.5 rounded-full text-xs ${STATUS_STYLES[c.status]}`}>{c.status}</span>
+                      <span className={`px-2.5 py-1 rounded-full text-[11px] font-semibold ${STATUS_STYLES[c.status]}`}>{c.status}</span>
                     </td>
                     {compOffTab === 'pending' && (
                       <td className="py-2">

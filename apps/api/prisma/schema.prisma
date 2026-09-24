@@ -23,11 +23,16 @@ model User {
   // the org chart too), so they can submit their own leave requests etc.
   employeeId           String?   @unique
   linkedEmployee        Employee? @relation(fields: [employeeId], references: [id])
+  // Set on each successful password login (Master Data / Admins tab —
+  // "last login timestamp"). Not touched by employee OTP login, which is a
+  // separate account type (Employee, not User).
+  lastLoginAt          DateTime?
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
   decidedLeaveRequests LeaveRequest[] @relation("LeaveDecidedBy")
   decidedCompOffEntries CompOffLedger[] @relation("CompOffDecidedBy")
   announcements        Announcement[]
+  createdPulseSurveys  PulseSurvey[]
 }
 
 // Managed lookup list — editable from Settings (add/rename/delete).
@@ -38,6 +43,8 @@ model Department {
   updatedAt DateTime   @updatedAt
   employees Employee[]
   announcementTargets AnnouncementDepartment[]
+  jobOpenings JobOpening[]
+  pulseSurveyTargets PulseSurveyDepartment[]
 }
 
 // Managed lookup list — editable from Settings (add/rename/delete).
@@ -47,6 +54,8 @@ model Designation {
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
   employees Employee[]
+  historyFrom DesignationHistory[] @relation("DesignationHistoryFrom")
+  historyTo   DesignationHistory[] @relation("DesignationHistoryTo")
 }
 
 // Managed lookup list — editable from Settings (add/rename/delete).
@@ -83,6 +92,21 @@ model Employee {
   photoUrl              String?
   employmentType        String       @default("FULL_TIME")
 
+  // Talent Directory (Sprint 19): staff-set fields behind the redesigned
+  // Employees ("Talent Directory") page's Seniority column and Deployment
+  // Status pill. experienceLevel reuses the same vocabulary as
+  // JobOpening.experienceLevel (recruitment/dto/recruitment.constants.ts) —
+  // an open req and a hired employee describe the same seniority concept.
+  // deploymentStatus (BILLABLE/SHADOW/BENCH/ONBOARDING/INTERNAL) is set by
+  // staff the same way employmentType is — it is NOT derived from
+  // ProjectAssignment, because "Billable" vs "Shadow" on the same
+  // assignment isn't a fact the schema can infer on its own. The page's
+  // "Client Allocation" tag instead reads live from ProjectAssignment
+  // (see EmployeesService.BASE_INCLUDE) and only falls back to this field
+  // when there's no open assignment to show.
+  experienceLevel       String       @default("MID")
+  deploymentStatus      String       @default("BENCH")
+
   // Placement & Hierarchy
   departmentId       String?
   department         Department? @relation(fields: [departmentId], references: [id])
@@ -106,17 +130,31 @@ model Employee {
   primaryMentorProjects   Project[]        @relation("PrimaryMentor")
   secondaryMentorProjects Project[]        @relation("SecondaryMentor")
   trainingAssignments EmployeeTraining[]
+  quizAttempts        QuizAttempt[]
   assetAssignments   AssetAssignment[]
   sandboxPlacement   SandboxPlacement?
   exit               EmployeeExit?
   handoverPrimaryFor   ExitHandover[] @relation("HandoverPrimarySuccessor")
   handoverSecondaryFor ExitHandover[] @relation("HandoverSecondarySuccessor")
+  jobOpeningsAsHiringManager JobOpening[] @relation("JobOpeningHiringManager")
+  convertedFromCandidate     Candidate?
   linkedUser User?
   announcementRecipient AnnouncementRecipient[]
   announcementLikes     AnnouncementLike[]
   announcementComments  AnnouncementComment[]
   favoritesAsOwner      FavoriteColleague[] @relation("FavoritesOwner")
   favoritesAsTarget     FavoriteColleague[] @relation("FavoritesTarget")
+  goals                 Goal[]
+  checkIns              CheckIn[]
+  performanceReviews    PerformanceReview[]
+  reviewFeedbackGiven   ReviewFeedback[]
+  recognitionsGiven     Recognition[]         @relation("RecognitionGiven")
+  recognitionsReceived  Recognition[]         @relation("RecognitionReceived")
+  recognitionLikes      RecognitionLike[]
+  recognitionComments   RecognitionComment[]
+  pulseSurveyResponses  PulseSurveyResponse[]
+  documentAcknowledgments CompanyDocumentAcknowledgment[]
+  designationHistory      DesignationHistory[]
 
   dateOfJoining DateTime?
   dateOfBirth   DateTime?
@@ -150,6 +188,8 @@ model EmployeeDocument {
   documentType String
   fileName     String
   fileUrl      String
+  fileSize     Int?
+  notes        String?
   expiryDate   DateTime?
   uploadedAt   DateTime  @default(now())
 }
@@ -159,13 +199,18 @@ model EmployeeDocument {
 // Master Data on purpose: nothing else references these rows by foreign key,
 // they're just documents to read (see the Sprint 8 design note).
 model CompanyDocument {
-  id         String   @id @default(uuid())
-  category   String
-  title      String
-  fileName   String
-  fileUrl    String
-  uploadedAt DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id                     String   @id @default(uuid())
+  category               String
+  title                  String
+  description            String?
+  fileName               String
+  fileUrl                String
+  fileSize               Int?
+  requiresAcknowledgment Boolean  @default(false)
+  uploadedAt             DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  acknowledgments CompanyDocumentAcknowledgment[]
 }
 
 // One-time login codes for employee self-service (OTP-only, no password).
@@ -215,6 +260,10 @@ model Holiday {
   name      String
   date      DateTime
   region    String   @default("US")
+  // Allowed: NATIONAL, REGIONAL, FLOATING — informational tag shown as a
+  // badge next to each holiday (Master Data redesign); does not change any
+  // leave-day calculation.
+  type      String   @default("NATIONAL")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -272,13 +321,23 @@ model AttendanceRecord {
 }
 
 // Single configurable row (id is always "default") driving attendance
-// analytics: what counts as "late" and what counts as a "half day". Kept
-// separate from Employee/company-wide settings since it's the one thing
-// Sprint 11's reporting needs and nothing else touches yet.
+// analytics: what counts as "late", "early", and what counts as a "half
+// day". Kept separate from Employee/company-wide settings since it's the
+// one thing Sprint 11's reporting needs and nothing else touches yet.
+//
+// Sprint 18 added expectedStartTimeDst: this company's real shift is
+// aligned to US client hours, so the expected IST start time itself shifts
+// during US Daylight Saving (India does not observe DST, but the US side
+// does) — see us-dst.util.ts for the actual US DST calendar rule used to
+// pick between the two fields for a given date.
 model AttendanceSettings {
   id                    String   @id @default("default")
-  expectedStartTime     String   @default("09:30") // "HH:MM", 24h, interpreted in server-local time
+  expectedStartTime     String   @default("17:00") // "HH:MM", 24h, standard (non-DST) shift start, interpreted in server-local time
+  expectedStartTimeDst  String   @default("18:00") // "HH:MM", 24h, shift start while US Daylight Saving is in effect
   graceMinutes          Int      @default(15)
+  // Arriving at least this many minutes before the expected start counts
+  // as "Early" rather than "On Time".
+  earlyThresholdMinutes Int      @default(10)
   halfDayThresholdHours Float    @default(4)
   updatedAt             DateTime @updatedAt
 }
@@ -327,6 +386,12 @@ model Client {
   contactEmail String?
   contactPhone String?
   timezone     String?
+  // Structured region classification driving the Reports "US Client
+  // Alignment" widget's timezone-overlap math — kept separate from the
+  // free-text `timezone` field above (e.g. "America/New_York", still just
+  // descriptive). Allowed: US_EAST, US_CENTRAL, US_MOUNTAIN, US_PACIFIC,
+  // NON_US.
+  region       String?
   status       String    @default("ACTIVE")
   notes        String?
   createdAt    DateTime  @default(now())
@@ -357,13 +422,23 @@ model Project {
   status             String              @default("ACTIVE")
   contractType       String?
   category           String?
+  // Legacy single "specific tool" field — kept for back-compat with data
+  // written before the multi-select tech stack tagging below existed.
+  // No longer written to by the UI; `technologies` is the live field.
   technologyId       String?
-  technology         Technology?         @relation(fields: [technologyId], references: [id])
+  technology         Technology?         @relation("ProjectPrimaryTechnology", fields: [technologyId], references: [id])
+  // Multi-select tech stack tags (Client Management / Project Management
+  // polish round) — mirrors JobOpening's existing technologies m2m pattern.
+  technologies       Technology[]        @relation("ProjectTechStack")
   primaryMentorId    String?
   primaryMentor      Employee?           @relation("PrimaryMentor", fields: [primaryMentorId], references: [id])
   secondaryMentorId  String?
   secondaryMentor    Employee?           @relation("SecondaryMentor", fields: [secondaryMentorId], references: [id])
   startDate          DateTime?
+  // Planned/target completion date, distinct from `endDate` — `endDate` is
+  // only ever set by actually ending the project (see EndProjectDto), this
+  // is just the forecast shown on the project's timeline.
+  targetCompletionDate DateTime?
   endDate            DateTime?
   closureSummary     String?
   createdAt          DateTime            @default(now())
@@ -371,6 +446,8 @@ model Project {
   assignments        ProjectAssignment[]
   sandboxPlacements  SandboxPlacement[]
   exitHandovers      ExitHandover[]
+  jobOpenings        JobOpening[]
+  alignedGoals       Goal[]
 
   @@unique([clientId, name])
 }
@@ -379,13 +456,15 @@ model Project {
 // Departments/Designations/Skills. Grouped by category so the Project form
 // can show only the tools relevant to whichever category was picked first.
 model Technology {
-  id        String    @id @default(uuid())
-  name      String
-  category  String
-  active    Boolean   @default(true)
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  projects  Project[]
+  id             String       @id @default(uuid())
+  name           String
+  category       String
+  active         Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  projects       Project[]    @relation("ProjectPrimaryTechnology")
+  projectsTagged Project[]    @relation("ProjectTechStack")
+  jobOpenings    JobOpening[]
 
   @@unique([name, category])
 }
@@ -402,6 +481,13 @@ model ProjectAssignment {
   employee          Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   roleOnProject     String?
   allocationPercent Float     @default(100)
+  // Leadership tag set when adding someone through "Add Mentors" — PRIMARY
+  // or SECONDARY, null for a plain team member. Setting this also syncs
+  // Project.primaryMentorId/secondaryMentorId (see ProjectsService.addAssignment)
+  // so mentors are real, allocated team members rather than a disconnected
+  // project-level field, per his real-world framing that mentors ARE the
+  // people actually supporting the client/project.
+  mentorRole        String?
   startDate         DateTime  @default(now())
   endDate           DateTime?
   createdAt         DateTime  @default(now())
@@ -429,6 +515,10 @@ model TrainingCourse {
   updatedAt    DateTime           @updatedAt
   resources    TrainingResource[]
   assignments  EmployeeTraining[]
+  // Learning Center "Assessments" tab — at most one course-scoped quiz.
+  // (Mandatory Training's single track-wide quiz is NOT attached here; see
+  // Quiz.track.) A course with no quiz just shows no "Take Assessment" button.
+  quiz         Quiz?
 }
 
 // A course can point at more than one resource — a Udemy course plus one or
@@ -463,6 +553,82 @@ model EmployeeTraining {
   @@unique([employeeId, courseId])
 }
 
+// Learning Center "Assessments" tab — a short multiple-choice knowledge
+// check. A quiz is scoped EITHER to one course (courseId set, track null —
+// IAM Engineering and DevOps Engineering assessments work this way, taken
+// after the employee marks that one course COMPLETED) OR to a whole track
+// (track set, courseId null — Mandatory Training has a single track-wide
+// assessment covering every Mandatory course, unlocked only once ALL of an
+// employee's assigned Mandatory courses are COMPLETED). Exactly one of
+// courseId/track is set, enforced by a CHECK constraint in the migration
+// (not expressible in this schema file for SQLite). Not every course/track
+// has an assessment yet; a null quiz just means no "Take Assessment" button
+// shows.
+model Quiz {
+  id          String   @id @default(uuid())
+  courseId    String?  @unique
+  course      TrainingCourse? @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  track       String?  @unique
+  title       String   @default("Knowledge Check")
+  passPercent Int      @default(70)
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  questions   QuizQuestion[]
+  attempts    QuizAttempt[]
+}
+
+model QuizQuestion {
+  id      String   @id @default(uuid())
+  quizId  String
+  quiz    Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  text    String
+  order   Int      @default(0)
+  options QuizOption[]
+  answers QuizAttemptAnswer[]
+}
+
+model QuizOption {
+  id         String   @id @default(uuid())
+  questionId String
+  question   QuizQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  text       String
+  isCorrect  Boolean  @default(false)
+  order      Int      @default(0)
+  answers    QuizAttemptAnswer[]
+}
+
+// One row per employee attempt — kept even on retake so a full history
+// exists; the most recent attempt is what "My Tests" and the admin Results
+// view treat as the current standing. totalQuestions/correctCount/
+// incorrectCount/percent are stored (not recomputed) so a later edit to the
+// quiz's questions never rewrites history.
+model QuizAttempt {
+  id             String   @id @default(uuid())
+  quizId         String
+  quiz           Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  employeeId     String
+  employee       Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  totalQuestions Int
+  correctCount   Int
+  incorrectCount Int
+  percent        Int
+  passed         Boolean
+  submittedAt    DateTime @default(now())
+  answers        QuizAttemptAnswer[]
+}
+
+model QuizAttemptAnswer {
+  id               String       @id @default(uuid())
+  attemptId        String
+  attempt          QuizAttempt  @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  questionId       String
+  question         QuizQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  selectedOptionId String?
+  selectedOption   QuizOption?  @relation(fields: [selectedOptionId], references: [id], onDelete: SetNull)
+  isCorrect        Boolean
+}
+
 
 // Company-owned assets (laptops, monitors, ID cards, software licenses,
 // phones, networking gear) that get handed out to employees and returned
@@ -478,8 +644,15 @@ model Asset {
   name         String
   serialNumber String?
   purchaseDate DateTime?
+  purchaseValue Float?
   notes        String?
   status       String            @default("AVAILABLE")
+  // Optional link to the Master Data vendor lookup (Assets & Docs tab).
+  // category itself stays a plain validated string (see the note above) —
+  // only vendor got a real relation, since it's a brand-new field with no
+  // existing string data to reconcile.
+  vendorId     String?
+  vendor       AssetVendor?      @relation(fields: [vendorId], references: [id])
   createdAt    DateTime          @default(now())
   updatedAt    DateTime          @updatedAt
   assignments  AssetAssignment[]
@@ -501,6 +674,93 @@ model AssetAssignment {
   returnNotes           String?
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
+}
+
+// Managed lookup list (Master Data — Assets & Docs tab). Asset.category
+// stays a plain string validated against this list's `name`s rather than a
+// hard foreign key, since existing Asset rows already carry the original
+// fixed category strings — renaming an entry here does not retroactively
+// relabel assets created under the old name (same tradeoff as any
+// name-matched lookup; mark it inactive instead of renaming if that matters).
+model AssetCategory {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  // Allowed: HARDWARE, SOFTWARE.
+  kind      String   @default("HARDWARE")
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Managed lookup list (Master Data — Assets & Docs tab). A real relation
+// (Asset.vendorId) since it's a brand-new field — no legacy string data to
+// reconcile the way category has.
+model AssetVendor {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  assets    Asset[]
+}
+
+// Managed lookup list (Master Data — Assets & Docs tab). Covers both
+// EmployeeDocument.documentType and CompanyDocument.category, distinguished
+// by appliesTo (EMPLOYEE | COMPANY) — both of those fields stay plain
+// strings validated against this list's `name`s, same name-matched
+// tradeoff as AssetCategory above.
+model DocumentType {
+  id        String   @id @default(uuid())
+  name      String
+  appliesTo String
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([name, appliesTo])
+}
+
+// Managed lookup list (Master Data — Locations tab). Employee.workLocation
+// stays a plain free-text string (see Employee model) — this list powers
+// the dropdown/autocomplete on the Employee form rather than being a hard
+// foreign key, so existing free-text values already on employee records
+// keep working even if they don't (yet) match an entry here.
+model WorkLocation {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  // Informational grouping so this list can eventually tie into the
+  // Holiday Calendar's US/India/Company split — optional, e.g. "US",
+  // "INDIA", "REMOTE".
+  region    String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Managed lookup list (Master Data — Clients & Hiring tab). ClientContract.contractType
+// stays a plain free-text string (see ClientContract model) — this list powers the
+// dropdown/autocomplete on the client contract form rather than being a hard foreign
+// key, same name-matched tradeoff as WorkLocation above: existing free-text values
+// already on contract records keep working even if they don't (yet) match an entry
+// here.
+model ContractType {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Managed lookup list (Master Data — Clients & Hiring tab). Candidate.source stays a
+// plain free-text string (see Candidate model) — this list powers the dropdown on the
+// Recruitment candidate form rather than being a hard foreign key, same tradeoff as
+// WorkLocation/ContractType above.
+model CandidateSource {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // In-app notifications. recipientKind/recipientId mirror the JWT session
@@ -541,6 +801,11 @@ model Announcement {
   attachmentUrl        String?
   attachmentName       String?
   category             String?
+  // One of a fixed sticky-note palette (see STICKY_COLORS in
+  // announcements.service.ts) -- assigned randomly at creation, never
+  // client-chosen, so every posted announcement gets a distinct-looking
+  // note without staff having to think about it.
+  color                String?
   pinned               Boolean   @default(false)
   commentsDisabled     Boolean   @default(false)
   audienceType         String    @default("ALL")
@@ -762,4 +1027,397 @@ model ExitClearanceItem {
   notes       String?
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
+}
+
+
+// --- Sprint 13: Recruitment ---------------------------------------------
+// Started deliberately simple (matching the company's actual hiring process
+// and its current Zoho Sheet tracker) then extended into a richer
+// ATS-flavored requisition/pipeline for staffing US client projects at
+// scale, per follow-up feedback right after the first pass shipped — still
+// no job-requisition approval workflow or true resume-parsing/NLP, just
+// richer structured fields on the same two models. No enum types (SQLite
+// doesn't support them, same reason every other status field in this
+// schema is a plain String) — allowed values are enforced in the DTOs.
+//
+// status: OPEN, ON_HOLD, CLOSED. employmentType reuses Employee's own
+// EMPLOYMENT_TYPES vocabulary (INTERN/FULL_TIME/PART_TIME/CONTRACTOR).
+// experienceLevel: ENTRY, MID, SENIOR, LEAD. technologies is an implicit
+// many-to-many onto the existing Technology model (multi-select tags),
+// unlike Project's single optional `technology`. refCode is a human
+// reference like "REC-0001" via the same Counter pattern as
+// Employee.employeeCode.
+model JobOpening {
+  id              String       @id @default(uuid())
+  refCode         String       @unique
+  title           String
+  departmentId    String?
+  department      Department?  @relation(fields: [departmentId], references: [id])
+  projectId       String?
+  project         Project?     @relation(fields: [projectId], references: [id])
+  hiringManagerId String?
+  hiringManager   Employee?    @relation("JobOpeningHiringManager", fields: [hiringManagerId], references: [id])
+  technologies    Technology[]
+  employmentType  String?
+  experienceLevel String?
+  salaryRange     String?
+  headcountTarget Int          @default(1)
+  description     String?
+  status          String       @default("OPEN")
+  openedAt        DateTime     @default(now())
+  closedAt        DateTime?
+  candidates      Candidate[]
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+}
+
+// source: NAUKRI, LINKEDIN, REFERRAL, OTHER
+// stage: APPLIED, SCREENING_CALL, TECHNICAL_ROUND, FINAL_ROUND,
+//        OFFER_EXTENDED, HIRED, REJECTED (FINAL_ROUND / finalRoundNotes /
+//        finalRoundRating display as "Client Round" in the UI now that this
+//        doubles as the client-facing interview for US client roles — kept
+//        the same underlying value/field names rather than a disruptive
+//        rename + migration).
+// One free-text notes field + a 1-5 rating per real interview step
+// (screening call, technical round, client/final round) rather than a
+// separate multi-interviewer scorecard model — one rating per stage is
+// "usable" without the complexity of a full scorecard system.
+// convertedEmployeeId is set by the "Offer & Convert to Employee" action —
+// it creates a real Employee record and links back here.
+model Candidate {
+  id                  String     @id @default(uuid())
+  jobOpeningId        String
+  jobOpening          JobOpening @relation(fields: [jobOpeningId], references: [id], onDelete: Cascade)
+  fullName            String
+  email               String
+  phone               String?
+  source              String     @default("OTHER")
+  stage               String     @default("APPLIED")
+  screeningNotes      String?
+  screeningRating     Int?
+  technicalNotes      String?
+  technicalRating     Int?
+  finalRoundNotes     String?
+  finalRoundRating    Int?
+  nextInterviewAt     DateTime?
+  rejectionReason     String?
+  resumeFileName      String?
+  resumeUrl           String?
+  appliedAt           DateTime   @default(now())
+  hiredAt             DateTime?
+  convertedEmployeeId String?    @unique
+  convertedEmployee   Employee?  @relation(fields: [convertedEmployeeId], references: [id])
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
+}
+
+// --- Sprint 14: Performance & Goal Management ----------------------------
+// A ReviewCycle (e.g. "Q1 2026") frames both OKR-style Goals and formal
+// multi-rater PerformanceReviews. CheckIns are lightweight, continuous
+// progress logs against a goal rather than a separate heavyweight 1:1
+// system. Status/category/rater-type fields are plain String + @IsIn(...)
+// in the DTOs, same as everywhere else in this schema — SQLite has no
+// native Prisma enum support (see CANDIDATE_STAGES, EXIT categories, etc.).
+
+model ReviewCycle {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  startDate DateTime
+  endDate   DateTime
+  status    String   @default("DRAFT") // DRAFT, ACTIVE, CLOSED
+
+  goals   Goal[]
+  reviews PerformanceReview[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Goal {
+  id            String       @id @default(uuid())
+  employeeId    String
+  employee      Employee     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  reviewCycleId String?
+  reviewCycle   ReviewCycle? @relation(fields: [reviewCycleId], references: [id])
+
+  // Self-relation for OKR alignment cascades (company goal -> team goal ->
+  // individual goal). Optional — most goals in a small team will have no
+  // parent.
+  parentGoalId String?
+  parentGoal   Goal?  @relation("GoalAlignment", fields: [parentGoalId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  childGoals   Goal[] @relation("GoalAlignment")
+
+  // Aligned US client/project — lets a goal card show which client
+  // engagement it ties back to (e.g. "Fintech Platform Overhaul").
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id])
+
+  title       String
+  description String?
+  category    String @default("INDIVIDUAL") // INDIVIDUAL, TEAM, COMPANY (displayed as Individual/Department/Company)
+  progress    Int    @default(0) // 0-100
+  status      String @default("NOT_STARTED") // NOT_STARTED, IN_PROGRESS, AT_RISK, COMPLETED
+  dueDate     DateTime?
+
+  checkIns   CheckIn[]
+  keyResults KeyResult[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Nested, checkbox-style sub-tasks under a Goal (e.g. "Ship 3 client
+// integrations" -> "0/3 Key Results Done") — deliberately simple
+// (title + optional target value + a completed flag) rather than a full
+// numeric current/target tracker, matching this app's "free and simple but
+// usable" bias.
+model KeyResult {
+  id          String  @id @default(uuid())
+  goalId      String
+  goal        Goal    @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  title       String
+  targetValue String?
+  completed   Boolean @default(false)
+  order       Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model CheckIn {
+  id         String   @id @default(uuid())
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  goalId     String?
+  goal       Goal?    @relation(fields: [goalId], references: [id], onDelete: SetNull)
+
+  progressUpdate String
+  blockers       String?
+  confidence     String   @default("ON_TRACK") // ON_TRACK, AT_RISK, OFF_TRACK
+  checkInDate    DateTime @default(now())
+
+  createdAt DateTime @default(now())
+}
+
+model PerformanceReview {
+  id            String      @id @default(uuid())
+  reviewCycleId String
+  reviewCycle   ReviewCycle @relation(fields: [reviewCycleId], references: [id], onDelete: Cascade)
+  employeeId    String
+  employee      Employee    @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  status               String    @default("NOT_STARTED") // NOT_STARTED, IN_PROGRESS, COMPLETED
+  overallRating        Int?
+  // Manager's read on future growth potential (1-5), separate from the
+  // performance rating above — the pair is what powers the 9-box
+  // performance-vs-potential grid.
+  potentialRating      Int?
+  managerSummary       String?
+  // How many peer reviewers this review expects, purely for the "2/3
+  // Received" style progress badge in the 360 matrix — not enforced, just
+  // a target to compare the actual PEER feedback count against.
+  expectedPeerReviewers Int      @default(3)
+  employeeAcknowledged Boolean   @default(false)
+  acknowledgedAt       DateTime?
+
+  feedback ReviewFeedback[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([reviewCycleId, employeeId])
+}
+
+model ReviewFeedback {
+  id                  String            @id @default(uuid())
+  performanceReviewId String
+  performanceReview   PerformanceReview @relation(fields: [performanceReviewId], references: [id], onDelete: Cascade)
+  raterId             String
+  rater               Employee          @relation(fields: [raterId], references: [id])
+  raterType           String            // SELF, MANAGER, PEER
+
+  communicationRating   Int?
+  technicalRating       Int?
+  teamworkRating        Int?
+  goalAchievementRating Int?
+  comments              String?
+
+  submittedAt DateTime @default(now())
+
+  @@unique([performanceReviewId, raterId, raterType])
+}
+
+
+// --- Sprint 15: Employee Engagement & Feedback --------------------------
+// Peer recognition ("kudos") any employee can post about any colleague,
+// plus lightweight pulse surveys — both intentionally simple (a feed with
+// likes/comments, a handful of questions per survey) rather than a full
+// points/badges economy or a survey-builder platform, matching this app's
+// "free and simple but usable" bias. Mirrors the Announcement precedent
+// for the social feed shape (likes/comments) and audience targeting.
+
+model Recognition {
+  id             String   @id @default(uuid())
+  fromEmployeeId String
+  fromEmployee   Employee @relation("RecognitionGiven", fields: [fromEmployeeId], references: [id], onDelete: Cascade)
+  toEmployeeId   String
+  toEmployee     Employee @relation("RecognitionReceived", fields: [toEmployeeId], references: [id], onDelete: Cascade)
+  // TEAMWORK, CLIENT_IMPACT, INNOVATION, LEADERSHIP, GOING_ABOVE_AND_BEYOND
+  category       String
+  message        String
+  // Optional reward points awarded with this kudos (0, 10, 25, 50, 100 in
+  // the UI) — a lightweight points economy, not a full rewards ledger.
+  points         Int      @default(0)
+  createdAt      DateTime @default(now())
+
+  likes    RecognitionLike[]
+  comments RecognitionComment[]
+
+  @@index([toEmployeeId, createdAt])
+  @@index([createdAt])
+}
+
+model RecognitionLike {
+  id            String      @id @default(uuid())
+  recognitionId String
+  recognition   Recognition @relation(fields: [recognitionId], references: [id], onDelete: Cascade)
+  employeeId    String
+  employee      Employee    @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  // LIKE, CLAP, FIRE, ROCKET — one row per employee per reaction type, so
+  // a single person can react with more than one emoji on the same post.
+  reactionType  String      @default("LIKE")
+  createdAt     DateTime    @default(now())
+
+  @@unique([recognitionId, employeeId, reactionType])
+}
+
+model RecognitionComment {
+  id            String      @id @default(uuid())
+  recognitionId String
+  recognition   Recognition @relation(fields: [recognitionId], references: [id], onDelete: Cascade)
+  employeeId    String
+  employee      Employee    @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  body          String
+  createdAt     DateTime    @default(now())
+
+  @@index([recognitionId, createdAt])
+}
+
+// Allowed status: DRAFT, ACTIVE, CLOSED. Allowed audienceType: ALL,
+// DEPARTMENTS (same two-value subset as Announcement's three — pulse
+// surveys don't need an INDIVIDUALS targeting mode).
+model PulseSurvey {
+  id           String    @id @default(uuid())
+  title        String
+  description  String?
+  status       String    @default("DRAFT")
+  audienceType String    @default("ALL")
+  closesAt     DateTime?
+  createdById  String
+  createdBy    User      @relation(fields: [createdById], references: [id])
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  questions           PulseSurveyQuestion[]
+  responses           PulseSurveyResponse[]
+  audienceDepartments PulseSurveyDepartment[]
+
+  @@index([status, createdAt])
+}
+
+model PulseSurveyDepartment {
+  id           String      @id @default(uuid())
+  surveyId     String
+  survey       PulseSurvey @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+  departmentId String
+  department   Department  @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+
+  @@unique([surveyId, departmentId])
+}
+
+// Allowed type: RATING (1-5 scale), YES_NO, TEXT (free response).
+model PulseSurveyQuestion {
+  id       String      @id @default(uuid())
+  surveyId String
+  survey   PulseSurvey @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+  text     String
+  type     String
+  order    Int         @default(0)
+
+  answers PulseSurveyAnswer[]
+}
+
+// One per employee per survey — enforced by the unique constraint so a
+// second submission updates rather than duplicates. Aggregate-only by
+// design: nothing in the API ever returns a response mapped back to an
+// employee to a non-staff caller, and even staff only ever see aggregated
+// answer counts, not "who answered what" pages, to keep pulse feedback
+// candid.
+model PulseSurveyResponse {
+  id          String      @id @default(uuid())
+  surveyId    String
+  survey      PulseSurvey @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+  employeeId  String
+  employee    Employee    @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  submittedAt DateTime    @default(now())
+
+  answers PulseSurveyAnswer[]
+
+  @@unique([surveyId, employeeId])
+}
+
+model PulseSurveyAnswer {
+  id          String              @id @default(uuid())
+  responseId  String
+  response    PulseSurveyResponse @relation(fields: [responseId], references: [id], onDelete: Cascade)
+  questionId  String
+  question    PulseSurveyQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  ratingValue Int?
+  boolValue   Boolean?
+  textValue   String?
+}
+
+
+// --- Sprint 16: Compliance Tracking & Reporting Data-Model Enhancements ---
+// Fills the three gaps flagged while wiring Reports & Analytics to real
+// data (see previewMockData.ts / reports.service.ts comments): policy
+// acknowledgment tracking, and a designation change history. The fourth
+// item (a structured Client.region field) lives on the Client model above
+// instead of here; the fifth (a VISA document type) is a constants-only
+// change with no schema impact.
+
+// One row per employee who has acknowledged a given company document —
+// only meaningful for category="POLICY" documents in practice, but not
+// hard-restricted to that category so a future use (e.g. acknowledging a
+// handbook update) doesn't need a schema change. Idempotent: acknowledging
+// twice just upserts the same row rather than erroring.
+model CompanyDocumentAcknowledgment {
+  id                 String           @id @default(uuid())
+  companyDocumentId  String
+  companyDocument    CompanyDocument  @relation(fields: [companyDocumentId], references: [id], onDelete: Cascade)
+  employeeId         String
+  employee           Employee         @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  acknowledgedAt     DateTime         @default(now())
+
+  @@unique([companyDocumentId, employeeId])
+}
+
+// A row per designation change (promotion, lateral move, or the initial
+// hire). Both ends are nullable so a new hire's first entry can have a
+// null `from`, matching how a genuine "no prior designation" state should
+// read rather than forcing a placeholder value. Written automatically by
+// EmployeesService.update()/create() whenever designationId changes — this
+// is never edited directly, so there's no corresponding DTO.
+model DesignationHistory {
+  id                String       @id @default(uuid())
+  employeeId        String
+  employee          Employee     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  fromDesignationId String?
+  fromDesignation   Designation? @relation("DesignationHistoryFrom", fields: [fromDesignationId], references: [id])
+  toDesignationId   String?
+  toDesignation     Designation? @relation("DesignationHistoryTo", fields: [toDesignationId], references: [id])
+  changedAt         DateTime     @default(now())
+  note              String?
+
+  @@index([employeeId, changedAt])
 }

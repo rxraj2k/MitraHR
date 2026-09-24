@@ -1,9 +1,19 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { join } from 'path';
+import { MailService } from '../mail/mail.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpdateAnnouncementDto } from './dto/update-announcement.dto';
 
 export type AnnouncementAudienceType = 'ALL' | 'DEPARTMENTS' | 'INDIVIDUALS';
+
+// Fixed sticky-note palette (frontend: stickyNoteColors.ts must define the
+// same keys) -- randomly assigned per announcement at creation, never
+// client-chosen, so the board reads as a mix of colors like a real
+// corkboard rather than every note matching the brand color.
+export const STICKY_COLORS = ['yellow', 'pink', 'blue', 'green', 'orange', 'purple', 'teal'] as const;
+function randomStickyColor(): string {
+  return STICKY_COLORS[Math.floor(Math.random() * STICKY_COLORS.length)];
+}
 
 export interface CreateAnnouncementInput {
   title: string;
@@ -28,7 +38,10 @@ export interface SessionUser {
 
 @Injectable()
 export class AnnouncementsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private mail: MailService,
+  ) {}
 
   async findOne(id: string) {
     const announcement = await this.prisma.announcement.findUnique({ where: { id } });
@@ -36,11 +49,12 @@ export class AnnouncementsService {
     return announcement;
   }
 
-  create(createdById: string, input: CreateAnnouncementInput) {
+  async create(createdById: string, input: CreateAnnouncementInput) {
     const { audienceDepartmentIds, audienceEmployeeIds, ...rest } = input;
-    return this.prisma.announcement.create({
+    const announcement = await this.prisma.announcement.create({
       data: {
         ...rest,
+        color: randomStickyColor(),
         createdById,
         audienceDepartments:
           input.audienceType === 'DEPARTMENTS' && audienceDepartmentIds?.length
@@ -51,7 +65,89 @@ export class AnnouncementsService {
             ? { create: audienceEmployeeIds.map((employeeId) => ({ employeeId })) }
             : undefined,
       },
+      include: { createdBy: { select: { name: true } } },
     });
+    // Fire-and-forget, same pattern as leave decision emails -- a slow or
+    // failing mail send should never hold up or fail the announcement post
+    // itself. Recipients mirror exactly who can SEE the announcement
+    // in-app (findAllForViewer's audience rules): every active employee for
+    // ALL, only the targeted departments' active employees for DEPARTMENTS,
+    // only the named employees for INDIVIDUALS -- an announcement aimed at
+    // one department or a handful of people never blasts the whole company.
+    this.emailAnnouncement(announcement, audienceDepartmentIds, audienceEmployeeIds).catch(() => {});
+    return announcement;
+  }
+
+  // Strips the rich-text editor's HTML down to a readable plain-text
+  // fallback for the `text` part of the email (some mail clients/spam
+  // filters penalize HTML-only messages).
+  private htmlToText(html: string): string {
+    return html
+      .replace(/<(br|\/p|\/div|\/li|\/h[1-6])\s*\/?>(?!$)/gi, '\n')
+      .replace(/<[^>]+>/g, '')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+  }
+
+  private async emailAnnouncement(
+    announcement: {
+      id: string;
+      title: string;
+      body: string;
+      category: string | null;
+      audienceType: string;
+      createdBy: { name: string };
+    },
+    audienceDepartmentIds?: string[],
+    audienceEmployeeIds?: string[],
+  ) {
+    const activeOnly = { status: 'ACTIVE' } as const;
+    let recipients: { email: string }[];
+    if (announcement.audienceType === 'DEPARTMENTS' && audienceDepartmentIds?.length) {
+      recipients = await this.prisma.employee.findMany({
+        where: { ...activeOnly, departmentId: { in: audienceDepartmentIds } },
+        select: { email: true },
+      });
+    } else if (announcement.audienceType === 'INDIVIDUALS' && audienceEmployeeIds?.length) {
+      recipients = await this.prisma.employee.findMany({
+        where: { ...activeOnly, id: { in: audienceEmployeeIds } },
+        select: { email: true },
+      });
+    } else {
+      recipients = await this.prisma.employee.findMany({
+        where: activeOnly,
+        select: { email: true },
+      });
+    }
+    if (recipients.length === 0) return;
+
+    const plainBody = this.htmlToText(announcement.body);
+    const subject = `New Announcement: ${announcement.title}`;
+    const text = `${announcement.title}\n\n${plainBody}\n\n— Posted by ${announcement.createdBy.name} on MitraHR`;
+    const html = `
+      <div style="font-family: -apple-system, Segoe UI, Roboto, sans-serif; max-width: 560px; margin: 0 auto;">
+        <div style="background: linear-gradient(135deg, #6366f1, #8b5cf6); border-radius: 16px 16px 0 0; padding: 24px 28px;">
+          ${
+            announcement.category
+              ? `<p style="color: #e0e7ff; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; margin: 0 0 8px;">${announcement.category}</p>`
+              : ''
+          }
+          <h1 style="color: #ffffff; font-size: 20px; line-height: 1.3; margin: 0;">${announcement.title}</h1>
+        </div>
+        <div style="background: #ffffff; border: 1px solid #e2e8f0; border-top: none; border-radius: 0 0 16px 16px; padding: 24px 28px;">
+          <div style="color: #334155; font-size: 14px; line-height: 1.7;">${announcement.body}</div>
+          <p style="color: #94a3b8; font-size: 12px; margin: 24px 0 0; padding-top: 16px; border-top: 1px solid #f1f5f9;">
+            Posted by ${announcement.createdBy.name} — log in to MitraHR to view, like, or comment.
+          </p>
+        </div>
+      </div>
+    `;
+
+    await Promise.all(recipients.map((r) => this.mail.sendMail({ to: r.email, subject, text, html }).catch(() => {})));
   }
 
   // Audience isn't editable here on purpose — see UpdateAnnouncementDto.
@@ -140,6 +236,7 @@ export class AnnouncementsService {
       attachmentUrl: a.attachmentUrl,
       attachmentName: a.attachmentName,
       category: a.category,
+      color: a.color,
       pinned: a.pinned,
       commentsDisabled: a.commentsDisabled,
       audienceType: a.audienceType,

@@ -1,10 +1,11 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
-import { IsDateString, IsIn, IsString, MinLength } from 'class-validator';
+import { IsDateString, IsIn, IsOptional, IsString, MinLength } from 'class-validator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { StaffOnlyGuard } from '../auth/staff-only.guard';
 import { HolidaysService } from './holidays.service';
 
 const REGIONS = ['US', 'INDIA', 'COMPANY'];
+const HOLIDAY_TYPES = ['NATIONAL', 'REGIONAL', 'FLOATING'];
 
 class UpsertHolidayDto {
   @IsString()
@@ -16,6 +17,10 @@ class UpsertHolidayDto {
 
   @IsIn(REGIONS)
   region: string;
+
+  @IsOptional()
+  @IsIn(HOLIDAY_TYPES)
+  type?: string;
 }
 
 // Read open to any logged-in session (everyone should see the holiday

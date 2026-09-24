@@ -15,7 +15,7 @@ import {
 import profileBannerImage from '../../assets/profile-banner.jpg';
 import { API_BASE } from '../../lib/api';
 import { Employee, FavoriteColleague, LookupItem } from '../../types';
-import { Avatar, initials } from './Organization';
+import { Avatar, initials } from '../../components/Avatar';
 
 const EMPLOYMENT_TYPE_LABELS: Record<string, string> = {
   INTERN: 'Intern',

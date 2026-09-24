@@ -1,19 +1,51 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import MyLearningPanel from '../../components/MyLearningPanel';
-import { ExternalLinkIcon } from '../../components/icons';
+import MyTestsPanel from '../../components/MyTestsPanel';
+import TestResultsTable from '../../components/TestResultsTable';
+import ManageAssessmentsPanel from '../../components/ManageAssessmentsPanel';
+import LearningPortalCard from '../../components/LearningPortalCard';
+import LearningReferencePanel from '../../components/LearningReferencePanel';
+import Tabs3D, { Tab3DColor, Tab3DItem } from '../../components/Tabs3D';
+import { AwardIcon, ExternalLinkIcon } from '../../components/icons';
+import Progress3DBar from '../../components/Progress3DBar';
 import { resourceLinkLabel } from '../../lib/resourceLinks';
-import { CATEGORY_LABELS, CATEGORY_THEME } from '../../lib/trainingCategories';
+import { CATEGORY_LABELS, CATEGORY_THEME, TRAINING_CATEGORIES } from '../../lib/trainingCategories';
+import { TRACK_LABELS, TRACK_THEME, TRAINING_TRACKS, categoriesForTrack } from '../../lib/trainingTracks';
+import { HUE_GRADIENTS, TOGGLE_3D_INACTIVE, toggle3dActive } from '../../lib/buttonStyles';
 import {
   assignTraining,
+  getEmployee,
   getEmployees,
+  getLearningPortals,
+  getLearningReference,
   getMyTraining,
   getTrainingCourses,
   getTrainingProgress,
   removeTrainingAssignment,
   updateTrainingAssignmentStatus,
 } from '../../lib/api';
-import { Employee, EmployeeTraining, TrainingCourse, TrainingProgressEntry, TrainingStatus } from '../../types';
+import {
+  Employee,
+  EmployeeTraining,
+  LearningPortalCredential,
+  LearningReferenceGroup,
+  LearningTrack,
+  TrainingCategory,
+  TrainingCourse,
+  TrainingProgressEntry,
+  TrainingStatus,
+} from '../../types';
+
+type LearningCenterTab = LearningTrack | 'ASSESSMENTS';
+
+const ASSESSMENTS_TAB_THEME = { active: 'bg-gradient-to-br from-violet-500 to-purple-700', glow: 'shadow-violet-500/40 ring-violet-300' };
+
+const ASSESSMENT_SUBTRACK_COLOR: Record<LearningTrack, Tab3DColor> = {
+  MANDATORY: 'indigo',
+  IAM_ENGINEERING: 'emerald',
+  DEVOPS_ENGINEERING: 'amber',
+};
 
 const STATUS_OPTIONS: { key: TrainingStatus; label: string }[] = [
   { key: 'NOT_STARTED', label: 'Not Started' },
@@ -31,19 +63,29 @@ const STATUS_PILL_ACTIVE: Record<TrainingStatus, string> = {
   COMPLETED: 'bg-green-500 text-white',
 };
 
-function EmployeeTrainingDetail({ employeeId, onChanged }: { employeeId: string; onChanged?: () => void }) {
+function EmployeeTrainingDetail({
+  employeeId,
+  categories,
+  onChanged,
+}: {
+  employeeId: string;
+  categories?: TrainingCategory[];
+  onChanged?: () => void;
+}) {
   const { token } = useAuth();
-  const [items, setItems] = useState<EmployeeTraining[] | null>(null);
+  const [allItems, setAllItems] = useState<EmployeeTraining[] | null>(null);
   const [error, setError] = useState('');
 
   function load() {
     if (!token) return;
     getMyTraining(token, employeeId)
-      .then(setItems)
+      .then(setAllItems)
       .catch((err) => setError(err.message));
   }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(load, [token, employeeId]);
+
+  const items = categories ? allItems?.filter((i) => categories.includes(i.course.category)) ?? null : allItems;
 
   async function handleChange(id: string, status: TrainingStatus) {
     if (!token) return;
@@ -130,7 +172,7 @@ function EmployeeTrainingDetail({ employeeId, onChanged }: { employeeId: string;
   );
 }
 
-function TeamProgressTab() {
+function TeamProgressTab({ track, categories }: { track: LearningTrack; categories?: TrainingCategory[] }) {
   const { token } = useAuth();
   const [rows, setRows] = useState<TrainingProgressEntry[]>([]);
   const [courses, setCourses] = useState<TrainingCourse[]>([]);
@@ -146,10 +188,12 @@ function TeamProgressTab() {
   const [assignSubmitting, setAssignSubmitting] = useState(false);
   const [assignMessage, setAssignMessage] = useState('');
 
+  const scopedCourses = categories ? courses.filter((c) => categories.includes(c.category)) : courses;
+
   function load() {
     if (!token) return;
     setLoading(true);
-    Promise.all([getTrainingProgress(token), getTrainingCourses(token), getEmployees(token)])
+    Promise.all([getTrainingProgress(token, categories), getTrainingCourses(token), getEmployees(token)])
       .then(([p, c, e]) => {
         setRows(p);
         setCourses(c);
@@ -159,14 +203,14 @@ function TeamProgressTab() {
       .finally(() => setLoading(false));
   }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(load, [token]);
+  useEffect(load, [token, track]);
 
   async function handleAssignStandard(employeeId: string) {
     if (!token) return;
     setAssigningId(employeeId);
     setError('');
     try {
-      const nonRestricted = courses.filter((c) => c.active && !c.restrictedTo).map((c) => c.id);
+      const nonRestricted = scopedCourses.filter((c) => c.active && !c.restrictedTo).map((c) => c.id);
       await assignTraining(token, { employeeIds: [employeeId], courseIds: nonRestricted });
       setExpandedId(employeeId);
       load();
@@ -238,7 +282,7 @@ function TeamProgressTab() {
               className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
             >
               <option value="">Select a course...</option>
-              {courses.map((c) => (
+              {scopedCourses.map((c) => (
                 <option key={c.id} value={c.id}>
                   {CATEGORY_LABELS[c.category]} · {c.title}
                   {c.restrictedTo ? ` (${c.restrictedTo})` : ''}
@@ -266,7 +310,7 @@ function TeamProgressTab() {
             <button
               type="submit"
               disabled={assignSubmitting}
-              className="rounded-lg bg-gradient-to-r from-mitra-accentFrom to-mitra-accentTo text-white text-sm font-medium px-4 py-2 disabled:opacity-50"
+              className="rounded-lg bg-gradient-to-r from-mitra-accentFrom to-mitra-accentTo text-white text-sm font-medium px-4 py-2 disabled:opacity-50 shadow-[0_6px_16px_-4px_rgba(124,111,255,0.55)] hover:-translate-y-0.5 hover:shadow-[0_10px_20px_-4px_rgba(124,111,255,0.6)] active:translate-y-0 active:shadow-[0_3px_8px_-2px_rgba(124,111,255,0.5)] transition-all duration-150"
             >
               {assignSubmitting ? 'Assigning...' : 'Assign'}
             </button>
@@ -300,10 +344,14 @@ function TeamProgressTab() {
                       <td className="py-2 text-slate-500">{[r.designationName, r.departmentName].filter(Boolean).join(' · ') || '—'}</td>
                       <td className="py-2">
                         <div className="flex items-center gap-2">
-                          <div className="w-24 h-2 bg-slate-100 rounded-full overflow-hidden flex-shrink-0">
-                            <div
-                              className={`h-full ${r.percentComplete === 100 ? 'bg-green-500' : 'bg-mitra-accentFrom'}`}
-                              style={{ width: `${r.percentComplete}%` }}
+                          <div className="w-24 flex-shrink-0">
+                            <Progress3DBar
+                              percent={r.percentComplete}
+                              fillClassName={
+                                r.percentComplete === 100
+                                  ? 'bg-gradient-to-r from-emerald-400 to-emerald-600'
+                                  : 'bg-gradient-to-r from-mitra-accentFrom to-mitra-accentTo'
+                              }
                             />
                           </div>
                           <span className="text-slate-600 text-xs w-8">{r.percentComplete}%</span>
@@ -320,7 +368,11 @@ function TeamProgressTab() {
                             disabled={assigningId === r.id}
                             className="text-xs text-mitra-accentFrom hover:underline disabled:opacity-50"
                           >
-                            {assigningId === r.id ? 'Assigning...' : 'Assign Standard Curriculum'}
+                            {assigningId === r.id
+                              ? 'Assigning...'
+                              : track === 'MANDATORY'
+                              ? 'Assign Standard Curriculum'
+                              : 'Assign All Courses'}
                           </button>
                           {r.totalAssigned > 0 && (
                             <button
@@ -337,7 +389,7 @@ function TeamProgressTab() {
                     {expandedId === r.id && (
                       <tr>
                         <td colSpan={6} className="p-0">
-                          <EmployeeTrainingDetail employeeId={r.id} onChanged={load} />
+                          <EmployeeTrainingDetail employeeId={r.id} categories={categories} onChanged={load} />
                         </td>
                       </tr>
                     )}
@@ -353,16 +405,228 @@ function TeamProgressTab() {
   );
 }
 
+function PortalAccessSection({ track }: { track: 'IAM' | 'DEVOPS' }) {
+  const { token } = useAuth();
+  const [portals, setPortals] = useState<LearningPortalCredential[] | null>(null);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!token) return;
+    getLearningPortals(token, track)
+      .then(setPortals)
+      .catch((err) => setError(err.message));
+  }, [token, track]);
+
+  if (error) return <p className="text-sm text-red-600">{error}</p>;
+  if (!portals || portals.length === 0) return null;
+
+  const themes = [
+    { bg: 'bg-gradient-to-br from-cyan-500 to-teal-700', shadow: 'shadow-[0_10px_24px_-8px_rgba(13,148,136,0.5)]' },
+    { bg: 'bg-gradient-to-br from-indigo-500 to-indigo-700', shadow: 'shadow-[0_10px_24px_-8px_rgba(79,70,229,0.5)]' },
+    { bg: 'bg-gradient-to-br from-violet-500 to-purple-700', shadow: 'shadow-[0_10px_24px_-8px_rgba(147,51,234,0.5)]' },
+    { bg: 'bg-gradient-to-br from-rose-500 to-red-700', shadow: 'shadow-[0_10px_24px_-8px_rgba(220,38,38,0.5)]' },
+  ];
+
+  return (
+    <div>
+      <h3 className="text-base font-semibold text-slate-800 mb-3">Portal Access</h3>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        {portals.map((p, i) => (
+          <LearningPortalCard key={p.id} portal={p} theme={themes[i % themes.length]} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ReferenceSection({ track }: { track: 'IAM' | 'DEVOPS' }) {
+  const { token } = useAuth();
+  const [groups, setGroups] = useState<LearningReferenceGroup[] | null>(null);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!token) return;
+    getLearningReference(token, track)
+      .then(setGroups)
+      .catch((err) => setError(err.message));
+  }, [token, track]);
+
+  if (error) return <p className="text-sm text-red-600">{error}</p>;
+  if (!groups || groups.length === 0) return null;
+  return <LearningReferencePanel groups={groups} />;
+}
+
+function IamEngineeringTab({ employeeId }: { employeeId?: string | null }) {
+  const categories = categoriesForTrack('IAM_ENGINEERING', TRAINING_CATEGORIES);
+  return (
+    <div className="space-y-6">
+      <PortalAccessSection track="IAM" />
+      {employeeId && (
+        <MyLearningPanel
+          employeeId={employeeId}
+          title="My IAM Learning"
+          categories={categories}
+          emptyMessage="No IAM courses assigned to you yet — ask a manager to assign one from the catalog below."
+        />
+      )}
+      <TeamProgressTab track="IAM_ENGINEERING" categories={categories} />
+      <ReferenceSection track="IAM" />
+    </div>
+  );
+}
+
+function DevOpsEngineeringTab({ employeeId }: { employeeId?: string | null }) {
+  const categories = categoriesForTrack('DEVOPS_ENGINEERING', TRAINING_CATEGORIES);
+  return (
+    <div className="space-y-6">
+      <PortalAccessSection track="DEVOPS" />
+      {employeeId && (
+        <MyLearningPanel
+          employeeId={employeeId}
+          title="My DevOps Learning"
+          categories={categories}
+          emptyMessage="No DevOps courses assigned to you yet — ask a manager to assign one from the catalog below."
+        />
+      )}
+      <TeamProgressTab track="DEVOPS_ENGINEERING" categories={categories} />
+      <ReferenceSection track="DEVOPS" />
+    </div>
+  );
+}
+
+// Learning Center "Assessments" tab. Groups by the same Mandatory/IAM/
+// DevOps tracks as the rest of the Learning Center; shows the logged-in
+// employee's own assessment(s) plus, for staff, authoring + org-wide
+// results scoped to the same track. Mandatory Training is one track-wide
+// assessment; IAM/DevOps stay per-course — see MyTestsPanel/ManageAssessmentsPanel.
+function AssessmentsSection({ employeeId, isStaff }: { employeeId?: string | null; isStaff: boolean }) {
+  const { token } = useAuth();
+  const [subTrack, setSubTrack] = useState<LearningTrack>('MANDATORY');
+  const [staffView, setStaffView] = useState<'results' | 'manage'>('results');
+  const [employee, setEmployee] = useState<Employee | null>(null);
+
+  useEffect(() => {
+    if (!token || !employeeId) return;
+    getEmployee(token, employeeId)
+      .then(setEmployee)
+      .catch(() => {});
+  }, [token, employeeId]);
+
+  const categories = categoriesForTrack(subTrack, TRAINING_CATEGORIES);
+  const subTabs: Tab3DItem<LearningTrack>[] = TRAINING_TRACKS.map((t) => ({
+    key: t,
+    label: TRACK_LABELS[t],
+    color: ASSESSMENT_SUBTRACK_COLOR[t],
+  }));
+
+  return (
+    <div className="space-y-6">
+      <Tabs3D tabs={subTabs} active={subTrack} onChange={setSubTrack} />
+
+      {employeeId && (
+        <div className="bg-white border border-slate-200 rounded-xl p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-violet-100 text-violet-600">
+              <AwardIcon className="w-4 h-4" />
+            </span>
+            <h2 className="text-sm font-semibold text-slate-800">My Assessments</h2>
+          </div>
+          <MyTestsPanel
+            track={subTrack}
+            employeeId={employeeId}
+            employeeName={employee?.fullName || ''}
+            employeeCode={employee?.employeeCode}
+            photoUrl={employee?.photoUrl}
+            departmentName={employee?.department?.name}
+            designationName={employee?.designation?.name}
+            categories={categories}
+          />
+        </div>
+      )}
+
+      {isStaff && (
+        <div className="bg-white border border-slate-200 rounded-xl p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <button
+              onClick={() => setStaffView('results')}
+              className={`text-xs font-semibold px-3.5 py-1.5 rounded-lg ${
+                staffView === 'results' ? toggle3dActive(HUE_GRADIENTS.indigo) : TOGGLE_3D_INACTIVE
+              }`}
+            >
+              Results
+            </button>
+            <button
+              onClick={() => setStaffView('manage')}
+              className={`text-xs font-semibold px-3.5 py-1.5 rounded-lg ${
+                staffView === 'manage' ? toggle3dActive(HUE_GRADIENTS.indigo) : TOGGLE_3D_INACTIVE
+              }`}
+            >
+              Manage Assessments
+            </button>
+          </div>
+          {staffView === 'results' ? <TestResultsTable categories={categories} /> : <ManageAssessmentsPanel track={subTrack} categories={categories} />}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function LearningCenter() {
-  const { user } = useAuth();
+  const { user, isStaff } = useAuth();
+  const [track, setTrack] = useState<LearningCenterTab>('MANDATORY');
 
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-semibold text-slate-800">Learning Center</h1>
 
-      {user?.employeeId && <MyLearningPanel employeeId={user.employeeId} title="My Learning" />}
+      <div className="flex flex-wrap gap-2">
+        {TRAINING_TRACKS.map((t) => {
+          const theme = TRACK_THEME[t];
+          const active = track === t;
+          return (
+            <button
+              key={t}
+              onClick={() => setTrack(t)}
+              className={`text-sm font-semibold px-4 py-2 rounded-xl transition-all duration-150 ease-out ${
+                active
+                  ? `text-white ${theme.active} shadow-lg ${theme.glow} ring-2 hover:-translate-y-0.5`
+                  : 'bg-white text-slate-500 border border-slate-200 shadow-sm hover:bg-slate-50 hover:-translate-y-0.5'
+              }`}
+            >
+              {TRACK_LABELS[t]}
+            </button>
+          );
+        })}
+        <button
+          onClick={() => setTrack('ASSESSMENTS')}
+          className={`text-sm font-semibold px-4 py-2 rounded-xl transition-all duration-150 ease-out flex items-center gap-1.5 ${
+            track === 'ASSESSMENTS'
+              ? `text-white ${ASSESSMENTS_TAB_THEME.active} shadow-lg ${ASSESSMENTS_TAB_THEME.glow} ring-2 hover:-translate-y-0.5`
+              : 'bg-white text-slate-500 border border-slate-200 shadow-sm hover:bg-slate-50 hover:-translate-y-0.5'
+          }`}
+        >
+          <AwardIcon className="w-4 h-4" /> Assessments
+        </button>
+      </div>
 
-      <TeamProgressTab />
+      {track === 'MANDATORY' && (
+        <>
+          {user?.employeeId && (
+            <MyLearningPanel
+              employeeId={user.employeeId}
+              title="My Learning"
+              categories={categoriesForTrack('MANDATORY', TRAINING_CATEGORIES)}
+            />
+          )}
+          <TeamProgressTab track="MANDATORY" categories={categoriesForTrack('MANDATORY', TRAINING_CATEGORIES)} />
+        </>
+      )}
+
+      {track === 'IAM_ENGINEERING' && <IamEngineeringTab employeeId={user?.employeeId} />}
+
+      {track === 'DEVOPS_ENGINEERING' && <DevOpsEngineeringTab employeeId={user?.employeeId} />}
+
+      {track === 'ASSESSMENTS' && <AssessmentsSection employeeId={user?.employeeId} isStaff={isStaff} />}
     </div>
   );
 }

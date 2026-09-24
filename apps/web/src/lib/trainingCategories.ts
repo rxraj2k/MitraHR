@@ -1,9 +1,12 @@
 import { TrainingCategory } from '../types';
 import {
   ClipboardListIcon,
+  DatabaseIcon,
   GlobeIcon,
+  GraduationCapIcon,
   GridIcon,
   NotebookIcon,
+  PackageIcon,
   ShieldIcon,
   SparkleIcon,
 } from '../components/icons';
@@ -15,6 +18,10 @@ export const TRAINING_CATEGORIES: TrainingCategory[] = [
   'SECURITY_IT',
   'AI_TOOLS',
   'GLOBAL_SKILLS',
+  'IAM_UDEMY',
+  'IAM_CLOUDFOUNDATION',
+  'IAM_SECAPPS',
+  'DEVOPS_UDEMY',
 ];
 
 export const CATEGORY_LABELS: Record<TrainingCategory, string> = {
@@ -24,6 +31,10 @@ export const CATEGORY_LABELS: Record<TrainingCategory, string> = {
   SECURITY_IT: 'IT & Security',
   AI_TOOLS: 'AI Tools',
   GLOBAL_SKILLS: 'Global Work Skills',
+  IAM_UDEMY: 'IAM · Udemy Courses',
+  IAM_CLOUDFOUNDATION: 'IAM · CloudFoundation Courses',
+  IAM_SECAPPS: 'IAM · SecApps Learning',
+  DEVOPS_UDEMY: 'DevOps · Udemy Courses',
 };
 
 // One accent color per category, reused for section headers, chips, and
@@ -81,6 +92,38 @@ export const CATEGORY_THEME: Record<
     bar: 'bg-emerald-500',
     gradient: 'from-emerald-500 to-emerald-400',
   },
+  IAM_UDEMY: {
+    bg: 'bg-cyan-50',
+    border: 'border-cyan-200',
+    text: 'text-cyan-700',
+    chip: 'bg-cyan-100 text-cyan-700',
+    bar: 'bg-cyan-500',
+    gradient: 'from-cyan-500 to-cyan-400',
+  },
+  IAM_CLOUDFOUNDATION: {
+    bg: 'bg-teal-50',
+    border: 'border-teal-200',
+    text: 'text-teal-700',
+    chip: 'bg-teal-100 text-teal-700',
+    bar: 'bg-teal-500',
+    gradient: 'from-teal-500 to-teal-400',
+  },
+  IAM_SECAPPS: {
+    bg: 'bg-violet-50',
+    border: 'border-violet-200',
+    text: 'text-violet-700',
+    chip: 'bg-violet-100 text-violet-700',
+    bar: 'bg-violet-500',
+    gradient: 'from-violet-500 to-violet-400',
+  },
+  DEVOPS_UDEMY: {
+    bg: 'bg-orange-50',
+    border: 'border-orange-200',
+    text: 'text-orange-700',
+    chip: 'bg-orange-100 text-orange-700',
+    bar: 'bg-orange-500',
+    gradient: 'from-orange-500 to-orange-400',
+  },
 };
 
 export const CATEGORY_ICONS: Record<TrainingCategory, typeof ClipboardListIcon> = {
@@ -90,4 +133,8 @@ export const CATEGORY_ICONS: Record<TrainingCategory, typeof ClipboardListIcon> 
   SECURITY_IT: ShieldIcon,
   AI_TOOLS: SparkleIcon,
   GLOBAL_SKILLS: GlobeIcon,
+  IAM_UDEMY: GraduationCapIcon,
+  IAM_CLOUDFOUNDATION: GlobeIcon,
+  IAM_SECAPPS: DatabaseIcon,
+  DEVOPS_UDEMY: PackageIcon,
 };

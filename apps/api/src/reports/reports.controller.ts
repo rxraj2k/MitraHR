@@ -89,4 +89,34 @@ export class ReportsController {
   previewComplianceRoster() {
     return this.reportsService.previewComplianceRoster();
   }
+
+  @Get('preview/us-client-alignment')
+  previewUsClientAlignment() {
+    return this.reportsService.previewUsClientAlignment();
+  }
+
+  @Get('preview/attendance-timeliness')
+  previewAttendanceTimeliness() {
+    return this.reportsService.previewAttendanceTimeliness();
+  }
+
+  @Get('preview/turnover')
+  previewTurnover() {
+    return this.reportsService.previewTurnover();
+  }
+
+  @Get('preview/recruitment-speed')
+  previewRecruitmentSpeed() {
+    return this.reportsService.previewRecruitmentSpeed();
+  }
+
+  @Get('preview/recruitment-funnel')
+  previewRecruitmentFunnel() {
+    return this.reportsService.previewRecruitmentFunnel();
+  }
+
+  @Get('preview/performance-engagement')
+  previewPerformanceEngagement() {
+    return this.reportsService.previewPerformanceEngagement();
+  }
 }

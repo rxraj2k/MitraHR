@@ -1,0 +1,1577 @@
+[
+  {
+    "courseTitle": "Agile Tutorial",
+    "questions": [
+      {
+        "text": "Which of the following is one of the four core values in the Agile Manifesto?",
+        "options": [
+          {
+            "text": "Individuals and interactions over processes and tools",
+            "isCorrect": true
+          },
+          {
+            "text": "Documentation over working software",
+            "isCorrect": false
+          },
+          {
+            "text": "Contract negotiation over customer collaboration",
+            "isCorrect": false
+          },
+          {
+            "text": "Following a plan over responding to change",
+            "isCorrect": false
+          }
+        ]
+      },
+      {
+        "text": "In Agile terminology, a short, fixed-length period during which a team completes a set amount of work is called a:",
+        "options": [
+          {
+            "text": "Sprint (iteration)",
+            "isCorrect": true
+          },
+          {
+            "text": "Milestone",
+            "isCorrect": false
+          },
+          {
+            "text": "Phase gate",
+            "isCorrect": false
+          },
+          {
+            "text": "Waterfall stage",
+            "isCorrect": false
+          }
+        ]
+      },
+      {
+        "text": "What is the primary purpose of a daily stand-up meeting in an Agile team?",
+        "options": [
+          {
+            "text": "To quickly sync on progress, plans, and blockers",
+            "isCorrect": true
+          },
+          {
+            "text": "To assign annual performance ratings",
+            "isCorrect": false
+          },
+          {
+            "text": "To finalize the project budget",
+            "isCorrect": false
+          },
+          {
+            "text": "To sign off on the final release",
+            "isCorrect": false
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "courseTitle": "Confluence",
+    "questions": [
+      {
+        "text": "What type of tool is Atlassian Confluence primarily used for?",
+        "options": [
+          {
+            "text": "Team collaboration and documentation (wiki)",
+            "isCorrect": true
+          },
+          {
+            "text": "Version control for source code",
+            "isCorrect": false
+          },
+          {
+            "text": "Payroll processing",
+            "isCorrect": false
+          },
+          {
+            "text": "Network firewall management",
+            "isCorrect": false
+          }
+        ]
+      },
+      {
+        "text": "In Confluence, related pages are typically organized into a:",
+        "options": [
+          {
+            "text": "Space",
+            "isCorrect": true
+          },
+          {
+            "text": "Repository",
+            "isCorrect": false
+          },
+          {
+            "text": "Bucket",
+            "isCorrect": false
+          },
+          {
+            "text": "Container",
+            "isCorrect": false
+          }
+        ]
+      },
+      {
+        "text": "Which feature lets a Confluence page start from a pre-built layout for meeting notes, requirements, or retrospectives?",
+        "options": [
+          {
+            "text": "Templates",
+            "isCorrect": true
+          },
+          {
+            "text": "Webhooks",
+            "isCorrect": false
+          },
+          {
+            "text": "Pipelines",
+            "isCorrect": false
+          },
+          {
+            "text": "Branch policies",
+            "isCorrect": false
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "courseTitle": "Jira Tutorial",
+    "questions": [
+      {
+        "text": "Jira is primarily used by teams for:",
+        "options": [
+          {
+            "text": "Issue tracking and project/work management",
+            "isCorrect": true
+          },
+          {
+            "text": "Sending marketing emails",
+            "isCorrect": false
+          },
+          {
+            "text": "Editing video content",
+            "isCorrect": false
+          },
+          {
+            "text": "Managing DNS records",
+            "isCorrect": false
+          }
+        ]
+      },
+      {
+        "text": "In Jira, a single unit of work such as a bug, task, or story is called a(n):",
+        "options": [
+          {
+            "text": "Issue",
+            "isCorrect": true
+          },
+          {
+            "text": "Commit",
+            "isCorrect": false
+          },
+          {
+            "text": "Snapshot",
+            "isCorrect": false
+          },
+          {
+            "text": "Artifact",
+            "isCorrect": false
+          }
+        ]
+      },
+      {
+        "text": "Which Jira board type shows work moving through a continuous flow of columns rather than in fixed-length sprints?",
+        "options": [
+          {
+            "text": "Kanban board",
+            "isCorrect": true
+          },
+          {
+            "text": "Gantt chart",
+            "isCorrect": false
+          },
+          {
+            "text": "Burnup ledger",
+            "isCorrect": false
+          },
+          {
+            "text": "Release train",
+            "isCorrect": false
+          }
+        ]
+      },
+      {
+        "text": "What is a Jira \"epic\" typically used to represent?",
+        "options": [
+          {
+            "text": "A large body of work that can be broken down into smaller stories/tasks",
+            "isCorrect": true
+          },
+          {
+            "text": "A single line of code",
+            "isCorrect": false
+          },
+          {
+            "text": "A user's login credentials",
+            "isCorrect": false
+          },
+          {
+            "text": "A server configuration file",
+            "isCorrect": false
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "courseTitle": "Scrum Tutorial",
+    "questions": [
+      {
+        "text": "In Scrum, who is responsible for maximizing the value of the product and managing the product backlog?",
+        "options": [
+          {
+            "text": "The Product Owner",
+            "isCorrect": true
+          },
+          {
+            "text": "The Scrum Master",
+            "isCorrect": false
+          },
+          {
+            "text": "The Development Team lead",
+            "isCorrect": false
+          },
+          {
+            "text": "The company CEO",
+            "isCorrect": false
+          }
+        ]
+      },
+      {
+        "text": "What is the main role of the Scrum Master?",
+        "options": [
+          {
+            "text": "To facilitate the Scrum process and remove impediments for the team",
+            "isCorrect": true
+          },
+          {
+            "text": "To write all the code for the sprint",
+            "isCorrect": false
+          },
+          {
+            "text": "To set the company's annual budget",
+            "isCorrect": false
+          },
+          {
+            "text": "To approve employee vacation requests",
+            "isCorrect": false
+          }
+        ]
+      },
+      {
+        "text": "Which Scrum event happens at the end of a sprint to inspect the increment and adapt the product backlog?",
+        "options": [
+          {
+            "text": "Sprint Review",
+            "isCorrect": true
+          },
+          {
+            "text": "Daily Scrum",
+            "isCorrect": false
+          },
+          {
+            "text": "Backlog Freeze",
+            "isCorrect": false
+          },
+          {
+            "text": "Code Freeze",
+            "isCorrect": false
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "courseTitle": "MS Teams",
+    "questions": [
+      {
+        "text": "Microsoft Teams is primarily used for:",
+        "options": [
+          {
+            "text": "Chat, video meetings, and team collaboration",
+            "isCorrect": true
+          },
+          {
+            "text": "Editing raster images",
+            "isCorrect": false
+          },
+          {
+            "text": "Compiling source code",
+            "isCorrect": false
+          },
+          {
+            "text": "Managing physical inventory",
+            "isCorrect": false
+          }
+        ]
+      },
+      {
+        "text": "In Microsoft Teams, a dedicated space for a project or department that contains channels, files, and apps is called a:",
+        "options": [
+          {
+            "text": "Team",
+            "isCorrect": true
+          },
+          {
+            "text": "Cluster",
+            "isCorrect": false
+          },
+          {
+            "text": "Domain",
+            "isCorrect": false
+          },
+          {
+            "text": "Namespace",
+            "isCorrect": false
+          }
+        ]
+      },
+      {
+        "text": "Within a Microsoft Teams \"Team,\" conversations and files are further organized into:",
+        "options": [
+          {
+            "text": "Channels",
+            "isCorrect": true
+          },
+          {
+            "text": "Repositories",
+            "isCorrect": false
+          },
+          {
+            "text": "Partitions",
+            "isCorrect": false
+          },
+          {
+            "text": "Threads only, with no further grouping",
+            "isCorrect": false
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "courseTitle": "Microsoft Excel",
+    "questions": [
+      {
+        "text": "In Excel, what symbol must every formula begin with?",
+        "options": [
+          {
+            "text": "= (equals sign)",
+            "isCorrect": true
+          },
+          {
+            "text": "# (hash sign)",
+            "isCorrect": false
+          },
+          {
+            "text": "@ (at sign)",
+            "isCorrect": false
+          },
+          {
+            "text": "& (ampersand)",
+            "isCorrect": false
+          }
+        ]
+      },
+      {
+        "text": "Which Excel function is used to look up a value in a table by matching a value in one column and returning a value from another column?",
+        "options": [
+          {
+            "text": "VLOOKUP",
+            "isCorrect": true
+          },
+          {
+            "text": "CONCATENATE",
+            "isCorrect": false
+          },
+          {
+            "text": "TODAY",
+            "isCorrect": false
+          },
+          {
+            "text": "RAND",
+            "isCorrect": false
+          }
+        ]
+      },
+      {
+        "text": "In a cell reference, what does the dollar sign in $A$1 indicate?",
+        "options": [
+          {
+            "text": "An absolute reference that doesn't change when copied to other cells",
+            "isCorrect": true
+          },
+          {
+            "text": "A currency-only cell format",
+            "isCorrect": false
+          },
+          {
+            "text": "A hidden cell",
+            "isCorrect": false
+          },
+          {
+            "text": "A merged cell",
+            "isCorrect": false
+          }
+        ]
+      },
+      {
+        "text": "Which Excel feature summarizes and analyzes large datasets by letting users group, filter, and aggregate data interactively?",
+        "options": [
+          {
+            "text": "PivotTable",
+            "isCorrect": true
+          },
+          {
+            "text": "Conditional Formatting",
+            "isCorrect": false
+          },
+          {
+            "text": "Freeze Panes",
+            "isCorrect": false
+          },
+          {
+            "text": "Spell Check",
+            "isCorrect": false
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "courseTitle": "OneNote",
+    "questions": [
+      {
+        "text": "Microsoft OneNote is best described as a:",
+        "options": [
+          {
+            "text": "Digital notebook for typed and handwritten notes",
+            "isCorrect": true
+          },
+          {
+            "text": "Video conferencing platform",
+            "isCorrect": false
+          },
+          {
+            "text": "Spreadsheet application",
+            "isCorrect": false
+          },
+          {
+            "text": "Source code editor",
+            "isCorrect": false
+          }
+        ]
+      },
+      {
+        "text": "In OneNote, individual pages are grouped together within a:",
+        "options": [
+          {
+            "text": "Section",
+            "isCorrect": true
+          },
+          {
+            "text": "Workbook",
+            "isCorrect": false
+          },
+          {
+            "text": "Repository",
+            "isCorrect": false
+          },
+          {
+            "text": "Pipeline",
+            "isCorrect": false
+          }
+        ]
+      },
+      {
+        "text": "What is one common use of OneNote in a workplace setting?",
+        "options": [
+          {
+            "text": "Keeping meeting notes and action items organized and searchable",
+            "isCorrect": true
+          },
+          {
+            "text": "Managing server infrastructure",
+            "isCorrect": false
+          },
+          {
+            "text": "Running automated test suites",
+            "isCorrect": false
+          },
+          {
+            "text": "Processing payroll",
+            "isCorrect": false
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "courseTitle": "Outlook Tutorial",
+    "questions": [
+      {
+        "text": "Microsoft Outlook is primarily used for:",
+        "options": [
+          {
+            "text": "Email, calendar, and contact management",
+            "isCorrect": true
+          },
+          {
+            "text": "3D rendering",
+            "isCorrect": false
+          },
+          {
+            "text": "Database administration",
+            "isCorrect": false
+          },
+          {
+            "text": "Network monitoring",
+            "isCorrect": false
+          }
+        ]
+      },
+      {
+        "text": "In Outlook, which feature lets you automatically move incoming emails matching certain criteria into a specific folder?",
+        "options": [
+          {
+            "text": "Rules",
+            "isCorrect": true
+          },
+          {
+            "text": "Macros only",
+            "isCorrect": false
+          },
+          {
+            "text": "Add-ins exclusively",
+            "isCorrect": false
+          },
+          {
+            "text": "Themes",
+            "isCorrect": false
+          }
+        ]
+      },
+      {
+        "text": "What does setting an Outlook meeting invite's status to \"Tentative\" indicate to other attendees?",
+        "options": [
+          {
+            "text": "The attendee has not yet confirmed whether they will attend",
+            "isCorrect": true
+          },
+          {
+            "text": "The meeting has been permanently canceled",
+            "isCorrect": false
+          },
+          {
+            "text": "The attendee is the meeting organizer",
+            "isCorrect": false
+          },
+          {
+            "text": "The invite failed to send",
+            "isCorrect": false
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "courseTitle": "SharePoint",
+    "questions": [
+      {
+        "text": "Microsoft SharePoint is primarily used within organizations for:",
+        "options": [
+          {
+            "text": "Document management and intranet/team site collaboration",
+            "isCorrect": true
+          },
+          {
+            "text": "Video editing",
+            "isCorrect": false
+          },
+          {
+            "text": "Compiling mobile apps",
+            "isCorrect": false
+          },
+          {
+            "text": "Managing physical security badges",
+            "isCorrect": false
+          }
+        ]
+      },
+      {
+        "text": "In SharePoint, files are typically stored and organized within a:",
+        "options": [
+          {
+            "text": "Document library",
+            "isCorrect": true
+          },
+          {
+            "text": "Command shell",
+            "isCorrect": false
+          },
+          {
+            "text": "Kernel module",
+            "isCorrect": false
+          },
+          {
+            "text": "Firewall rule set",
+            "isCorrect": false
+          }
+        ]
+      },
+      {
+        "text": "Which SharePoint capability allows multiple users to edit the same document at the same time?",
+        "options": [
+          {
+            "text": "Co-authoring",
+            "isCorrect": true
+          },
+          {
+            "text": "Single-user locking only",
+            "isCorrect": false
+          },
+          {
+            "text": "Read-only mode enforcement",
+            "isCorrect": false
+          },
+          {
+            "text": "Offline-only editing",
+            "isCorrect": false
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "courseTitle": "Writing Email",
+    "questions": [
+      {
+        "text": "Which of the following best describes a professional email subject line?",
+        "options": [
+          {
+            "text": "Clear, concise, and summarizes the email's purpose",
+            "isCorrect": true
+          },
+          {
+            "text": "Left blank so the recipient is curious",
+            "isCorrect": false
+          },
+          {
+            "text": "Written entirely in capital letters for emphasis",
+            "isCorrect": false
+          },
+          {
+            "text": "As long and detailed as possible",
+            "isCorrect": false
+          }
+        ]
+      },
+      {
+        "text": "When should you use \"Reply All\" on a work email thread?",
+        "options": [
+          {
+            "text": "Only when your response is genuinely relevant to everyone on the thread",
+            "isCorrect": true
+          },
+          {
+            "text": "Every single time, regardless of content",
+            "isCorrect": false
+          },
+          {
+            "text": "Only for jokes and casual remarks",
+            "isCorrect": false
+          },
+          {
+            "text": "Never, under any circumstances",
+            "isCorrect": false
+          }
+        ]
+      },
+      {
+        "text": "What is generally considered good practice before sending an important work email?",
+        "options": [
+          {
+            "text": "Proofread it and double-check the recipient list and attachments",
+            "isCorrect": true
+          },
+          {
+            "text": "Send it immediately without review to save time",
+            "isCorrect": false
+          },
+          {
+            "text": "Use as much jargon as possible",
+            "isCorrect": false
+          },
+          {
+            "text": "Mark every email as \"High Importance\"",
+            "isCorrect": false
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "courseTitle": "Zoho Notebook",
+    "questions": [
+      {
+        "text": "Zoho Notebook is best described as a:",
+        "options": [
+          {
+            "text": "Note-taking app for organizing text, images, and audio notes",
+            "isCorrect": true
+          },
+          {
+            "text": "Customer relationship management (CRM) system",
+            "isCorrect": false
+          },
+          {
+            "text": "Video conferencing tool",
+            "isCorrect": false
+          },
+          {
+            "text": "Accounting ledger software",
+            "isCorrect": false
+          }
+        ]
+      },
+      {
+        "text": "In Zoho Notebook, individual notes can be grouped together into a:",
+        "options": [
+          {
+            "text": "Notebook (a themed collection of notes)",
+            "isCorrect": true
+          },
+          {
+            "text": "Ledger entry",
+            "isCorrect": false
+          },
+          {
+            "text": "Pull request",
+            "isCorrect": false
+          },
+          {
+            "text": "Sprint backlog",
+            "isCorrect": false
+          }
+        ]
+      },
+      {
+        "text": "Which of these is a typical note type supported in Zoho Notebook?",
+        "options": [
+          {
+            "text": "Checklist note",
+            "isCorrect": true
+          },
+          {
+            "text": "Firewall rule",
+            "isCorrect": false
+          },
+          {
+            "text": "Database schema",
+            "isCorrect": false
+          },
+          {
+            "text": "Network subnet",
+            "isCorrect": false
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "courseTitle": "Zoho ToDo",
+    "questions": [
+      {
+        "text": "Zoho ToDo is primarily used to:",
+        "options": [
+          {
+            "text": "Create and manage personal or team task lists",
+            "isCorrect": true
+          },
+          {
+            "text": "Edit video files",
+            "isCorrect": false
+          },
+          {
+            "text": "Host a company website",
+            "isCorrect": false
+          },
+          {
+            "text": "Manage server backups",
+            "isCorrect": false
+          }
+        ]
+      },
+      {
+        "text": "In Zoho ToDo, related tasks can be grouped together into a:",
+        "options": [
+          {
+            "text": "List",
+            "isCorrect": true
+          },
+          {
+            "text": "Container image",
+            "isCorrect": false
+          },
+          {
+            "text": "Virtual machine",
+            "isCorrect": false
+          },
+          {
+            "text": "Load balancer",
+            "isCorrect": false
+          }
+        ]
+      },
+      {
+        "text": "Which feature in a to-do app like Zoho ToDo helps ensure a task isn't forgotten by a specific time?",
+        "options": [
+          {
+            "text": "Due date / reminder",
+            "isCorrect": true
+          },
+          {
+            "text": "Firewall exception",
+            "isCorrect": false
+          },
+          {
+            "text": "DNS record",
+            "isCorrect": false
+          },
+          {
+            "text": "SSL certificate",
+            "isCorrect": false
+          }
+        ]
+      },
+      {
+        "text": "What is a common benefit of breaking a large task into smaller sub-tasks in a to-do tool?",
+        "options": [
+          {
+            "text": "It makes progress easier to track and the work feel more manageable",
+            "isCorrect": true
+          },
+          {
+            "text": "It automatically deletes the original task",
+            "isCorrect": false
+          },
+          {
+            "text": "It hides the task from all reports",
+            "isCorrect": false
+          },
+          {
+            "text": "It changes the task's due date to \"never\"",
+            "isCorrect": false
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "courseTitle": "Git Branching",
+    "questions": [
+      {
+        "text": "What is the primary purpose of creating a branch in Git?",
+        "options": [
+          {
+            "text": "To work on changes independently without affecting the main codebase",
+            "isCorrect": true
+          },
+          {
+            "text": "To permanently delete old commits",
+            "isCorrect": false
+          },
+          {
+            "text": "To compress the repository size",
+            "isCorrect": false
+          },
+          {
+            "text": "To encrypt the source code",
+            "isCorrect": false
+          }
+        ]
+      },
+      {
+        "text": "Which Git command is used to combine the changes from one branch into another?",
+        "options": [
+          {
+            "text": "git merge",
+            "isCorrect": true
+          },
+          {
+            "text": "git delete",
+            "isCorrect": false
+          },
+          {
+            "text": "git format",
+            "isCorrect": false
+          },
+          {
+            "text": "git ignore",
+            "isCorrect": false
+          }
+        ]
+      },
+      {
+        "text": "What is a Git \"merge conflict\"?",
+        "options": [
+          {
+            "text": "When Git cannot automatically reconcile differing changes to the same lines of a file",
+            "isCorrect": true
+          },
+          {
+            "text": "A network timeout during push",
+            "isCorrect": false
+          },
+          {
+            "text": "A missing commit message",
+            "isCorrect": false
+          },
+          {
+            "text": "A corrupted .gitignore file",
+            "isCorrect": false
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "courseTitle": "Phishing Awareness",
+    "questions": [
+      {
+        "text": "What is phishing?",
+        "options": [
+          {
+            "text": "A social engineering attack that tricks people into revealing sensitive information or clicking malicious links",
+            "isCorrect": true
+          },
+          {
+            "text": "A method for backing up company data",
+            "isCorrect": false
+          },
+          {
+            "text": "A type of network cable",
+            "isCorrect": false
+          },
+          {
+            "text": "An official IT maintenance procedure",
+            "isCorrect": false
+          }
+        ]
+      },
+      {
+        "text": "Which of the following is a common warning sign of a phishing email?",
+        "options": [
+          {
+            "text": "Urgent language pressuring immediate action, with a suspicious sender address or link",
+            "isCorrect": true
+          },
+          {
+            "text": "It was sent from a known, verified internal colleague with no links or attachments",
+            "isCorrect": false
+          },
+          {
+            "text": "It contains no attachments or links whatsoever",
+            "isCorrect": false
+          },
+          {
+            "text": "It arrived during normal business hours",
+            "isCorrect": false
+          }
+        ]
+      },
+      {
+        "text": "What should you do if you receive a suspicious email asking you to reset your password via an embedded link?",
+        "options": [
+          {
+            "text": "Avoid clicking the link and report the email to IT/security",
+            "isCorrect": true
+          },
+          {
+            "text": "Click the link immediately and enter your credentials",
+            "isCorrect": false
+          },
+          {
+            "text": "Forward it to as many coworkers as possible",
+            "isCorrect": false
+          },
+          {
+            "text": "Reply with your username and password to confirm",
+            "isCorrect": false
+          }
+        ]
+      },
+      {
+        "text": "What is \"spear phishing\"?",
+        "options": [
+          {
+            "text": "A highly targeted phishing attack aimed at a specific individual or organization",
+            "isCorrect": true
+          },
+          {
+            "text": "A phishing attack that only targets fishing websites",
+            "isCorrect": false
+          },
+          {
+            "text": "An antivirus scanning technique",
+            "isCorrect": false
+          },
+          {
+            "text": "A type of firewall configuration",
+            "isCorrect": false
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "courseTitle": "ServiceNow",
+    "questions": [
+      {
+        "text": "ServiceNow is most commonly used by organizations for:",
+        "options": [
+          {
+            "text": "IT service management (ITSM), including incident and request tracking",
+            "isCorrect": true
+          },
+          {
+            "text": "Video editing",
+            "isCorrect": false
+          },
+          {
+            "text": "Graphic design",
+            "isCorrect": false
+          },
+          {
+            "text": "Payroll tax filing",
+            "isCorrect": false
+          }
+        ]
+      },
+      {
+        "text": "In ServiceNow/ITSM terminology, an unplanned interruption or reduction in quality of an IT service is called a(n):",
+        "options": [
+          {
+            "text": "Incident",
+            "isCorrect": true
+          },
+          {
+            "text": "Sprint",
+            "isCorrect": false
+          },
+          {
+            "text": "Release note",
+            "isCorrect": false
+          },
+          {
+            "text": "Wiki page",
+            "isCorrect": false
+          }
+        ]
+      },
+      {
+        "text": "What is a \"change request\" in the context of ITSM tools like ServiceNow?",
+        "options": [
+          {
+            "text": "A formal proposal to modify a system, service, or process in a controlled way",
+            "isCorrect": true
+          },
+          {
+            "text": "A request to change an employee's job title",
+            "isCorrect": false
+          },
+          {
+            "text": "A request to reset a printer's ink cartridge",
+            "isCorrect": false
+          },
+          {
+            "text": "An informal chat message",
+            "isCorrect": false
+          }
+        ]
+      },
+      {
+        "text": "What does a \"knowledge base\" in ServiceNow typically provide?",
+        "options": [
+          {
+            "text": "A searchable repository of articles for self-service troubleshooting and information",
+            "isCorrect": true
+          },
+          {
+            "text": "A list of employee salaries",
+            "isCorrect": false
+          },
+          {
+            "text": "A backup of the company's financial records",
+            "isCorrect": false
+          },
+          {
+            "text": "A physical inventory of hardware only",
+            "isCorrect": false
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "courseTitle": "Types of Environment",
+    "questions": [
+      {
+        "text": "In software development, what is the purpose of a \"development\" environment?",
+        "options": [
+          {
+            "text": "Where developers actively write and test code changes before they're shared further",
+            "isCorrect": true
+          },
+          {
+            "text": "Where end customers use the live, released product",
+            "isCorrect": false
+          },
+          {
+            "text": "Where payroll is processed",
+            "isCorrect": false
+          },
+          {
+            "text": "Where marketing campaigns are planned",
+            "isCorrect": false
+          }
+        ]
+      },
+      {
+        "text": "What is the main purpose of a \"staging\" environment?",
+        "options": [
+          {
+            "text": "To closely mirror production so changes can be validated before going live",
+            "isCorrect": true
+          },
+          {
+            "text": "To permanently host customer-facing traffic",
+            "isCorrect": false
+          },
+          {
+            "text": "To store old, decommissioned code with no further use",
+            "isCorrect": false
+          },
+          {
+            "text": "To replace the need for a development environment entirely",
+            "isCorrect": false
+          }
+        ]
+      },
+      {
+        "text": "The \"production\" environment refers to:",
+        "options": [
+          {
+            "text": "The live environment that actual end users interact with",
+            "isCorrect": true
+          },
+          {
+            "text": "A sandbox only developers can access",
+            "isCorrect": false
+          },
+          {
+            "text": "An environment used exclusively for automated unit tests",
+            "isCorrect": false
+          },
+          {
+            "text": "A local environment on a single developer's laptop",
+            "isCorrect": false
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "courseTitle": "AI Fundamentals",
+    "questions": [
+      {
+        "text": "What is Artificial Intelligence (AI), broadly defined?",
+        "options": [
+          {
+            "text": "The simulation of human-like intelligence and problem-solving by computer systems",
+            "isCorrect": true
+          },
+          {
+            "text": "A type of computer hardware only",
+            "isCorrect": false
+          },
+          {
+            "text": "A programming language",
+            "isCorrect": false
+          },
+          {
+            "text": "A brand of networking equipment",
+            "isCorrect": false
+          }
+        ]
+      },
+      {
+        "text": "What is \"machine learning\"?",
+        "options": [
+          {
+            "text": "A subset of AI where systems learn patterns from data rather than being explicitly programmed with rules",
+            "isCorrect": true
+          },
+          {
+            "text": "A method of physically repairing computers",
+            "isCorrect": false
+          },
+          {
+            "text": "A type of data encryption",
+            "isCorrect": false
+          },
+          {
+            "text": "A synonym for cloud storage",
+            "isCorrect": false
+          }
+        ]
+      },
+      {
+        "text": "What does \"hallucination\" mean in the context of generative AI models?",
+        "options": [
+          {
+            "text": "The model confidently produces incorrect or fabricated information",
+            "isCorrect": true
+          },
+          {
+            "text": "The model refuses to respond to any prompt",
+            "isCorrect": false
+          },
+          {
+            "text": "The model automatically fixes its own errors",
+            "isCorrect": false
+          },
+          {
+            "text": "The model only works with image inputs",
+            "isCorrect": false
+          }
+        ]
+      },
+      {
+        "text": "Why is it important to review and verify AI-generated content before using it for work?",
+        "options": [
+          {
+            "text": "Because AI outputs can contain factual errors, bias, or made-up information",
+            "isCorrect": true
+          },
+          {
+            "text": "Because AI-generated content is always illegal to use",
+            "isCorrect": false
+          },
+          {
+            "text": "Because AI tools cannot produce text, only images",
+            "isCorrect": false
+          },
+          {
+            "text": "Because review is never necessary once content is generated",
+            "isCorrect": false
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "courseTitle": "Parakeet AI Guide",
+    "questions": [
+      {
+        "text": "When using an AI assistant tool at work, what is a best practice regarding sensitive company data?",
+        "options": [
+          {
+            "text": "Avoid entering confidential or sensitive data unless the tool is explicitly approved for it",
+            "isCorrect": true
+          },
+          {
+            "text": "Paste any and all internal data freely into any AI tool",
+            "isCorrect": false
+          },
+          {
+            "text": "Sensitive data restrictions only apply to email, not AI tools",
+            "isCorrect": false
+          },
+          {
+            "text": "There are no data-handling considerations with AI assistants",
+            "isCorrect": false
+          }
+        ]
+      },
+      {
+        "text": "What is a good practice when writing a prompt to an AI assistant to get a useful response?",
+        "options": [
+          {
+            "text": "Be clear and specific about the context, goal, and desired format",
+            "isCorrect": true
+          },
+          {
+            "text": "Keep the prompt as vague as possible",
+            "isCorrect": false
+          },
+          {
+            "text": "Never provide any context at all",
+            "isCorrect": false
+          },
+          {
+            "text": "Only use single-word prompts",
+            "isCorrect": false
+          }
+        ]
+      },
+      {
+        "text": "Why should employees still apply their own judgment when acting on an AI assistant's suggestions?",
+        "options": [
+          {
+            "text": "Because AI-generated suggestions can be incomplete, outdated, or incorrect",
+            "isCorrect": true
+          },
+          {
+            "text": "Because AI assistants are always 100% accurate",
+            "isCorrect": false
+          },
+          {
+            "text": "Because using judgment is against company policy",
+            "isCorrect": false
+          },
+          {
+            "text": "Because AI tools require no human oversight ever",
+            "isCorrect": false
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "courseTitle": "Daylight Saving (DST)",
+    "questions": [
+      {
+        "text": "What is the general purpose of Daylight Saving Time (DST)?",
+        "options": [
+          {
+            "text": "To shift clocks forward in warmer months to make better use of evening daylight",
+            "isCorrect": true
+          },
+          {
+            "text": "To permanently change a region's time zone",
+            "isCorrect": false
+          },
+          {
+            "text": "To add an extra day to the calendar each year",
+            "isCorrect": false
+          },
+          {
+            "text": "To synchronize all countries to the same single time zone",
+            "isCorrect": false
+          }
+        ]
+      },
+      {
+        "text": "During \"spring forward,\" what typically happens to the clock?",
+        "options": [
+          {
+            "text": "Clocks move forward by one hour",
+            "isCorrect": true
+          },
+          {
+            "text": "Clocks move backward by one hour",
+            "isCorrect": false
+          },
+          {
+            "text": "Clocks stop for 24 hours",
+            "isCorrect": false
+          },
+          {
+            "text": "Clocks move forward by a full day",
+            "isCorrect": false
+          }
+        ]
+      },
+      {
+        "text": "Why does Daylight Saving Time matter for scheduling meetings with international colleagues?",
+        "options": [
+          {
+            "text": "Because not all regions observe DST, or observe it on different dates, which can shift meeting times relative to each other",
+            "isCorrect": true
+          },
+          {
+            "text": "Because DST has no effect on meeting times anywhere in the world",
+            "isCorrect": false
+          },
+          {
+            "text": "Because DST only affects weekends",
+            "isCorrect": false
+          },
+          {
+            "text": "Because DST changes the length of a work week",
+            "isCorrect": false
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "courseTitle": "Improve Your American Accent",
+    "questions": [
+      {
+        "text": "Which of the following is generally an effective way to improve pronunciation of a new accent?",
+        "options": [
+          {
+            "text": "Regularly listening to and mimicking native speakers",
+            "isCorrect": true
+          },
+          {
+            "text": "Avoiding all spoken practice",
+            "isCorrect": false
+          },
+          {
+            "text": "Speaking only in written form",
+            "isCorrect": false
+          },
+          {
+            "text": "Focusing exclusively on grammar rules with no speaking practice",
+            "isCorrect": false
+          }
+        ]
+      },
+      {
+        "text": "What is \"word stress\" in spoken English?",
+        "options": [
+          {
+            "text": "Emphasizing a particular syllable in a word more than the others",
+            "isCorrect": true
+          },
+          {
+            "text": "The anxiety a speaker feels before speaking",
+            "isCorrect": false
+          },
+          {
+            "text": "A grammatical error in word order",
+            "isCorrect": false
+          },
+          {
+            "text": "A punctuation mark used only in writing",
+            "isCorrect": false
+          }
+        ]
+      },
+      {
+        "text": "Why is clear communication over the phone or in video calls especially important in a professional setting?",
+        "options": [
+          {
+            "text": "It reduces misunderstandings and helps convey information accurately to colleagues and clients",
+            "isCorrect": true
+          },
+          {
+            "text": "It has no real impact on workplace collaboration",
+            "isCorrect": false
+          },
+          {
+            "text": "It is only relevant for native speakers",
+            "isCorrect": false
+          },
+          {
+            "text": "It matters only in written communication, not spoken",
+            "isCorrect": false
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "courseTitle": "US Time Zones",
+    "questions": [
+      {
+        "text": "How many primary time zones does the contiguous United States (excluding Alaska and Hawaii) span?",
+        "options": [
+          {
+            "text": "Four (Eastern, Central, Mountain, Pacific)",
+            "isCorrect": true
+          },
+          {
+            "text": "Two",
+            "isCorrect": false
+          },
+          {
+            "text": "Six",
+            "isCorrect": false
+          },
+          {
+            "text": "One",
+            "isCorrect": false
+          }
+        ]
+      },
+      {
+        "text": "Which US time zone is generally the earliest (ahead of the others) in clock time?",
+        "options": [
+          {
+            "text": "Eastern Time",
+            "isCorrect": true
+          },
+          {
+            "text": "Pacific Time",
+            "isCorrect": false
+          },
+          {
+            "text": "Mountain Time",
+            "isCorrect": false
+          },
+          {
+            "text": "Hawaii-Aleutian Time",
+            "isCorrect": false
+          }
+        ]
+      },
+      {
+        "text": "If it is 12:00 PM Eastern Time, what time is it in Pacific Time (standard time difference, ignoring DST transitions)?",
+        "options": [
+          {
+            "text": "9:00 AM",
+            "isCorrect": true
+          },
+          {
+            "text": "12:00 PM",
+            "isCorrect": false
+          },
+          {
+            "text": "3:00 PM",
+            "isCorrect": false
+          },
+          {
+            "text": "6:00 AM",
+            "isCorrect": false
+          }
+        ]
+      },
+      {
+        "text": "Why is it important to confirm time zones explicitly when scheduling a call with US-based colleagues?",
+        "options": [
+          {
+            "text": "Because the US spans multiple time zones, so \"3 PM\" can mean different actual times depending on location",
+            "isCorrect": true
+          },
+          {
+            "text": "Because the entire US always uses one single time zone",
+            "isCorrect": false
+          },
+          {
+            "text": "Because time zones only matter for international, never domestic, calls",
+            "isCorrect": false
+          },
+          {
+            "text": "Because US time zones change every day",
+            "isCorrect": false
+          }
+        ]
+      }
+    ]
+  }
+]

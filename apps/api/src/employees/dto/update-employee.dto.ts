@@ -1,6 +1,7 @@
 import { IsDateString, IsEmail, IsIn, IsOptional, IsString, IsUUID, MinLength } from 'class-validator';
 import { NormalizeEmail } from '../../common/transformers';
-import { EMPLOYMENT_TYPES, SYSTEM_ROLES } from './create-employee.dto';
+import { DEPLOYMENT_STATUSES, EMPLOYMENT_TYPES, SYSTEM_ROLES } from './create-employee.dto';
+import { EXPERIENCE_LEVELS } from '../../recruitment/dto/recruitment.constants';
 
 export const EMPLOYEE_STATUSES = ['ACTIVE', 'INACTIVE'] as const;
 
@@ -19,6 +20,10 @@ export class UpdateEmployeeDto {
   @IsOptional() @IsString() team?: string;
   @IsOptional() @IsString() workLocation?: string;
   @IsOptional() @IsUUID() reportingManagerId?: string;
+
+  // Talent Directory
+  @IsOptional() @IsIn(EXPERIENCE_LEVELS) experienceLevel?: string;
+  @IsOptional() @IsIn(DEPLOYMENT_STATUSES) deploymentStatus?: string;
 
   // Skills & Security
   @IsOptional() @IsIn(SYSTEM_ROLES) systemRole?: string;

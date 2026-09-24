@@ -60,8 +60,8 @@ export class TrainingController {
 
   @UseGuards(StaffOnlyGuard)
   @Get('progress')
-  getProgress() {
-    return this.trainingService.getProgressSummary();
+  getProgress(@Query('categories') categories?: string) {
+    return this.trainingService.getProgressSummary(categories ? categories.split(',') : undefined);
   }
 
   @UseGuards(StaffOnlyGuard)

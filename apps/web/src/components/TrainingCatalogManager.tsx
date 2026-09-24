@@ -1,10 +1,12 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { ExternalLinkIcon } from './icons';
-import { resourceLinkLabel } from '../lib/resourceLinks';
+import { PencilIcon, SearchIcon, TrashIcon } from './icons';
+import { PLATFORM_BADGE, PLATFORM_GLYPH, resourceLinkLabel, resourceLinkPlatform } from '../lib/resourceLinks';
 import { CATEGORY_ICONS, CATEGORY_LABELS, CATEGORY_THEME, TRAINING_CATEGORIES } from '../lib/trainingCategories';
 import { createTrainingCourse, deleteTrainingCourse, getTrainingCourses, updateTrainingCourse } from '../lib/api';
+import { PRIMARY_BUTTON_3D } from '../lib/buttonStyles';
 import { TrainingCategory, TrainingCourse } from '../types';
+import ConfirmModal from './ConfirmModal';
 
 interface ResourceRow {
   label: string;
@@ -31,15 +33,18 @@ const EMPTY_COURSE: CourseForm = {
 // assigned to it. Lives in Master Data alongside Technology (a lookup used
 // the same way by Project Management) rather than inside the Learning
 // Center, which is purely about tracking progress against this catalog.
-export default function TrainingCatalogManager() {
+export default function TrainingCatalogManager({ searchQuery }: { searchQuery?: string }) {
   const { token } = useAuth();
   const [courses, setCourses] = useState<TrainingCourse[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [localQuery, setLocalQuery] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<CourseForm>(EMPTY_COURSE);
   const [submitting, setSubmitting] = useState(false);
+  const [confirmTarget, setConfirmTarget] = useState<TrainingCourse | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   function load() {
     if (!token) return;
@@ -113,37 +118,59 @@ export default function TrainingCatalogManager() {
     }
   }
 
-  async function handleDelete(id: string) {
-    if (!token) return;
-    if (!confirm('Delete this course? Only possible if no one has been assigned it.')) return;
+  async function confirmDelete() {
+    if (!token || !confirmTarget) return;
+    setDeleting(true);
     try {
-      await deleteTrainingCourse(token, id);
+      await deleteTrainingCourse(token, confirmTarget.id);
+      setConfirmTarget(null);
       load();
     } catch (err: any) {
       setError(err.message);
+      setConfirmTarget(null);
+    } finally {
+      setDeleting(false);
     }
   }
 
-  const byCategory = TRAINING_CATEGORIES.map((cat) => ({ category: cat, items: courses.filter((c) => c.category === cat) })).filter(
+  const effectiveQuery = (searchQuery ?? localQuery).trim().toLowerCase();
+  const filteredCourses = useMemo(
+    () => (effectiveQuery ? courses.filter((c) => c.title.toLowerCase().includes(effectiveQuery)) : courses),
+    [courses, effectiveQuery],
+  );
+
+  const byCategory = TRAINING_CATEGORIES.map((cat) => ({ category: cat, items: filteredCourses.filter((c) => c.category === cat) })).filter(
     (g) => g.items.length > 0,
   );
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-4">
         <p className="text-sm text-slate-500">{courses.length} courses in the catalog — used by the Learning Center's Team Progress and Assign Standard Curriculum.</p>
         <button
           onClick={() => (showForm ? setShowForm(false) : startAdd())}
-          className="rounded-lg bg-gradient-to-r from-mitra-accentFrom to-mitra-accentTo text-white text-sm font-medium px-4 py-2"
+          className={`rounded-lg text-sm font-medium px-4 py-2 flex-shrink-0 ${PRIMARY_BUTTON_3D}`}
         >
           {showForm ? 'Cancel' : '+ Add Course'}
         </button>
       </div>
 
+      {searchQuery === undefined && (
+        <div className="relative max-w-sm">
+          <SearchIcon className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <input
+            value={localQuery}
+            onChange={(e) => setLocalQuery(e.target.value)}
+            placeholder="Search courses..."
+            className="w-full rounded-lg border border-slate-300 pl-9 pr-3 py-2 text-sm"
+          />
+        </div>
+      )}
+
       {error && <div className="text-sm text-red-600">{error}</div>}
 
       {showForm && (
-        <form onSubmit={handleSubmit} className="bg-white border border-slate-200 rounded-xl p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="bg-white border border-slate-200 rounded-2xl shadow-sm p-6 space-y-4">
           <h3 className="font-semibold text-slate-800">{editingId ? 'Edit Course' : 'New Course'}</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="md:col-span-2">
@@ -222,11 +249,7 @@ export default function TrainingCatalogManager() {
             Active (offered when assigning)
           </label>
 
-          <button
-            type="submit"
-            disabled={submitting}
-            className="rounded-lg bg-gradient-to-r from-mitra-accentFrom to-mitra-accentTo text-white text-sm font-medium px-4 py-2 disabled:opacity-50"
-          >
+          <button type="submit" disabled={submitting} className={`rounded-lg text-sm font-medium px-4 py-2 disabled:opacity-50 ${PRIMARY_BUTTON_3D}`}>
             {submitting ? 'Saving...' : editingId ? 'Save Changes' : 'Create Course'}
           </button>
         </form>
@@ -234,6 +257,8 @@ export default function TrainingCatalogManager() {
 
       {loading ? (
         <p className="text-slate-500 text-sm">Loading...</p>
+      ) : byCategory.length === 0 ? (
+        <p className="text-slate-500 text-sm">No courses match.</p>
       ) : (
         byCategory.map(({ category, items }) => {
           const theme = CATEGORY_THEME[category];
@@ -254,6 +279,22 @@ export default function TrainingCatalogManager() {
                         {c.title}
                         {!c.active && <span className="ml-2 text-xs text-slate-400">(inactive)</span>}
                       </h4>
+                      <span className="flex gap-1 flex-shrink-0">
+                        <button
+                          onClick={() => startEdit(c)}
+                          title="Edit"
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-white transition-colors"
+                        >
+                          <PencilIcon className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => setConfirmTarget(c)}
+                          title="Delete"
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-white transition-colors"
+                        >
+                          <TrashIcon className="w-4 h-4" />
+                        </button>
+                      </span>
                     </div>
                     {c.restrictedTo && (
                       <span className="inline-block mt-1 text-xs bg-white border border-slate-200 rounded-full px-2 py-0.5 text-slate-500">
@@ -262,26 +303,21 @@ export default function TrainingCatalogManager() {
                     )}
                     {c.description && <p className="text-xs text-slate-600 mt-2">{c.description}</p>}
                     <div className="flex flex-wrap gap-2 mt-3">
-                      {c.resources.map((r) => (
-                        <a
-                          key={r.id}
-                          href={r.url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex items-center gap-1 text-xs bg-white border border-slate-200 rounded-full px-2.5 py-1 text-slate-600 hover:border-mitra-accentFrom hover:text-mitra-accentFrom"
-                        >
-                          {resourceLinkLabel(r.url, r.label)}
-                          <ExternalLinkIcon className="w-3 h-3" />
-                        </a>
-                      ))}
-                    </div>
-                    <div className="flex gap-3 mt-3">
-                      <button onClick={() => startEdit(c)} className="text-slate-500 hover:text-mitra-accentFrom text-xs">
-                        Edit
-                      </button>
-                      <button onClick={() => handleDelete(c.id)} className="text-red-500 hover:text-red-700 text-xs">
-                        Delete
-                      </button>
+                      {c.resources.map((r) => {
+                        const platform = resourceLinkPlatform(r.url);
+                        return (
+                          <a
+                            key={r.id}
+                            href={r.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className={`inline-flex items-center gap-1.5 text-xs rounded-full px-2.5 py-1 font-medium hover:opacity-80 transition-opacity ${PLATFORM_BADGE[platform]}`}
+                          >
+                            <span aria-hidden>{PLATFORM_GLYPH[platform]}</span>
+                            {resourceLinkLabel(r.url, r.label)}
+                          </a>
+                        );
+                      })}
                     </div>
                   </div>
                 ))}
@@ -290,6 +326,15 @@ export default function TrainingCatalogManager() {
           );
         })
       )}
+
+      <ConfirmModal
+        open={!!confirmTarget}
+        title={`Delete "${confirmTarget?.title}"?`}
+        message="Only possible if no one has been assigned this course. This cannot be undone."
+        busy={deleting}
+        onConfirm={confirmDelete}
+        onCancel={() => setConfirmTarget(null)}
+      />
     </div>
   );
 }

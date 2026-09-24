@@ -3,9 +3,25 @@ export type EmployeeStatus = 'ACTIVE' | 'INACTIVE';
 export type SystemRole = 'ADMINISTRATOR' | 'HR' | 'MANAGER' | 'EMPLOYEE' | 'IT_SUPPORT';
 export type Proficiency = 'BEGINNER' | 'INTERMEDIATE' | 'ADVANCED' | 'EXPERT';
 
+// Talent Directory (Sprint 19). ExperienceLevel is declared further down
+// (reused from JobOpening/Candidate's recruitment vocabulary — an open req
+// and the employee eventually hired for it describe the same seniority
+// concept). deploymentStatus is staff-set rather than derived — see
+// schema.prisma's comment on Employee.deploymentStatus for why.
+export type DeploymentStatus = 'BILLABLE' | 'SHADOW' | 'BENCH' | 'ONBOARDING' | 'INTERNAL';
+
 export interface LookupItem {
   id: string;
   name: string;
+  // Present on Master Data list responses (Departments, Designations,
+  // Skills, Work Locations, Asset Categories, Vendors, Document Types) —
+  // how many other records currently reference this entry, and a plain-
+  // English noun phrase for the delete-guard tooltip (e.g. "8 employees
+  // assigned"). Absent on plain lookup fetches that don't need it (e.g. the
+  // dropdown-only picker calls).
+  usageCount?: number;
+  usageLabel?: string;
+  active?: boolean;
 }
 
 export interface EmployeeSkillEntry {
@@ -24,6 +40,7 @@ export type EmployeeDocumentType =
   | 'EXPERIENCE_LETTER'
   | 'CONTRACT'
   | 'CERTIFICATION'
+  | 'VISA'
   | 'OTHER';
 
 export interface EmployeeDocument {
@@ -31,12 +48,20 @@ export interface EmployeeDocument {
   documentType: EmployeeDocumentType | string;
   fileName: string;
   fileUrl: string;
+  fileSize?: number | null;
+  notes?: string | null;
   expiryDate?: string | null;
   uploadedAt: string;
 }
 
 export interface EmployeeDocumentWithOwner extends EmployeeDocument {
-  employee: { id: string; fullName: string; photoUrl?: string | null; employeeCode?: string | null };
+  employee: {
+    id: string;
+    fullName: string;
+    photoUrl?: string | null;
+    employeeCode?: string | null;
+    designation?: { name: string } | null;
+  };
 }
 
 export type CompanyDocumentCategory = 'POLICY' | 'TEMPLATE' | 'HANDBOOK' | 'OTHER';
@@ -47,8 +72,35 @@ export interface CompanyDocument {
   title: string;
   fileName: string;
   fileUrl: string;
+  fileSize?: number | null;
+  description?: string | null;
+  // Per-document toggle set at upload — defaults on for POLICY documents,
+  // but not tied to category (Sprint 21 "Mandatory Acknowledgment" toggle).
+  requiresAcknowledgment: boolean;
   uploadedAt: string;
   updatedAt: string;
+  // Only populated when requiresAcknowledgment is true; null otherwise.
+  acknowledgedByMe: boolean | null;
+  acknowledgedCount: number | null;
+  eligibleCount: number | null;
+}
+
+export interface CompanyDocumentAcknowledgment {
+  employee: { id: string; fullName: string; photoUrl?: string | null };
+  acknowledgedAt: string;
+}
+
+export interface CompanyDocumentAcknowledgmentStatus {
+  acknowledged: CompanyDocumentAcknowledgment[];
+  pending: { id: string; fullName: string; photoUrl?: string | null }[];
+}
+
+export interface DesignationHistoryEntry {
+  id: string;
+  fromDesignation: { name: string } | null;
+  toDesignation: { name: string } | null;
+  changedAt: string;
+  note?: string | null;
 }
 
 export interface EmployeeManagerRef {
@@ -82,6 +134,14 @@ export interface Employee {
   skills?: { id: string; skill: LookupItem; proficiency: Proficiency; yearsExperience: number }[];
   documents?: EmployeeDocument[];
 
+  // Talent Directory (Sprint 19)
+  experienceLevel: ExperienceLevel;
+  deploymentStatus: DeploymentStatus;
+  // Currently-open (endDate: null) project assignments only — see
+  // EmployeesService.BASE_INCLUDE. The drawer's full past+present history
+  // comes from a separate getMyProjects call instead.
+  projectAssignments?: MyProjectAssignment[];
+
   dateOfJoining?: string | null;
   dateOfBirth?: string | null;
   status: EmployeeStatus;
@@ -103,6 +163,8 @@ export interface EmployeeInput {
   workLocation?: string;
   reportingManagerId?: string;
   systemRole?: SystemRole | '';
+  experienceLevel?: ExperienceLevel;
+  deploymentStatus?: DeploymentStatus;
   dateOfJoining?: string;
   dateOfBirth?: string;
   status?: EmployeeStatus;
@@ -118,6 +180,7 @@ export interface AdminAccount {
   status: AdminStatus;
   employeeId?: string | null;
   createdAt: string;
+  lastLoginAt?: string | null;
 }
 
 // --- Leave Management ---
@@ -126,6 +189,7 @@ export type AccrualMethod = 'MONTHLY' | 'UPFRONT' | 'NONE';
 export type LeaveRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
 export type DayPart = 'FULL' | 'FIRST_HALF' | 'SECOND_HALF';
 export type HolidayRegion = 'US' | 'INDIA' | 'COMPANY';
+export type HolidayType = 'NATIONAL' | 'REGIONAL' | 'FLOATING';
 
 export interface LeaveType {
   id: string;
@@ -137,6 +201,8 @@ export interface LeaveType {
   carryForwardAllowed: boolean;
   isCompOff: boolean;
   active: boolean;
+  usageCount?: number;
+  usageLabel?: string;
 }
 
 export interface Holiday {
@@ -144,11 +210,13 @@ export interface Holiday {
   name: string;
   date: string;
   region: HolidayRegion;
+  type: HolidayType;
 }
 
 export interface LeaveBalance {
   leaveTypeId: string;
   leaveTypeName: string;
+  leaveTypeCode?: string | null;
   isPaid: boolean;
   annualQuota: number | null;
   accrued: number | null;
@@ -193,11 +261,15 @@ export interface Client {
   contactEmail?: string | null;
   contactPhone?: string | null;
   timezone?: string | null;
+  region?: string | null;
   status: ClientStatus;
   notes?: string | null;
   createdAt: string;
   _count?: { projects: number };
 }
+
+export const CLIENT_REGIONS = ['US_EAST', 'US_CENTRAL', 'US_MOUNTAIN', 'US_PACIFIC', 'NON_US'] as const;
+export type ClientRegion = (typeof CLIENT_REGIONS)[number];
 
 export type ProjectStatus = 'ACTIVE' | 'ON_HOLD' | 'COMPLETED' | 'CANCELLED';
 export type ContractType = 'T_AND_M' | 'FIXED_PRICE' | 'RETAINER' | 'MANAGED_SERVICE';
@@ -208,6 +280,8 @@ export interface Technology {
   name: string;
   category: ProjectCategory;
   active: boolean;
+  usageCount?: number;
+  usageLabel?: string;
 }
 
 export interface ProjectClientRef {
@@ -222,6 +296,7 @@ export interface ProjectAssignment {
   employee: EmployeeRef;
   roleOnProject?: string | null;
   allocationPercent: number;
+  mentorRole?: 'PRIMARY' | 'SECONDARY' | null;
   startDate: string;
   endDate?: string | null;
 }
@@ -237,11 +312,13 @@ export interface Project {
   category?: ProjectCategory | null;
   technologyId?: string | null;
   technology?: Technology | null;
+  technologies?: Technology[];
   primaryMentorId?: string | null;
   primaryMentor?: EmployeeRef | null;
   secondaryMentorId?: string | null;
   secondaryMentor?: EmployeeRef | null;
   startDate?: string | null;
+  targetCompletionDate?: string | null;
   endDate?: string | null;
   closureSummary?: string | null;
   createdAt: string;
@@ -252,6 +329,7 @@ export interface Project {
 export type UtilizationStatus = 'BENCH' | 'IN_TRAINING' | 'PARTIAL' | 'FULL' | 'OVER';
 
 export interface UtilizationAssignment {
+  assignmentId: string;
   projectId: string;
   projectName: string;
   projectStatus: ProjectStatus;
@@ -329,7 +407,13 @@ export interface AttendanceToday {
 export interface AttendanceSettings {
   id: string;
   expectedStartTime: string;
+  // Shift start while US Daylight Saving is in effect (Sprint 18) — this
+  // company's shift is aligned to fixed US client hours, so the expected
+  // IST clock-in time itself shifts twice a year even though India doesn't
+  // observe DST.
+  expectedStartTimeDst: string;
   graceMinutes: number;
+  earlyThresholdMinutes: number;
   halfDayThresholdHours: number;
   updatedAt: string;
 }
@@ -349,6 +433,8 @@ export interface DashboardSummary {
   };
   assetStatusCounts: Record<string, number>;
   trainingCompletionPercent: number;
+  quizAttemptsTotal: number;
+  quizPassRatePercent: number;
 }
 
 export interface AbsenteeismRow {
@@ -405,7 +491,7 @@ export interface ReportsPreviewTenureSpreadRow {
   y3plus: number;
 }
 
-export type ReportsPreviewAttendanceStatus = 'On Time' | 'Late' | 'Absent';
+export type ReportsPreviewAttendanceStatus = 'Early' | 'On Time' | 'Late' | 'Absent';
 
 export interface ReportsPreviewAttendanceLedgerRow {
   id: string;
@@ -416,6 +502,69 @@ export interface ReportsPreviewAttendanceLedgerRow {
   checkOut: string;
   status: ReportsPreviewAttendanceStatus;
   lateByMinutes: number;
+  earlyByMinutes: number;
+}
+
+// Sprint 18: "who's logged in late, early, or on time" as its own report,
+// separate from the raw per-day ledger above — trailing-30-workday totals
+// plus a per-employee punctuality breakdown.
+export interface ReportsPreviewAttendanceTimelinessTotals {
+  early: number;
+  onTime: number;
+  late: number;
+  absent: number;
+  onTimeRatePercent: number;
+}
+
+export interface ReportsPreviewAttendanceTimelinessRow {
+  id: string;
+  name: string;
+  department: string;
+  earlyDays: number;
+  onTimeDays: number;
+  lateDays: number;
+  absentDays: number;
+  avgLateMinutes: number;
+  avgEarlyMinutes: number;
+}
+
+export interface ReportsPreviewAttendanceTimeliness {
+  windowDays: number;
+  expectedStartTime: string;
+  expectedStartTimeDst: string;
+  totals: ReportsPreviewAttendanceTimelinessTotals;
+  rows: ReportsPreviewAttendanceTimelinessRow[];
+}
+
+export interface ReportsPreviewTurnover {
+  turnoverRatePercent: number;
+  exitsTrailing12Months: number;
+}
+
+export interface ReportsPreviewRecruitmentSpeed {
+  avgTimeToFillDays: number | null;
+  hiresSampled: number;
+}
+
+export interface ReportsPreviewPerformanceEngagement {
+  activeCycleName: string | null;
+  reviewsFinalizedCount: number;
+  reviewsTotalCount: number;
+  avgGoalProgressPercent: number | null;
+  kudosLast30Days: number;
+}
+
+// Real recruitment-funnel rows (Sprint 18, replacing the previous mock
+// table) — `stage` is one of previewMockData.ts's FunnelStage display
+// labels (kept as `string` here since types.ts doesn't depend on a page
+// file; the values always match).
+export interface ReportsPreviewFunnelRow {
+  id: string;
+  candidate: string;
+  role: string;
+  source: string;
+  appliedDate: string;
+  stage: string;
 }
 
 export type ReportsPreviewTenureBucket = '<6 mos' | '6-12 mos' | '1-3 yrs' | '3+ yrs';
@@ -443,9 +592,16 @@ export interface ReportsPreviewAttritionRisk {
 export interface ReportsPreviewComplianceRadar {
   documentsExpiringSoon: number;
   unassignedLaptops: number;
-  // null = not tracked yet (no policy-acknowledgment model exists) rather
-  // than a made-up count.
-  pendingPolicySignatures: number | null;
+  // Real as of Sprint 16's CompanyDocumentAcknowledgment tracking — sum
+  // across POLICY documents of (active employees - who's acknowledged it).
+  pendingPolicySignatures: number;
+}
+
+export interface ReportsPreviewUsClientAlignment {
+  timezoneOverlapPercent: number;
+  timezoneOverlapLabel: string;
+  activeUsProjects: number;
+  activeUsClients: number;
 }
 
 export type ReportsPreviewComplianceStatus = 'Overdue' | 'Due Soon' | 'Complete';
@@ -466,6 +622,9 @@ export interface SandboxEmployeeCard {
   photoUrl: string | null;
   departmentName: string | null;
   designationName: string | null;
+  skills: string[];
+  realStatus: UtilizationStatus;
+  realAllocationPercent: number;
 }
 
 export interface SandboxProjectColumn {
@@ -473,6 +632,7 @@ export interface SandboxProjectColumn {
   name: string;
   status: string;
   clientName: string;
+  category: string | null;
 }
 
 export interface StaffingSandboxBoard {
@@ -480,9 +640,20 @@ export interface StaffingSandboxBoard {
   columns: Record<string, SandboxEmployeeCard[]>;
 }
 
+export interface SandboxPlanChange {
+  type: 'ASSIGN' | 'END';
+  employeeId: string;
+  employeeName: string;
+  projectId: string;
+  projectName: string;
+  assignmentId?: string;
+}
+
 export interface EmployeeRef {
   id: string;
   fullName: string;
+  employeeCode?: string | null;
+  photoUrl?: string | null;
 }
 
 export interface LeaveDayEntry extends EmployeeRef {
@@ -505,7 +676,18 @@ export interface AttendanceDay {
 
 // --- Training & Certifications ---
 
-export type TrainingCategory = 'AGILE_TOOLS' | 'MS365' | 'ZOHO_TOOLS' | 'SECURITY_IT' | 'AI_TOOLS' | 'GLOBAL_SKILLS';
+export type TrainingCategory =
+  | 'AGILE_TOOLS'
+  | 'MS365'
+  | 'ZOHO_TOOLS'
+  | 'SECURITY_IT'
+  | 'AI_TOOLS'
+  | 'GLOBAL_SKILLS'
+  | 'IAM_UDEMY'
+  | 'IAM_CLOUDFOUNDATION'
+  | 'IAM_SECAPPS'
+  | 'DEVOPS_UDEMY';
+export type LearningTrack = 'MANDATORY' | 'IAM_ENGINEERING' | 'DEVOPS_ENGINEERING';
 export type TrainingStatus = 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED';
 
 export interface TrainingResource {
@@ -524,6 +706,9 @@ export interface TrainingCourse {
   active: boolean;
   order: number;
   resources: TrainingResource[];
+  // Safe (no answers) quiz summary — null/undefined means this course has
+  // no assessment yet. See QuizStaff/QuizToTake for the full authoring/taking shapes.
+  quiz?: { id: string; title: string; passPercent: number; active: boolean } | null;
 }
 
 export interface EmployeeTraining {
@@ -535,6 +720,163 @@ export interface EmployeeTraining {
   assignedAt: string;
   startedAt?: string | null;
   completedAt?: string | null;
+}
+
+// --- Learning Center "Assessments" tab ---
+// A quiz is scoped EITHER to one course (courseId set, track null — IAM
+// Engineering and DevOps Engineering assessments) OR to a whole track
+// (track set, courseId null — Mandatory Training's single assessment,
+// unlocked only once every assigned Mandatory course is COMPLETED).
+// subjectTitle is whichever of the course's title / the track's label
+// applies, so most display code never needs to branch on which it is.
+
+export interface QuizOptionStaff {
+  id: string;
+  text: string;
+  isCorrect: boolean;
+  order: number;
+}
+
+export interface QuizQuestionStaff {
+  id: string;
+  text: string;
+  order: number;
+  options: QuizOptionStaff[];
+}
+
+// Full quiz shape as staff authors/edits it (correct answers included).
+export interface QuizStaff {
+  id: string;
+  courseId: string | null;
+  track: LearningTrack | null;
+  title: string;
+  passPercent: number;
+  active: boolean;
+  questions: QuizQuestionStaff[];
+}
+
+export interface QuizOptionPublic {
+  id: string;
+  text: string;
+}
+
+export interface QuizQuestionPublic {
+  id: string;
+  text: string;
+  options: QuizOptionPublic[];
+}
+
+// What an employee fetches to take an assessment — correct answers stripped.
+export interface QuizToTake {
+  id: string;
+  courseId: string | null;
+  track: LearningTrack | null;
+  subjectTitle: string;
+  title: string;
+  passPercent: number;
+  questions: QuizQuestionPublic[];
+}
+
+// Returned by GET /training/tracks/:track/quiz-status — lets the frontend
+// show Mandatory Training's single assessment card (locked/unlocked) with
+// no course to key it off of.
+export interface TrackQuizStatus {
+  quiz: { id: string; title: string; passPercent: number } | null;
+  unlocked: boolean;
+  totalCourses: number;
+  completedCourses: number;
+}
+
+export interface QuizAnswerSubmission {
+  questionId: string;
+  selectedOptionId?: string;
+}
+
+export interface QuizReviewOption {
+  id: string;
+  text: string;
+  isCorrect: boolean;
+}
+
+export interface QuizReviewQuestion {
+  id: string;
+  text: string;
+  selectedOptionId: string | null;
+  options: QuizReviewOption[];
+}
+
+// The graded result returned immediately after POST /quizzes/:id/submit —
+// includes the answer key so the frontend can render a review screen.
+export interface QuizSubmitResult {
+  id: string;
+  quizId: string;
+  subjectTitle: string;
+  totalQuestions: number;
+  correctCount: number;
+  incorrectCount: number;
+  percent: number;
+  passed: boolean;
+  passPercent: number;
+  submittedAt: string;
+  review: QuizReviewQuestion[];
+}
+
+// One row in a results listing (admin "Assessment Results" view, or an
+// employee's own "My Assessment Results" history) — already joined with
+// employee/course info so the frontend needs no extra lookups.
+export interface QuizResultRow {
+  id: string;
+  quizId: string;
+  courseId: string | null;
+  track: LearningTrack | null;
+  subjectTitle: string;
+  category: TrainingCategory | null;
+  employeeId: string;
+  employeeName: string;
+  employeeCode?: string | null;
+  employeePhotoUrl?: string | null;
+  departmentName?: string | null;
+  designationName?: string | null;
+  totalQuestions: number;
+  correctCount: number;
+  incorrectCount: number;
+  percent: number;
+  passed: boolean;
+  submittedAt: string;
+}
+
+export interface QuizDashboardStats {
+  totalAttempts: number;
+  passedCount: number;
+  passRatePercent: number;
+  avgPercent: number;
+  certificatesIssued: number;
+}
+
+export interface LearningPortalCredential {
+  id: string;
+  name: string;
+  websiteUrl: string;
+  loginUrl?: string | null;
+  username: string;
+  passwordNote: string;
+  notes?: string[];
+}
+
+export interface LearningReferenceLink {
+  label: string;
+  url: string;
+}
+
+export interface LearningReferenceTool {
+  name: string;
+  links: LearningReferenceLink[];
+}
+
+export interface LearningReferenceGroup {
+  key: string;
+  title: string;
+  tools: LearningReferenceTool[];
 }
 
 export interface TrainingProgressEntry {
@@ -555,6 +897,7 @@ export interface TrainingProgressEntry {
 export type AssetCategory =
   | 'LAPTOP'
   | 'MONITOR'
+  | 'PERIPHERALS'
   | 'MOBILE_PHONE'
   | 'ID_CARD'
   | 'SOFTWARE_LICENSE'
@@ -577,6 +920,7 @@ export interface Asset {
   name: string;
   serialNumber?: string | null;
   purchaseDate?: string | null;
+  purchaseValue?: number | null;
   notes?: string | null;
   status: AssetStatus;
   assignments?: AssetAssignment[];
@@ -607,7 +951,9 @@ export type NotificationType =
   | 'PROJECT_ASSIGNMENT_ENDED'
   | 'ASSET_ASSIGNED'
   | 'DOCUMENT_EXPIRING'
-  | 'BIRTHDAY';
+  | 'BIRTHDAY'
+  | 'RECOGNITION_RECEIVED'
+  | 'PULSE_SURVEY_LAUNCHED';
 
 export interface AppNotification {
   id: string;
@@ -637,6 +983,10 @@ export interface Announcement {
   attachmentUrl?: string | null;
   attachmentName?: string | null;
   category?: string | null;
+  // One of STICKY_COLORS (lib/stickyNoteColors.ts) -- assigned server-side,
+  // never user-chosen. Always present on announcements created after the
+  // sticky-note redesign; optional only for defensiveness against old data.
+  color?: string | null;
   pinned: boolean;
   commentsDisabled: boolean;
   audienceType: AnnouncementAudienceType | string;
@@ -876,4 +1226,586 @@ export interface UpdateExitFeedbackInput {
   cultureScore?: number;
   managementFeedback?: string;
   rehireEligible?: boolean;
+}
+
+// --- Sprint 13: Recruitment ---------------------------------------------
+// Started simple, then extended into a richer ATS-flavored requisition/
+// pipeline (linked client/project, hiring manager, tech-stack tags,
+// employment type, experience level, salary range, headcount) per
+// follow-up feedback right after the first pass shipped.
+
+export type JobOpeningStatus = 'OPEN' | 'ON_HOLD' | 'CLOSED';
+export const JOB_OPENING_STATUSES: JobOpeningStatus[] = ['OPEN', 'ON_HOLD', 'CLOSED'];
+
+// Same vocabulary as Employee's own EmploymentType, so a requisition and the
+// employee eventually hired for it speak the same language.
+export type JobOpeningEmploymentType = 'INTERN' | 'FULL_TIME' | 'PART_TIME' | 'CONTRACTOR';
+export const JOB_OPENING_EMPLOYMENT_TYPES: JobOpeningEmploymentType[] = [
+  'INTERN',
+  'FULL_TIME',
+  'PART_TIME',
+  'CONTRACTOR',
+];
+
+export type ExperienceLevel = 'ENTRY' | 'MID' | 'SENIOR' | 'LEAD';
+export const EXPERIENCE_LEVELS: ExperienceLevel[] = ['ENTRY', 'MID', 'SENIOR', 'LEAD'];
+
+// Order matters — drives both the Kanban board's column order and the
+// stage-stepper progression, mirroring the real process end to end.
+// REJECTED can happen from any stage so it's kept out of the "forward"
+// sequence rather than positioned as a step within it. FINAL_ROUND displays
+// as "Client Round" in the UI (see STAGE_LABELS in Recruitment.tsx) now
+// that it doubles as the client-facing interview for US client roles.
+export type CandidateStage =
+  | 'APPLIED'
+  | 'SCREENING_CALL'
+  | 'TECHNICAL_ROUND'
+  | 'FINAL_ROUND'
+  | 'OFFER_EXTENDED'
+  | 'HIRED'
+  | 'REJECTED';
+export const CANDIDATE_FORWARD_STAGES: CandidateStage[] = [
+  'APPLIED',
+  'SCREENING_CALL',
+  'TECHNICAL_ROUND',
+  'FINAL_ROUND',
+  'OFFER_EXTENDED',
+  'HIRED',
+];
+
+export interface JobOpeningRef {
+  id: string;
+  title: string;
+  refCode?: string;
+  departmentId?: string | null;
+}
+
+export interface JobOpening {
+  id: string;
+  refCode: string;
+  title: string;
+  departmentId?: string | null;
+  department?: { id: string; name: string } | null;
+  projectId?: string | null;
+  project?: { id: string; name: string; client: { id: string; name: string } } | null;
+  hiringManagerId?: string | null;
+  hiringManager?: { id: string; fullName: string; employeeCode?: string | null } | null;
+  technologies: { id: string; name: string }[];
+  employmentType?: JobOpeningEmploymentType | null;
+  experienceLevel?: ExperienceLevel | null;
+  salaryRange?: string | null;
+  headcountTarget: number;
+  description?: string | null;
+  status: JobOpeningStatus;
+  openedAt: string;
+  closedAt?: string | null;
+  _count?: { candidates: number };
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Candidate {
+  id: string;
+  jobOpeningId: string;
+  jobOpening?: JobOpeningRef;
+  fullName: string;
+  email: string;
+  phone?: string | null;
+  // Free text, powered by a Master Data lookup (Clients & Hiring tab) rather than a
+  // closed enum -- see the schema comment on the CandidateSource model.
+  source: string;
+  stage: CandidateStage;
+  screeningNotes?: string | null;
+  screeningRating?: number | null;
+  technicalNotes?: string | null;
+  technicalRating?: number | null;
+  finalRoundNotes?: string | null;
+  finalRoundRating?: number | null;
+  nextInterviewAt?: string | null;
+  rejectionReason?: string | null;
+  resumeFileName?: string | null;
+  resumeUrl?: string | null;
+  appliedAt: string;
+  hiredAt?: string | null;
+  convertedEmployeeId?: string | null;
+  convertedEmployee?: { id: string; fullName: string; employeeCode?: string | null } | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateJobOpeningInput {
+  title: string;
+  departmentId?: string;
+  projectId?: string;
+  hiringManagerId?: string;
+  technologyIds?: string[];
+  employmentType?: JobOpeningEmploymentType;
+  experienceLevel?: ExperienceLevel;
+  salaryRange?: string;
+  headcountTarget?: number;
+  description?: string;
+  status?: JobOpeningStatus;
+}
+
+export type UpdateJobOpeningInput = Partial<CreateJobOpeningInput>;
+
+export interface UpdateCandidateInput {
+  fullName?: string;
+  email?: string;
+  phone?: string;
+  source?: string;
+  stage?: CandidateStage;
+  screeningNotes?: string;
+  screeningRating?: number;
+  technicalNotes?: string;
+  technicalRating?: number;
+  finalRoundNotes?: string;
+  finalRoundRating?: number;
+  nextInterviewAt?: string;
+  rejectionReason?: string;
+}
+
+export interface ConvertCandidateInput {
+  fullName: string;
+  email: string;
+  phone?: string;
+  employmentType: string;
+  departmentId?: string;
+  dateOfJoining?: string;
+}
+
+// --- Sprint 14: Performance & Goal Management ---------------------------
+// OKR-style Goals (optionally aligned under a parent goal) plus continuous
+// CheckIns, framed by ReviewCycles, and formal multi-rater
+// PerformanceReviews (SELF/MANAGER/PEER ReviewFeedback entries).
+
+export type ReviewCycleStatus = 'DRAFT' | 'ACTIVE' | 'CLOSED';
+export const REVIEW_CYCLE_STATUSES: ReviewCycleStatus[] = ['DRAFT', 'ACTIVE', 'CLOSED'];
+
+export type GoalCategory = 'INDIVIDUAL' | 'TEAM' | 'COMPANY';
+export const GOAL_CATEGORIES: GoalCategory[] = ['INDIVIDUAL', 'TEAM', 'COMPANY'];
+
+export type GoalStatus = 'NOT_STARTED' | 'IN_PROGRESS' | 'AT_RISK' | 'COMPLETED';
+export const GOAL_STATUSES: GoalStatus[] = ['NOT_STARTED', 'IN_PROGRESS', 'AT_RISK', 'COMPLETED'];
+
+export type CheckInConfidence = 'ON_TRACK' | 'AT_RISK' | 'OFF_TRACK';
+export const CHECK_IN_CONFIDENCE_LEVELS: CheckInConfidence[] = ['ON_TRACK', 'AT_RISK', 'OFF_TRACK'];
+
+export type PerformanceReviewStatus = 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED';
+
+export type ReviewRaterType = 'SELF' | 'MANAGER' | 'PEER' | 'CLIENT';
+export const REVIEW_RATER_TYPES: ReviewRaterType[] = ['SELF', 'MANAGER', 'PEER', 'CLIENT'];
+
+export interface ReviewCycle {
+  id: string;
+  name: string;
+  startDate: string;
+  endDate: string;
+  status: ReviewCycleStatus;
+  _count?: { goals: number; reviews: number };
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface GoalEmployeeRef {
+  id: string;
+  fullName: string;
+  employeeCode?: string | null;
+  photoUrl?: string | null;
+}
+
+export interface KeyResult {
+  id: string;
+  goalId: string;
+  title: string;
+  targetValue?: string | null;
+  completed: boolean;
+  order: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Goal {
+  id: string;
+  employeeId: string;
+  employee?: GoalEmployeeRef;
+  reviewCycleId?: string | null;
+  reviewCycle?: { id: string; name: string; status: ReviewCycleStatus } | null;
+  parentGoalId?: string | null;
+  parentGoal?: { id: string; title: string; category: GoalCategory } | null;
+  projectId?: string | null;
+  project?: { id: string; name: string; client: { id: string; name: string } } | null;
+  title: string;
+  description?: string | null;
+  category: GoalCategory;
+  progress: number;
+  status: GoalStatus;
+  dueDate?: string | null;
+  checkIns?: CheckIn[];
+  keyResults: KeyResult[];
+  _count?: { checkIns: number; childGoals: number };
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CheckIn {
+  id: string;
+  employeeId: string;
+  goalId?: string | null;
+  progressUpdate: string;
+  blockers?: string | null;
+  confidence: CheckInConfidence;
+  checkInDate: string;
+  createdAt: string;
+}
+
+export interface ReviewFeedback {
+  id: string;
+  performanceReviewId: string;
+  raterId: string;
+  rater?: { id: string; fullName: string; employeeCode?: string | null };
+  raterType: ReviewRaterType;
+  communicationRating?: number | null;
+  technicalRating?: number | null;
+  teamworkRating?: number | null;
+  goalAchievementRating?: number | null;
+  comments?: string | null;
+  submittedAt: string;
+}
+
+export interface PerformanceReview {
+  id: string;
+  reviewCycleId: string;
+  reviewCycle?: ReviewCycle;
+  employeeId: string;
+  employee?: {
+    id: string;
+    fullName: string;
+    employeeCode?: string | null;
+    photoUrl?: string | null;
+    departmentId?: string | null;
+    department?: { id: string; name: string } | null;
+    designation?: { id: string; name: string } | null;
+  };
+  status: PerformanceReviewStatus;
+  overallRating?: number | null;
+  potentialRating?: number | null;
+  managerSummary?: string | null;
+  expectedPeerReviewers: number;
+  employeeAcknowledged: boolean;
+  acknowledgedAt?: string | null;
+  feedback: ReviewFeedback[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProjectContextAssignment {
+  id: string;
+  projectId: string;
+  roleOnProject?: string | null;
+  allocationPercent: number;
+  startDate: string;
+  endDate?: string | null;
+  project: { id: string; name: string; status: ProjectStatus; client: { id: string; name: string } };
+}
+
+export interface CreateReviewCycleInput {
+  name: string;
+  startDate: string;
+  endDate: string;
+}
+
+export type UpdateReviewCycleInput = Partial<CreateReviewCycleInput> & { status?: ReviewCycleStatus };
+
+export interface CreateGoalInput {
+  employeeId?: string;
+  reviewCycleId?: string;
+  parentGoalId?: string;
+  projectId?: string;
+  title: string;
+  description?: string;
+  category?: GoalCategory;
+  progress?: number;
+  status?: GoalStatus;
+  dueDate?: string;
+}
+
+export interface CreateKeyResultInput {
+  title: string;
+  targetValue?: string;
+  order?: number;
+}
+
+export interface UpdateKeyResultInput {
+  title?: string;
+  targetValue?: string;
+  completed?: boolean;
+  order?: number;
+}
+
+export type UpdateGoalInput = Partial<Omit<CreateGoalInput, 'employeeId'>>;
+
+export interface CreateCheckInInput {
+  employeeId?: string;
+  goalId?: string;
+  progressUpdate: string;
+  blockers?: string;
+  confidence?: CheckInConfidence;
+}
+
+export interface SubmitFeedbackInput {
+  raterId?: string;
+  raterType: ReviewRaterType;
+  communicationRating?: number;
+  technicalRating?: number;
+  teamworkRating?: number;
+  goalAchievementRating?: number;
+  comments?: string;
+}
+
+export interface FinalizeReviewInput {
+  overallRating: number;
+  potentialRating?: number;
+  managerSummary?: string;
+}
+
+// --- Sprint 15: Employee Engagement & Feedback ---------------------------
+// Peer recognition ("kudos") plus lightweight pulse surveys — both
+// intentionally simple, matching this app's "free and simple but usable"
+// bias. See schema.prisma's Sprint 15 comment for the full rationale.
+
+export type RecognitionCategory = 'TEAMWORK' | 'CLIENT_IMPACT' | 'INNOVATION' | 'LEADERSHIP' | 'GOING_ABOVE_AND_BEYOND';
+export const RECOGNITION_CATEGORIES: RecognitionCategory[] = [
+  'TEAMWORK',
+  'CLIENT_IMPACT',
+  'INNOVATION',
+  'LEADERSHIP',
+  'GOING_ABOVE_AND_BEYOND',
+];
+
+export type RecognitionReactionType = 'LIKE' | 'CLAP' | 'FIRE' | 'ROCKET';
+export const RECOGNITION_REACTION_TYPES: RecognitionReactionType[] = ['LIKE', 'CLAP', 'FIRE', 'ROCKET'];
+
+export interface RecognitionReactionCount {
+  type: RecognitionReactionType;
+  count: number;
+}
+
+// Fixed reward-point tiers offered in the Give Kudos modal.
+export const RECOGNITION_POINT_OPTIONS: number[] = [0, 10, 25, 50, 100];
+
+export interface RecognitionEmployeeRef {
+  id: string;
+  fullName: string;
+  employeeCode?: string | null;
+  photoUrl?: string | null;
+}
+
+export interface Recognition {
+  id: string;
+  fromEmployee: RecognitionEmployeeRef;
+  toEmployee: RecognitionEmployeeRef;
+  category: RecognitionCategory;
+  message: string;
+  points: number;
+  createdAt: string;
+  reactions: RecognitionReactionCount[];
+  myReactions: RecognitionReactionType[];
+  commentCount: number;
+}
+
+export interface RecognitionComment {
+  id: string;
+  body: string;
+  createdAt: string;
+  employee: { id: string; fullName: string; photoUrl?: string | null };
+}
+
+export interface RecognitionLeaderboardEntry {
+  employee: RecognitionEmployeeRef;
+  count: number;
+  points: number;
+}
+
+export interface CreateRecognitionInput {
+  toEmployeeId: string;
+  category: RecognitionCategory;
+  message: string;
+  points?: number;
+}
+
+export type PulseSurveyStatus = 'DRAFT' | 'ACTIVE' | 'CLOSED';
+export const PULSE_SURVEY_STATUSES: PulseSurveyStatus[] = ['DRAFT', 'ACTIVE', 'CLOSED'];
+
+export type PulseSurveyAudienceType = 'ALL' | 'DEPARTMENTS';
+
+export type PulseQuestionType = 'RATING' | 'YES_NO' | 'TEXT';
+export const PULSE_QUESTION_TYPES: PulseQuestionType[] = ['RATING', 'YES_NO', 'TEXT'];
+
+export interface PulseSurveyQuestion {
+  id: string;
+  text: string;
+  type: PulseQuestionType;
+  order: number;
+}
+
+export interface PulseSurveyAnswer {
+  id: string;
+  questionId: string;
+  ratingValue?: number | null;
+  boolValue?: boolean | null;
+  textValue?: string | null;
+}
+
+export interface PulseSurvey {
+  id: string;
+  title: string;
+  description?: string | null;
+  status: PulseSurveyStatus;
+  audienceType: PulseSurveyAudienceType;
+  audienceDepartmentIds: string[];
+  closesAt?: string | null;
+  createdByName?: string;
+  createdAt: string;
+  questions: PulseSurveyQuestion[];
+  responseCount: number;
+  eligibleCount: number;
+  respondedByMe: boolean;
+}
+
+export interface PulseSurveyDetail extends PulseSurvey {
+  myAnswers: PulseSurveyAnswer[] | null;
+}
+
+export interface PulseSurveyQuestionResult {
+  questionId: string;
+  text: string;
+  type: PulseQuestionType;
+  average?: number | null;
+  distribution?: number[];
+  yes?: number;
+  no?: number;
+  responses?: string[];
+  responseCount: number;
+}
+
+export interface PulseSurveyResults {
+  surveyId: string;
+  title: string;
+  status: PulseSurveyStatus;
+  eligibleCount: number;
+  responseCount: number;
+  responseRatePercent: number;
+  questions: PulseSurveyQuestionResult[];
+}
+
+export interface PulseQuestionInput {
+  text: string;
+  type: PulseQuestionType;
+}
+
+export interface CreatePulseSurveyInput {
+  title: string;
+  description?: string;
+  audienceType?: PulseSurveyAudienceType;
+  audienceDepartmentIds?: string[];
+  closesAt?: string;
+  questions: PulseQuestionInput[];
+}
+
+export interface UpdatePulseSurveyInput {
+  title?: string;
+  description?: string;
+  status?: PulseSurveyStatus;
+  closesAt?: string | null;
+}
+
+export interface PulseAnswerInput {
+  questionId: string;
+  ratingValue?: number;
+  boolValue?: boolean;
+  textValue?: string;
+}
+
+// eNPS-style engagement snapshot for the Pulse Surveys tab header.
+export type PulseFeedbackSentiment = 'POSITIVE' | 'NEUTRAL' | 'NEEDS_ATTENTION';
+
+export interface PulseInsightsTrendPoint {
+  label: string;
+  score: number;
+}
+
+export interface PulseInsightsFeedbackItem {
+  text: string;
+  sentiment: PulseFeedbackSentiment;
+  surveyTitle: string;
+  submittedAt: string;
+}
+
+export interface PulseSurveyInsights {
+  enpsScore: number;
+  sentimentLabel: 'Healthy' | 'Needs Attention' | 'Critical';
+  promoterPercent: number;
+  passivePercent: number;
+  detractorPercent: number;
+  totalRatingResponses: number;
+  trend: PulseInsightsTrendPoint[];
+  feedback: PulseInsightsFeedbackItem[];
+}
+
+// --- Master Data: new lookup categories (Assets & Docs, Locations tabs) ---
+
+export interface WorkLocation {
+  id: string;
+  name: string;
+  region?: string | null;
+  active: boolean;
+  usageCount?: number;
+  usageLabel?: string;
+}
+
+export type AssetCategoryKind = 'HARDWARE' | 'SOFTWARE';
+
+export interface AssetCategoryItem {
+  id: string;
+  name: string;
+  kind: AssetCategoryKind;
+  active: boolean;
+  usageCount?: number;
+  usageLabel?: string;
+}
+
+export interface AssetVendorItem {
+  id: string;
+  name: string;
+  active: boolean;
+  usageCount?: number;
+  usageLabel?: string;
+}
+
+export interface ContractTypeItem {
+  id: string;
+  name: string;
+  active: boolean;
+  usageCount?: number;
+  usageLabel?: string;
+}
+
+export interface CandidateSourceItem {
+  id: string;
+  name: string;
+  active: boolean;
+  usageCount?: number;
+  usageLabel?: string;
+}
+
+export type DocumentTypeAppliesTo = 'EMPLOYEE' | 'COMPANY';
+
+export interface DocumentTypeItem {
+  id: string;
+  name: string;
+  appliesTo: DocumentTypeAppliesTo;
+  active: boolean;
+  usageCount?: number;
+  usageLabel?: string;
 }

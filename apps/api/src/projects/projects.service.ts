@@ -11,14 +11,89 @@ export class ProjectsService {
     private notifications: NotificationsService,
   ) {}
 
+  // Talent Directory (Sprint 19): deploymentStatus is staff-set, but a
+  // brand-new hire is created BENCH by default and a completed engagement
+  // shouldn't need a staff member to remember to flip it back manually
+  // every time. These two hooks keep it roughly in sync with reality on
+  // the two events that actually change it — being staffed onto a project,
+  // and having your last open one end — without ever touching SHADOW or
+  // INTERNAL, which are deliberate staff calls this shouldn't override.
+  private async bumpToBillableIfBench(employeeId: string) {
+    const employee = await this.prisma.employee.findUnique({ where: { id: employeeId } });
+    if (employee && (employee.deploymentStatus === 'BENCH' || employee.deploymentStatus === 'ONBOARDING')) {
+      await this.prisma.employee.update({ where: { id: employeeId }, data: { deploymentStatus: 'BILLABLE' } });
+    }
+  }
+
+  private async revertToBenchIfNoOpenAssignments(employeeId: string) {
+    const [employee, openCount] = await Promise.all([
+      this.prisma.employee.findUnique({ where: { id: employeeId } }),
+      this.prisma.projectAssignment.count({ where: { employeeId, endDate: null } }),
+    ]);
+    if (employee && employee.deploymentStatus === 'BILLABLE' && openCount === 0) {
+      await this.prisma.employee.update({ where: { id: employeeId }, data: { deploymentStatus: 'BENCH' } });
+    }
+  }
+
+  // Leadership (Project.primaryMentorId/secondaryMentorId) and the actual
+  // Mentors (Allocation) tag on a ProjectAssignment (mentorRole) are meant
+  // to describe the same person, but they're set from two different forms
+  // (the project drawer vs. Add Mentors) and can be filled in either order.
+  // Whenever a project's leadership FK changes, catch up any already-open
+  // assignment for that same employee that hasn't been explicitly tagged
+  // yet, so the Mentors (Allocation) row doesn't wrongly read "Not
+  // assigned" for someone who plainly is the mentor and is already on the
+  // team. Never overwrites a tag someone picked on purpose (PRIMARY vs
+  // SECONDARY) via Add Mentors.
+  private async syncOpenAssignmentMentorTags(
+    projectId: string,
+    mentors: { primaryMentorId?: string | null; secondaryMentorId?: string | null },
+  ) {
+    const jobs: Promise<unknown>[] = [];
+    if (mentors.primaryMentorId) {
+      jobs.push(
+        this.prisma.projectAssignment.updateMany({
+          where: { projectId, employeeId: mentors.primaryMentorId, endDate: null, mentorRole: null },
+          data: { mentorRole: 'PRIMARY' },
+        }),
+      );
+    }
+    if (mentors.secondaryMentorId) {
+      jobs.push(
+        this.prisma.projectAssignment.updateMany({
+          where: { projectId, employeeId: mentors.secondaryMentorId, endDate: null, mentorRole: null },
+          data: { mentorRole: 'SECONDARY' },
+        }),
+      );
+    }
+    if (jobs.length) await Promise.all(jobs);
+  }
+
   findAll(filters: { clientId?: string; status?: string }) {
     return this.prisma.project.findMany({
       where: { clientId: filters.clientId || undefined, status: filters.status || undefined },
       include: {
         client: { select: { id: true, name: true } },
         technology: true,
+        technologies: { select: { id: true, name: true, category: true } },
         primaryMentor: { select: EMPLOYEE_REF_SELECT },
         secondaryMentor: { select: EMPLOYEE_REF_SELECT },
+        // Currently-open assignments, straight on the list response — the
+        // Project Management list card shows Leadership & Team allocation
+        // right on the row now, so it needs the real assignment rows (name,
+        // allocation, mentorRole), not just a count.
+        assignments: {
+          where: { endDate: null },
+          select: {
+            id: true,
+            employeeId: true,
+            roleOnProject: true,
+            allocationPercent: true,
+            mentorRole: true,
+            startDate: true,
+            employee: { select: EMPLOYEE_REF_SELECT },
+          },
+        },
         _count: { select: { assignments: { where: { endDate: null } } } },
       },
       orderBy: { name: 'asc' },
@@ -31,6 +106,7 @@ export class ProjectsService {
       include: {
         client: true,
         technology: true,
+        technologies: { select: { id: true, name: true, category: true } },
         primaryMentor: { select: EMPLOYEE_REF_SELECT },
         secondaryMentor: { select: EMPLOYEE_REF_SELECT },
         assignments: {
@@ -46,30 +122,50 @@ export class ProjectsService {
   async create(input: any) {
     const client = await this.prisma.client.findUnique({ where: { id: input.clientId } });
     if (!client) throw new BadRequestException('Invalid client');
-    return this.prisma.project.create({
+    const { technologyIds, ...rest } = input;
+    const project = await this.prisma.project.create({
       data: {
-        ...input,
+        ...rest,
         startDate: input.startDate ? new Date(input.startDate) : undefined,
+        targetCompletionDate: input.targetCompletionDate ? new Date(input.targetCompletionDate) : undefined,
         technologyId: input.technologyId || undefined,
         primaryMentorId: input.primaryMentorId || undefined,
         secondaryMentorId: input.secondaryMentorId || undefined,
+        technologies: technologyIds?.length ? { connect: technologyIds.map((id: string) => ({ id })) } : undefined,
       },
     });
+    await this.syncOpenAssignmentMentorTags(project.id, {
+      primaryMentorId: project.primaryMentorId,
+      secondaryMentorId: project.secondaryMentorId,
+    });
+    return project;
   }
 
   async update(id: string, input: any) {
     const existing = await this.prisma.project.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException('Project not found');
-    return this.prisma.project.update({
+    const { technologyIds, ...rest } = input;
+    const project = await this.prisma.project.update({
       where: { id },
       data: {
-        ...input,
+        ...rest,
         startDate: input.startDate ? new Date(input.startDate) : input.startDate === '' ? null : undefined,
+        targetCompletionDate: input.targetCompletionDate
+          ? new Date(input.targetCompletionDate)
+          : input.targetCompletionDate === ''
+            ? null
+            : undefined,
         technologyId: input.technologyId || null,
         primaryMentorId: input.primaryMentorId || null,
         secondaryMentorId: input.secondaryMentorId || null,
+        technologies: technologyIds ? { set: technologyIds.map((id: string) => ({ id })) } : undefined,
       },
     });
+    await this.syncOpenAssignmentMentorTags(project.id, {
+      primaryMentorId: project.primaryMentorId,
+      secondaryMentorId: project.secondaryMentorId,
+    });
+    return project;
   }
 
   async remove(id: string) {
@@ -114,6 +210,7 @@ export class ProjectsService {
         }),
       ),
     );
+    await Promise.all(openAssignments.map((a) => this.revertToBenchIfNoOpenAssignments(a.employeeId)));
     return updated;
   }
 
@@ -121,12 +218,21 @@ export class ProjectsService {
 
   async addAssignment(
     projectId: string,
-    input: { employeeId: string; roleOnProject?: string; allocationPercent?: number; startDate?: string },
+    input: { employeeId: string; roleOnProject?: string; allocationPercent?: number; startDate?: string; mentorRole?: string },
   ) {
     const project = await this.prisma.project.findUnique({ where: { id: projectId } });
     if (!project) throw new NotFoundException('Project not found');
     const employee = await this.prisma.employee.findUnique({ where: { id: input.employeeId } });
     if (!employee) throw new BadRequestException('Invalid employee');
+    // If the Leadership Role dropdown was left blank, don't lose the tag
+    // just because of that — if this same person was already picked as
+    // this project's Primary/Secondary Leadership (via the project drawer),
+    // treat that as the answer instead of leaving mentorRole null.
+    let mentorRole = input.mentorRole || null;
+    if (!mentorRole) {
+      if (input.employeeId === project.primaryMentorId) mentorRole = 'PRIMARY';
+      else if (input.employeeId === project.secondaryMentorId) mentorRole = 'SECONDARY';
+    }
     const assignment = await this.prisma.projectAssignment.create({
       data: {
         projectId,
@@ -134,9 +240,19 @@ export class ProjectsService {
         roleOnProject: input.roleOnProject,
         allocationPercent: input.allocationPercent ?? 100,
         startDate: input.startDate ? new Date(input.startDate) : undefined,
+        mentorRole,
       },
       include: { employee: { select: EMPLOYEE_REF_SELECT } },
     });
+    // Adding someone as Primary/Secondary mentor here is the one real place
+    // that designation is set from now on — it keeps Project.primaryMentorId/
+    // secondaryMentorId (used for display elsewhere in the app) in sync with
+    // an actual, allocated team assignment instead of a disconnected pick.
+    if (mentorRole === 'PRIMARY') {
+      await this.prisma.project.update({ where: { id: projectId }, data: { primaryMentorId: input.employeeId } });
+    } else if (mentorRole === 'SECONDARY') {
+      await this.prisma.project.update({ where: { id: projectId }, data: { secondaryMentorId: input.employeeId } });
+    }
     await this.notifications.notifyEmployee(input.employeeId, {
       type: 'PROJECT_ASSIGNED',
       title: `You've been added to ${project.name}`,
@@ -144,6 +260,7 @@ export class ProjectsService {
       employeeLink: '/',
       staffLink: `/projects/${projectId}`,
     });
+    await this.bumpToBillableIfBench(input.employeeId);
     return assignment;
   }
 
@@ -154,7 +271,7 @@ export class ProjectsService {
   ) {
     const assignment = await this.prisma.projectAssignment.findUnique({ where: { id: assignmentId } });
     if (!assignment || assignment.projectId !== projectId) throw new NotFoundException('Assignment not found');
-    return this.prisma.projectAssignment.update({
+    const updated = await this.prisma.projectAssignment.update({
       where: { id: assignmentId },
       data: {
         roleOnProject: input.roleOnProject,
@@ -163,12 +280,21 @@ export class ProjectsService {
       },
       include: { employee: { select: EMPLOYEE_REF_SELECT } },
     });
+    // Newly closed out (was open, now has a real endDate) — check whether
+    // that was this employee's last open assignment.
+    if (assignment.endDate === null && input.endDate) {
+      await this.revertToBenchIfNoOpenAssignments(assignment.employeeId);
+    }
+    return updated;
   }
 
   async removeAssignment(projectId: string, assignmentId: string) {
     const assignment = await this.prisma.projectAssignment.findUnique({ where: { id: assignmentId } });
     if (!assignment || assignment.projectId !== projectId) throw new NotFoundException('Assignment not found');
     await this.prisma.projectAssignment.delete({ where: { id: assignmentId } });
+    if (assignment.endDate === null) {
+      await this.revertToBenchIfNoOpenAssignments(assignment.employeeId);
+    }
     return { success: true };
   }
 

@@ -11,11 +11,28 @@ export interface UpsertTechnologyInput {
 export class TechnologiesService {
   constructor(private prisma: PrismaService) {}
 
-  findAll(category?: string) {
-    return this.prisma.technology.findMany({
+  async findAll(category?: string) {
+    const rows = await this.prisma.technology.findMany({
       where: { category: category || undefined },
       orderBy: [{ category: 'asc' }, { name: 'asc' }],
     });
+    const counts = await Promise.all(rows.map((r) => this.countUsage(r.id)));
+    return rows.map((r, i) => ({
+      ...r,
+      usageCount: counts[i],
+      usageLabel: counts[i] === 1 ? 'project uses this' : 'projects use this',
+    }));
+  }
+
+  // Counts both the legacy single "primary technology" relation and the
+  // current multi-select tech-stack tags, de-duplicated by project id, so
+  // the badge/guard reflects every project actually using this technology.
+  private async countUsage(technologyId: string): Promise<number> {
+    const [primary, tagged] = await Promise.all([
+      this.prisma.project.findMany({ where: { technologyId }, select: { id: true } }),
+      this.prisma.project.findMany({ where: { technologies: { some: { id: technologyId } } }, select: { id: true } }),
+    ]);
+    return new Set([...primary, ...tagged].map((p) => p.id)).size;
   }
 
   create(input: UpsertTechnologyInput) {
@@ -29,7 +46,7 @@ export class TechnologiesService {
   }
 
   async remove(id: string) {
-    const inUse = await this.prisma.project.count({ where: { technologyId: id } });
+    const inUse = await this.countUsage(id);
     if (inUse > 0) {
       throw new BadRequestException(
         `Cannot delete: ${inUse} project${inUse === 1 ? '' : 's'} use this technology. Mark it inactive instead.`,

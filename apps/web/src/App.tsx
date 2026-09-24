@@ -7,9 +7,22 @@ import Home from './pages/Home';
 import Settings from './pages/Settings';
 import EmployeeList from './pages/employees/EmployeeList';
 import EmployeeForm from './pages/employees/EmployeeForm';
+import OnboardTalentWizard from './pages/employees/OnboardTalentWizard';
 import EmployeeDetail from './pages/employees/EmployeeDetail';
 import OrgChart from './pages/OrgChart';
-import Organization from './pages/organization/Organization';
+import OrganizationOverview from './pages/organization/OrganizationOverview';
+import OrganizationDirectory from './pages/organization/OrganizationDirectory';
+import OrganizationDepartmentTree from './pages/organization/OrganizationDepartmentTree';
+import OrganizationAnnouncementsPolicies from './pages/organization/OrganizationAnnouncementsPolicies';
+import OrganizationBirthdays from './pages/organization/OrganizationBirthdays';
+import OrganizationNewHires from './pages/organization/OrganizationNewHires';
+import MySpaceSummary from './pages/myspace/MySpace';
+import MySpaceAttendanceLeave from './pages/myspace/MySpaceAttendanceLeave';
+import MySpaceApprovalsDocuments from './pages/myspace/MySpaceApprovalsDocuments';
+import MySpacePerformance from './pages/myspace/MySpacePerformance';
+import MyTeamDirectReports from './pages/myteam/MyTeam';
+import MyTeamAttendanceApprovals from './pages/myteam/MyTeamAttendanceApprovals';
+import MyTeamTree from './pages/myteam/MyTeamTree';
 import MyLeave from './pages/leave/MyLeave';
 import AdminLeave from './pages/leave/AdminLeave';
 import ClientsPage from './pages/projects/ClientsPage';
@@ -20,10 +33,13 @@ import LearningCenter from './pages/training/LearningCenter';
 import MyLearning from './pages/training/MyLearning';
 import AssetManagement from './pages/assets/AssetManagement';
 import DocumentManagement from './pages/documents/DocumentManagement';
-import ReportsPage from './pages/reports/ReportsPage';
 import ReportsPreview from './pages/reports/ReportsPreview';
 import StaffingSandbox from './pages/staffing/StaffingSandbox';
 import ExitClearance from './pages/exits/ExitClearance';
+import Recruitment from './pages/recruitment/Recruitment';
+import AdminPerformance from './pages/performance/AdminPerformance';
+import MyPerformance from './pages/performance/MyPerformance';
+import Engagement from './pages/engagement/Engagement';
 
 function ProtectedRoute({ children }: { children: JSX.Element }) {
   const { token, loading } = useAuth();
@@ -62,13 +78,44 @@ export default function App() {
           path="employees/new"
           element={
             <StaffOnlyRoute>
-              <EmployeeForm />
+              <OnboardTalentWizard />
             </StaffOnlyRoute>
           }
         />
         <Route path="employees/:id" element={<EmployeeDetail />} />
         <Route path="org-chart" element={<OrgChart />} />
-        <Route path="organization" element={<Organization />} />
+
+        <Route path="organization" element={<Navigate to="/organization/overview" replace />} />
+        <Route path="organization/overview" element={<OrganizationOverview />} />
+        <Route path="organization/directory" element={<OrganizationDirectory />} />
+        <Route path="organization/department-tree" element={<OrganizationDepartmentTree />} />
+        <Route path="organization/announcements-policies" element={<OrganizationAnnouncementsPolicies />} />
+        {/* Old individual routes kept as redirects for back-compat (bookmarks, old links) rather than removed. */}
+        <Route path="organization/announcements" element={<Navigate to="/organization/announcements-policies" replace />} />
+        <Route path="organization/policies" element={<Navigate to="/organization/announcements-policies" replace />} />
+        {/* Reachable from Overview's widget "View all" links — not primary
+            sidebar sub-nav entries themselves, see AppLayout's SPACES. */}
+        <Route path="organization/birthdays" element={<OrganizationBirthdays />} />
+        <Route path="organization/new-hires" element={<OrganizationNewHires />} />
+
+        <Route path="my-space" element={<Navigate to="/my-space/summary" replace />} />
+        <Route path="my-space/summary" element={<MySpaceSummary />} />
+        <Route path="my-space/attendance-leave" element={<MySpaceAttendanceLeave />} />
+        <Route path="my-space/approvals-documents" element={<MySpaceApprovalsDocuments />} />
+        {/* Old individual routes kept as redirects for back-compat rather than removed. */}
+        <Route path="my-space/leave" element={<Navigate to="/my-space/attendance-leave" replace />} />
+        <Route path="my-space/attendance" element={<Navigate to="/my-space/attendance-leave" replace />} />
+        <Route path="my-space/files" element={<Navigate to="/my-space/approvals-documents" replace />} />
+        {/* Unlisted in the primary sidebar now, but kept reachable — see MySpace.tsx's "My Performance ->" quick link. */}
+        <Route path="my-space/performance" element={<MySpacePerformance />} />
+
+        <Route path="my-team" element={<Navigate to="/my-team/direct-reports" replace />} />
+        <Route path="my-team/direct-reports" element={<MyTeamDirectReports />} />
+        <Route path="my-team/attendance-approvals" element={<MyTeamAttendanceApprovals />} />
+        {/* Old individual routes kept as redirects for back-compat rather than removed. */}
+        <Route path="my-team/attendance" element={<Navigate to="/my-team/attendance-approvals" replace />} />
+        <Route path="my-team/approvals" element={<Navigate to="/my-team/attendance-approvals" replace />} />
+        <Route path="my-team/tree" element={<MyTeamTree />} />
         <Route
           path="leave"
           element={
@@ -152,15 +199,25 @@ export default function App() {
           }
         />
         <Route
-          path="reports"
+          path="recruitment"
           element={
             <StaffOnlyRoute>
-              <ReportsPage />
+              <Recruitment />
             </StaffOnlyRoute>
           }
         />
         <Route
-          path="reports-preview"
+          path="performance"
+          element={
+            <StaffOnlyRoute>
+              <AdminPerformance />
+            </StaffOnlyRoute>
+          }
+        />
+        <Route path="my-performance" element={<MyPerformance />} />
+        <Route path="engagement" element={<Engagement />} />
+        <Route
+          path="reports"
           element={
             <StaffOnlyRoute>
               <ReportsPreview />

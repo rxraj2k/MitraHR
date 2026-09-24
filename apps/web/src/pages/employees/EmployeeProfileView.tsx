@@ -158,7 +158,7 @@ export default function EmployeeProfileView() {
               <button
                 type="submit"
                 disabled={savingPhone}
-                className="rounded-lg bg-gradient-to-r from-mitra-accentFrom to-mitra-accentTo text-white text-sm font-medium px-3 py-2 disabled:opacity-60"
+                className="rounded-lg bg-gradient-to-r from-mitra-accentFrom to-mitra-accentTo text-white text-sm font-medium px-3 py-2 disabled:opacity-60 shadow-[0_6px_16px_-4px_rgba(124,111,255,0.55)] hover:-translate-y-0.5 hover:shadow-[0_10px_20px_-4px_rgba(124,111,255,0.6)] active:translate-y-0 active:shadow-[0_3px_8px_-2px_rgba(124,111,255,0.5)] transition-all duration-150"
               >
                 {savingPhone ? 'Saving...' : 'Save'}
               </button>
@@ -216,7 +216,7 @@ export default function EmployeeProfileView() {
       </div>
 
       <Link to="/employees" className="mt-4 inline-block text-sm text-slate-500 hover:text-mitra-accentFrom">
-        ← Back to Employees
+        ← Back to Talent Directory
       </Link>
     </div>
   );

@@ -1,8 +1,24 @@
 import { Type } from 'class-transformer';
 import { IsArray, IsBoolean, IsIn, IsInt, IsOptional, IsString, MinLength, ValidateNested } from 'class-validator';
 
-// Keep in sync with the frontend's TRAINING_CATEGORIES / CATEGORY_LABELS.
-export const TRAINING_CATEGORIES = ['AGILE_TOOLS', 'MS365', 'ZOHO_TOOLS', 'SECURITY_IT', 'AI_TOOLS', 'GLOBAL_SKILLS'];
+// Keep in sync with the frontend's TRAINING_CATEGORIES / CATEGORY_LABELS
+// (apps/web/src/lib/trainingCategories.ts) — this previously only listed
+// the original 6 Mandatory categories, silently rejecting any attempt to
+// create/edit an IAM or DevOps course through the admin UI (the seed
+// scripts bypassed this DTO by writing to Prisma directly, which is why
+// IAM/DevOps courses already exist despite the mismatch).
+export const TRAINING_CATEGORIES = [
+  'AGILE_TOOLS',
+  'MS365',
+  'ZOHO_TOOLS',
+  'SECURITY_IT',
+  'AI_TOOLS',
+  'GLOBAL_SKILLS',
+  'IAM_UDEMY',
+  'IAM_CLOUDFOUNDATION',
+  'IAM_SECAPPS',
+  'DEVOPS_UDEMY',
+];
 
 export class TrainingResourceInput {
   @IsOptional()

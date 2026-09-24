@@ -5,6 +5,7 @@ export interface UpsertHolidayInput {
   name: string;
   date: string;
   region: string;
+  type?: string;
 }
 
 @Injectable()
@@ -17,7 +18,7 @@ export class HolidaysService {
 
   create(input: UpsertHolidayInput) {
     return this.prisma.holiday.create({
-      data: { name: input.name, date: new Date(input.date), region: input.region },
+      data: { name: input.name, date: new Date(input.date), region: input.region, type: input.type || 'NATIONAL' },
     });
   }
 
@@ -26,7 +27,7 @@ export class HolidaysService {
     if (!existing) throw new NotFoundException('Holiday not found');
     return this.prisma.holiday.update({
       where: { id },
-      data: { name: input.name, date: new Date(input.date), region: input.region },
+      data: { name: input.name, date: new Date(input.date), region: input.region, type: input.type || 'NATIONAL' },
     });
   }
 

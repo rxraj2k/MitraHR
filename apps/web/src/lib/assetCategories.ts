@@ -1,9 +1,10 @@
 import { AssetCategory, AssetCondition, AssetStatus } from '../types';
-import { GlobeIcon, IdCardIcon, KeyIcon, LaptopIcon, MonitorIcon, PackageIcon, SmartphoneIcon } from '../components/icons';
+import { GlobeIcon, GridIcon, IdCardIcon, KeyIcon, LaptopIcon, MonitorIcon, PackageIcon, SmartphoneIcon } from '../components/icons';
 
 export const ASSET_CATEGORIES: AssetCategory[] = [
   'LAPTOP',
   'MONITOR',
+  'PERIPHERALS',
   'MOBILE_PHONE',
   'ID_CARD',
   'SOFTWARE_LICENSE',
@@ -14,6 +15,7 @@ export const ASSET_CATEGORIES: AssetCategory[] = [
 export const CATEGORY_LABELS: Record<AssetCategory, string> = {
   LAPTOP: 'Laptops',
   MONITOR: 'Monitors',
+  PERIPHERALS: 'Peripherals',
   MOBILE_PHONE: 'Mobile Phones',
   ID_CARD: 'ID Cards',
   SOFTWARE_LICENSE: 'Software Licenses',
@@ -26,6 +28,7 @@ export const CATEGORY_LABELS: Record<AssetCategory, string> = {
 export const CATEGORY_THEME: Record<AssetCategory, { bg: string; border: string; text: string; chip: string }> = {
   LAPTOP: { bg: 'bg-indigo-50', border: 'border-indigo-200', text: 'text-indigo-700', chip: 'bg-indigo-100 text-indigo-700' },
   MONITOR: { bg: 'bg-sky-50', border: 'border-sky-200', text: 'text-sky-700', chip: 'bg-sky-100 text-sky-700' },
+  PERIPHERALS: { bg: 'bg-violet-50', border: 'border-violet-200', text: 'text-violet-700', chip: 'bg-violet-100 text-violet-700' },
   MOBILE_PHONE: { bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700', chip: 'bg-emerald-100 text-emerald-700' },
   ID_CARD: { bg: 'bg-amber-50', border: 'border-amber-200', text: 'text-amber-700', chip: 'bg-amber-100 text-amber-700' },
   SOFTWARE_LICENSE: { bg: 'bg-fuchsia-50', border: 'border-fuchsia-200', text: 'text-fuchsia-700', chip: 'bg-fuchsia-100 text-fuchsia-700' },
@@ -36,6 +39,7 @@ export const CATEGORY_THEME: Record<AssetCategory, { bg: string; border: string;
 export const CATEGORY_ICONS: Record<AssetCategory, typeof PackageIcon> = {
   LAPTOP: LaptopIcon,
   MONITOR: MonitorIcon,
+  PERIPHERALS: GridIcon,
   MOBILE_PHONE: SmartphoneIcon,
   ID_CARD: IdCardIcon,
   SOFTWARE_LICENSE: KeyIcon,

@@ -3,7 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 
 export type UtilizationStatus = 'BENCH' | 'IN_TRAINING' | 'PARTIAL' | 'FULL' | 'OVER';
 
-function statusFor(totalAllocation: number, hasIncompleteTraining: boolean): UtilizationStatus {
+export function statusFor(totalAllocation: number, hasIncompleteTraining: boolean): UtilizationStatus {
   if (totalAllocation <= 0) return hasIncompleteTraining ? 'IN_TRAINING' : 'BENCH';
   if (totalAllocation < 100) return 'PARTIAL';
   if (totalAllocation === 100) return 'FULL';
@@ -34,6 +34,7 @@ export class UtilizationService {
         projectAssignments: {
           where: { endDate: null, project: { status: { in: ['ACTIVE', 'ON_HOLD'] } } },
           select: {
+            id: true,
             allocationPercent: true,
             roleOnProject: true,
             project: {
@@ -63,6 +64,7 @@ export class UtilizationService {
         trainingTotal,
         trainingCompleted,
         assignments: e.projectAssignments.map((a) => ({
+          assignmentId: a.id,
           projectId: a.project.id,
           projectName: a.project.name,
           projectStatus: a.project.status,

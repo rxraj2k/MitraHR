@@ -33,7 +33,17 @@ function motivation(percent: number): string {
   return "Let's get started! Pick any course below whenever you're ready.";
 }
 
-export default function MyLearningPanel({ employeeId, title = 'My Learning' }: { employeeId: string; title?: string }) {
+export default function MyLearningPanel({
+  employeeId,
+  title = 'My Learning',
+  categories,
+  emptyMessage = 'No training assigned yet.',
+}: {
+  employeeId: string;
+  title?: string;
+  categories?: TrainingCategory[];
+  emptyMessage?: string;
+}) {
   const { token } = useAuth();
   const [items, setItems] = useState<EmployeeTraining[]>([]);
   const [loading, setLoading] = useState(true);
@@ -65,20 +75,24 @@ export default function MyLearningPanel({ employeeId, title = 'My Learning' }: {
     }
   }
 
-  const total = items.length;
-  const completed = items.filter((i) => i.status === 'COMPLETED').length;
+  const visibleCategories = categories ?? TRAINING_CATEGORIES;
+  const scoped = categories ? items.filter((i) => visibleCategories.includes(i.course.category)) : items;
+  const total = scoped.length;
+  const completed = scoped.filter((i) => i.status === 'COMPLETED').length;
   const percent = total === 0 ? 0 : Math.round((completed / total) * 100);
 
-  const byCategory = TRAINING_CATEGORIES.map((cat) => ({
-    category: cat,
-    items: items.filter((i) => i.course.category === cat),
-  })).filter((g) => g.items.length > 0);
+  const byCategory = visibleCategories
+    .map((cat) => ({
+      category: cat,
+      items: scoped.filter((i) => i.course.category === cat),
+    }))
+    .filter((g) => g.items.length > 0);
 
   if (loading) return <p className="text-slate-500 text-sm">Loading...</p>;
 
   return (
     <div className="space-y-6">
-      <div className="bg-gradient-to-r from-mitra-accentFrom to-mitra-accentTo rounded-xl p-6 text-white">
+      <div className="bg-gradient-to-r from-mitra-accentFrom to-mitra-accentTo rounded-xl p-6 text-white shadow-[0_10px_28px_-8px_rgba(124,111,255,0.6)]">
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div>
             <h2 className="text-lg font-semibold">{title}</h2>
@@ -94,8 +108,17 @@ export default function MyLearningPanel({ employeeId, title = 'My Learning' }: {
               </span>
               <span className="font-semibold">{percent}%</span>
             </div>
-            <div className="w-full h-2.5 bg-white/25 rounded-full overflow-hidden">
-              <div className="h-full bg-white rounded-full transition-all" style={{ width: `${percent}%` }} />
+            <div
+              role="progressbar"
+              aria-valuenow={percent}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              className="w-full h-2.5 bg-white/25 rounded-full overflow-hidden shadow-inner"
+            >
+              <div
+                className="h-full bg-white rounded-full transition-all shadow-[inset_0_-1px_2px_rgba(0,0,0,0.15)]"
+                style={{ width: `${percent}%` }}
+              />
             </div>
           </div>
         )}
@@ -104,7 +127,7 @@ export default function MyLearningPanel({ employeeId, title = 'My Learning' }: {
       {error && <div className="text-sm text-red-600">{error}</div>}
 
       {total === 0 ? (
-        <p className="text-slate-500 text-sm">No training assigned yet.</p>
+        <p className="text-slate-500 text-sm">{emptyMessage}</p>
       ) : (
         byCategory.map(({ category, items: courseItems }) => {
           const theme = CATEGORY_THEME[category];

@@ -1,7 +1,10 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { createTechnology, deleteTechnology, getTechnologies, updateTechnology } from '../lib/api';
 import { ProjectCategory, Technology } from '../types';
+import { HUE_GRADIENTS, PRIMARY_BUTTON_3D, TOGGLE_3D_INACTIVE, toggle3dActive } from '../lib/buttonStyles';
+import { PencilIcon, SearchIcon, TrashIcon } from './icons';
+import ConfirmModal from './ConfirmModal';
 
 const CATEGORIES: ProjectCategory[] = ['DEVOPS', 'IAM', 'ACTIVE_DIRECTORY', 'CLOUD_SECURITY', 'CYBER_SECURITY'];
 
@@ -21,15 +24,18 @@ interface FormState {
 
 const EMPTY: FormState = { name: '', category: 'DEVOPS', active: true };
 
-export default function TechnologyManager() {
+export default function TechnologyManager({ searchQuery }: { searchQuery?: string }) {
   const { token } = useAuth();
   const [items, setItems] = useState<Technology[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [filter, setFilter] = useState<ProjectCategory | 'ALL'>('ALL');
+  const [localQuery, setLocalQuery] = useState('');
   const [newForm, setNewForm] = useState<FormState>(EMPTY);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<FormState>(EMPTY);
+  const [confirmTarget, setConfirmTarget] = useState<Technology | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   function load() {
     if (!token) return;
@@ -71,22 +77,33 @@ export default function TechnologyManager() {
     }
   }
 
-  async function handleDelete(id: string) {
-    if (!token) return;
-    if (!confirm('Delete this technology?')) return;
+  async function confirmDelete() {
+    if (!token || !confirmTarget) return;
+    setDeleting(true);
     setError('');
     try {
-      await deleteTechnology(token, id);
+      await deleteTechnology(token, confirmTarget.id);
+      setConfirmTarget(null);
       load();
     } catch (err: any) {
       setError(err.message);
+      setConfirmTarget(null);
+    } finally {
+      setDeleting(false);
     }
   }
 
-  const shown = filter === 'ALL' ? items : items.filter((t) => t.category === filter);
+  const effectiveQuery = (searchQuery ?? localQuery).trim().toLowerCase();
+  const shown = useMemo(
+    () =>
+      items
+        .filter((t) => filter === 'ALL' || t.category === filter)
+        .filter((t) => !effectiveQuery || t.name.toLowerCase().includes(effectiveQuery)),
+    [items, filter, effectiveQuery],
+  );
 
   return (
-    <div className="bg-white border border-slate-200 rounded-xl p-6 md:col-span-2">
+    <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-6 md:col-span-2">
       <h2 className="text-lg font-semibold text-slate-800 mb-1">Technologies</h2>
       <p className="text-xs text-slate-500 mb-4">
         The "specific area or tool" list on the Project form, grouped by category. Can't delete one already used on
@@ -94,10 +111,22 @@ export default function TechnologyManager() {
       </p>
       {error && <div className="text-sm text-red-600 mb-3">{error}</div>}
 
+      {searchQuery === undefined && (
+        <div className="relative mb-4">
+          <SearchIcon className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <input
+            value={localQuery}
+            onChange={(e) => setLocalQuery(e.target.value)}
+            placeholder="Search technologies..."
+            className="w-full rounded-lg border border-slate-300 pl-9 pr-3 py-2 text-sm"
+          />
+        </div>
+      )}
+
       <div className="flex flex-wrap gap-2 text-xs mb-4">
         <button
           onClick={() => setFilter('ALL')}
-          className={`px-3 py-1 rounded-lg ${filter === 'ALL' ? 'bg-mitra-navy text-white' : 'bg-slate-100 text-slate-500'}`}
+          className={`px-3 py-1.5 rounded-lg font-medium transition-all duration-150 ${filter === 'ALL' ? toggle3dActive(HUE_GRADIENTS.slate) : TOGGLE_3D_INACTIVE}`}
         >
           All ({items.length})
         </button>
@@ -105,7 +134,7 @@ export default function TechnologyManager() {
           <button
             key={c}
             onClick={() => setFilter(c)}
-            className={`px-3 py-1 rounded-lg ${filter === c ? 'bg-mitra-navy text-white' : 'bg-slate-100 text-slate-500'}`}
+            className={`px-3 py-1.5 rounded-lg font-medium transition-all duration-150 ${filter === c ? toggle3dActive(HUE_GRADIENTS.sky) : TOGGLE_3D_INACTIVE}`}
           >
             {CATEGORY_LABELS[c]} ({items.filter((t) => t.category === c).length})
           </button>
@@ -121,7 +150,8 @@ export default function TechnologyManager() {
               <tr className="text-left text-xs text-slate-500 border-b border-slate-100">
                 <th className="pb-2 font-medium">Name</th>
                 <th className="pb-2 font-medium">Category</th>
-                <th className="pb-2 font-medium">Active</th>
+                <th className="pb-2 font-medium">Status</th>
+                <th className="pb-2 font-medium">Usage</th>
                 <th className="pb-2 font-medium"></th>
               </tr>
             </thead>
@@ -150,12 +180,16 @@ export default function TechnologyManager() {
                       </select>
                     </td>
                     <td className="py-2 pr-2">
-                      <input
-                        type="checkbox"
-                        checked={editForm.active}
-                        onChange={(e) => setEditForm({ ...editForm, active: e.target.checked })}
-                      />
+                      <label className="flex items-center gap-1.5 text-xs text-slate-500">
+                        <input
+                          type="checkbox"
+                          checked={editForm.active}
+                          onChange={(e) => setEditForm({ ...editForm, active: e.target.checked })}
+                        />
+                        Active
+                      </label>
                     </td>
+                    <td className="py-2 pr-2 text-slate-400 text-xs">—</td>
                     <td className="py-2 text-right whitespace-nowrap">
                       <button onClick={() => handleSave(item.id)} className="text-mitra-accentFrom text-xs mr-3">
                         Save
@@ -167,21 +201,41 @@ export default function TechnologyManager() {
                   </tr>
                 ) : (
                   <tr key={item.id}>
-                    <td className="py-2">
-                      {item.name}
-                      {!item.active && <span className="ml-2 text-xs text-slate-400">(inactive)</span>}
+                    <td className="py-2.5 font-medium text-slate-700">{item.name}</td>
+                    <td className="py-2.5 text-slate-500">{CATEGORY_LABELS[item.category]}</td>
+                    <td className="py-2.5">
+                      <span
+                        className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                          item.active ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'
+                        }`}
+                      >
+                        {item.active ? 'Active' : 'Inactive'}
+                      </span>
                     </td>
-                    <td className="py-2 text-slate-500">{CATEGORY_LABELS[item.category]}</td>
-                    <td className="py-2">{item.active ? 'Yes' : 'No'}</td>
-                    <td className="py-2 text-right whitespace-nowrap">
+                    <td className="py-2.5">
+                      {typeof item.usageCount === 'number' && item.usageCount > 0 ? (
+                        <span className="text-[11px] font-medium text-indigo-600 bg-indigo-50 border border-indigo-100 rounded-full px-2 py-0.5">
+                          {item.usageCount} {item.usageLabel}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-slate-300">unused</span>
+                      )}
+                    </td>
+                    <td className="py-2.5 text-right whitespace-nowrap">
                       <button
                         onClick={() => startEdit(item)}
-                        className="text-slate-500 hover:text-mitra-accentFrom text-xs mr-3"
+                        title="Edit"
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors mr-1"
                       >
-                        Edit
+                        <PencilIcon className="w-4 h-4" />
                       </button>
-                      <button onClick={() => handleDelete(item.id)} className="text-red-500 hover:text-red-700 text-xs">
-                        Delete
+                      <button
+                        onClick={() => setConfirmTarget(item)}
+                        disabled={!!item.usageCount}
+                        title={item.usageCount ? `Cannot delete: ${item.usageCount} ${item.usageLabel}.` : 'Delete'}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:text-slate-400 disabled:hover:bg-transparent"
+                      >
+                        <TrashIcon className="w-4 h-4" />
                       </button>
                     </td>
                   </tr>
@@ -216,14 +270,20 @@ export default function TechnologyManager() {
           </select>
         </div>
         <div>
-          <button
-            type="submit"
-            className="w-full rounded-lg bg-gradient-to-r from-mitra-accentFrom to-mitra-accentTo text-white text-sm font-medium px-4 py-2"
-          >
+          <button type="submit" className={`w-full rounded-lg text-sm font-medium px-4 py-2 ${PRIMARY_BUTTON_3D}`}>
             Add Technology
           </button>
         </div>
       </form>
+
+      <ConfirmModal
+        open={!!confirmTarget}
+        title={`Delete "${confirmTarget?.name}"?`}
+        message="This cannot be undone."
+        busy={deleting}
+        onConfirm={confirmDelete}
+        onCancel={() => setConfirmTarget(null)}
+      />
     </div>
   );
 }

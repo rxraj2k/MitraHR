@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
 import * as crypto from 'crypto';
@@ -34,6 +34,8 @@ export class AuthService {
 
   async login(email: string, password: string) {
     const user = await this.validateUser(email, password);
+    // Best-effort — never let a timestamp write block or fail a login.
+    this.prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } }).catch(() => {});
     const payload = {
       sub: user.id,
       kind: 'STAFF' as const,
@@ -66,7 +68,7 @@ export class AuthService {
     return process.env.APP_URL || process.env.CORS_ORIGIN || 'http://localhost:5173';
   }
 
-  async inviteAdmin(name: string, email: string, employeeId?: string) {
+  async inviteAdmin(name: string, email: string, employeeId?: string, role?: string) {
     const existing = await this.prisma.user.findUnique({ where: { email } });
     if (existing && existing.passwordHash) {
       throw new BadRequestException('An active account with this email already exists');
@@ -79,13 +81,13 @@ export class AuthService {
     const user = existing
       ? await this.prisma.user.update({
           where: { id: existing.id },
-          data: { name, inviteTokenHash, inviteTokenExpiresAt, employeeId: employeeId || null },
+          data: { name, inviteTokenHash, inviteTokenExpiresAt, employeeId: employeeId || null, role: role || existing.role },
         })
       : await this.prisma.user.create({
           data: {
             name,
             email,
-            role: 'ADMIN',
+            role: role || 'ADMIN',
             passwordHash: null,
             inviteTokenHash,
             inviteTokenExpiresAt,
@@ -147,7 +149,61 @@ export class AuthService {
       status: u.passwordHash ? ('ACTIVE' as const) : ('INVITED' as const),
       employeeId: u.employeeId ?? null,
       createdAt: u.createdAt,
+      lastLoginAt: u.lastLoginAt ?? null,
     }));
+  }
+
+  // Links (or unlinks) an already-active admin account to an Employee
+  // record after the fact. Invite-time linking (inviteAdmin above) only
+  // covers brand-new admins; an admin account seeded straight into the DB,
+  // or one invited before this existed, has no other way to pick up an
+  // employeeId — and without one, staff-acting-as-themselves features
+  // (kudos, announcements comments, "my leave") throw "requires an
+  // employee record linked to your account".
+  async updateAdminEmployeeLink(userId: string, employeeId: string | null) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException('Admin account not found');
+
+    if (employeeId) {
+      const employee = await this.prisma.employee.findUnique({ where: { id: employeeId } });
+      if (!employee) throw new BadRequestException('Employee not found');
+      const alreadyLinked = await this.prisma.user.findUnique({ where: { employeeId } });
+      if (alreadyLinked && alreadyLinked.id !== userId) {
+        throw new BadRequestException(`${employee.fullName} is already linked to another admin account`);
+      }
+    }
+
+    const updated = await this.prisma.user.update({ where: { id: userId }, data: { employeeId: employeeId || null } });
+    return {
+      id: updated.id,
+      name: updated.name,
+      email: updated.email,
+      role: updated.role,
+      status: updated.passwordHash ? ('ACTIVE' as const) : ('INVITED' as const),
+      employeeId: updated.employeeId ?? null,
+      createdAt: updated.createdAt,
+    };
+  }
+
+  // Roles & Permissions (minimal, Sprint 19 follow-up) — lets an existing
+  // Admin change another staff account's role after the fact, the same way
+  // updateAdminEmployeeLink lets one fix up the employee link after the
+  // fact. Deliberately doesn't block someone from demoting themselves —
+  // there's always at least the one seeded admin account, and re-promoting
+  // is just as easy through this same endpoint by any other Admin.
+  async updateAdminRole(userId: string, role: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException('Admin account not found');
+    const updated = await this.prisma.user.update({ where: { id: userId }, data: { role } });
+    return {
+      id: updated.id,
+      name: updated.name,
+      email: updated.email,
+      role: updated.role,
+      status: updated.passwordHash ? ('ACTIVE' as const) : ('INVITED' as const),
+      employeeId: updated.employeeId ?? null,
+      createdAt: updated.createdAt,
+    };
   }
 
   // --- Employee OTP login — no password; read-only access scoped to the

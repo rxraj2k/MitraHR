@@ -2,37 +2,52 @@
 // one hook, `useReportsData`, so the page component never talks to
 // lib/api.ts or the mock file directly.
 //
-// Most of this is now real: it fetches from the /reports/preview/* endpoints
-// added alongside this hook. A few pieces stay mock because the feature
-// behind them doesn't exist yet — the recruitment pipeline (Sprint 13), US
-// client alignment (would need a structured client region field), two
-// specific KPI cards (turnover/recruitment-speed/sentiment need exit
-// tracking, an ATS, and a survey feature respectively), and "pending policy
-// signatures" (no acknowledgment-tracking model). Those are pulled from
-// previewMockData.ts and merged in below, each one clearly identifiable
-// (KPI cards carry `isMock: true`; ReportsPreview.tsx labels the rest).
+// As of Sprint 18, every dataset here is real — it fetches from the
+// /reports/preview/* endpoints, each backed by the feature that landed for
+// it (Client.region for US Client Alignment, CompanyDocumentAcknowledgment
+// for Pending Policy Signatures, DesignationHistory for Last Promotion,
+// Candidate/JobOpening for Recruitment Speed & the Funnel tab,
+// EmployeeExit for Turnover, ReviewCycle/Goal/Recognition for the
+// Performance & Engagement widget, and the DST-aware AttendanceSettings for
+// the new Attendance Timeliness tab). The only two "isMock" cards left are
+// graceful empty states (see previewMockData.ts) shown before a feature has
+// any data yet — Workforce Sentiment before any pulse-survey rating comes
+// in, Recruitment Speed before anyone's been hired through the ATS — not
+// fabricated numbers.
 import { useEffect, useMemo, useState } from 'react';
 import {
   getDepartments,
+  getPulseSurveyInsights,
   getReportsPreviewAttendanceLedger,
+  getReportsPreviewAttendanceTimeliness,
   getReportsPreviewAttendanceTrend,
   getReportsPreviewAttritionRisk,
   getReportsPreviewComplianceRadar,
   getReportsPreviewComplianceRoster,
   getReportsPreviewOverview,
+  getReportsPreviewPerformanceEngagement,
+  getReportsPreviewRecruitmentFunnel,
+  getReportsPreviewRecruitmentSpeed,
   getReportsPreviewTenureMobility,
   getReportsPreviewTenureSpread,
+  getReportsPreviewTurnover,
+  getReportsPreviewUsClientAlignment,
 } from '../../lib/api';
 import {
+  PulseSurveyInsights,
   ReportsPreviewAttendanceLedgerRow,
+  ReportsPreviewAttendanceTimeliness,
   ReportsPreviewAttritionRisk,
   ReportsPreviewComplianceRadar,
   ReportsPreviewComplianceRow,
+  ReportsPreviewFunnelRow,
+  ReportsPreviewPerformanceEngagement,
   ReportsPreviewTenureMobilityRow,
   ReportsPreviewTenureSpreadRow,
   ReportsPreviewTrendPoint,
+  ReportsPreviewUsClientAlignment,
 } from '../../types';
-import { KpiCardData, RECRUITMENT_FUNNEL, RecruitmentFunnelRow, STILL_MOCK_KPI_CARDS, US_CLIENT_ALIGNMENT, UsClientAlignmentSummary } from './previewMockData';
+import { KpiCardData, KpiTone, MOCK_RECRUITMENT_SPEED_CARD, MOCK_WORKFORCE_SENTIMENT_CARD } from './previewMockData';
 
 export interface ReportsData {
   kpiCards: KpiCardData[];
@@ -40,11 +55,13 @@ export interface ReportsData {
   tenureSpread: ReportsPreviewTenureSpreadRow[];
   attritionRisks: ReportsPreviewAttritionRisk[];
   complianceRadar: ReportsPreviewComplianceRadar;
-  usClientAlignment: UsClientAlignmentSummary;
+  usClientAlignment: ReportsPreviewUsClientAlignment;
   attendanceLedger: ReportsPreviewAttendanceLedgerRow[];
+  attendanceTimeliness: ReportsPreviewAttendanceTimeliness;
   tenureMobility: ReportsPreviewTenureMobilityRow[];
-  recruitmentFunnel: RecruitmentFunnelRow[];
+  recruitmentFunnel: ReportsPreviewFunnelRow[];
   complianceAssetRoster: ReportsPreviewComplianceRow[];
+  performanceEngagement: ReportsPreviewPerformanceEngagement;
   departments: string[];
 }
 
@@ -75,11 +92,42 @@ function formatHeadcountCard(headcount: number, newJoiners: number): KpiCardData
   };
 }
 
+function formatWorkforceSentimentCard(insights: PulseSurveyInsights): KpiCardData {
+  if (insights.totalRatingResponses === 0) return MOCK_WORKFORCE_SENTIMENT_CARD;
+  const tone: KpiTone = insights.sentimentLabel === 'Healthy' ? 'positive' : insights.sentimentLabel === 'Critical' ? 'negative' : 'neutral';
+  return {
+    label: 'Workforce Sentiment',
+    value: `${insights.enpsScore > 0 ? '+' : ''}${insights.enpsScore} eNPS`,
+    subtext: `From ${insights.totalRatingResponses} rating response${insights.totalRatingResponses === 1 ? '' : 's'}`,
+    badge: { text: insights.sentimentLabel, tone },
+  };
+}
+
+// Trailing-12-month exits over (active headcount + those exits) — see
+// ReportsService.previewTurnover for why this reports one overall rate
+// rather than a voluntary/involuntary split EmployeeExit's free-text
+// `reason` field can't actually back.
+function formatTurnoverCard(turnover: { turnoverRatePercent: number; exitsTrailing12Months: number }): KpiCardData {
+  return {
+    label: 'Turnover Index',
+    value: `${turnover.turnoverRatePercent}%`,
+    subtext: `${turnover.exitsTrailing12Months} exit${turnover.exitsTrailing12Months === 1 ? '' : 's'} · trailing 12 months`,
+  };
+}
+
+function formatRecruitmentSpeedCard(speed: { avgTimeToFillDays: number | null; hiresSampled: number }): KpiCardData {
+  if (speed.avgTimeToFillDays === null) return MOCK_RECRUITMENT_SPEED_CARD;
+  return {
+    label: 'Recruitment Speed',
+    value: `${speed.avgTimeToFillDays} Days`,
+    subtext: `Avg. Time-to-Fill · last ${speed.hiresSampled} hire${speed.hiresSampled === 1 ? '' : 's'}`,
+  };
+}
+
 /**
- * Fetches every real /reports/preview/* dataset in parallel, then merges in
- * the handful of pieces that are still mock (see the file-level comment).
- * `department`/`dateRange` are accepted for a future server-side-filtered
- * version of these endpoints — for now filtering happens client-side in
+ * Fetches every /reports/preview/* dataset in parallel. `department`/
+ * `dateRange` are accepted for a future server-side-filtered version of
+ * these endpoints — for now filtering happens client-side in
  * ReportsPreview.tsx, same as before.
  */
 export function useReportsData(token: string | null): UseReportsDataResult {
@@ -99,10 +147,17 @@ export function useReportsData(token: string | null): UseReportsDataResult {
       getReportsPreviewAttendanceTrend(token),
       getReportsPreviewTenureSpread(token),
       getReportsPreviewAttendanceLedger(token),
+      getReportsPreviewAttendanceTimeliness(token),
       getReportsPreviewTenureMobility(token),
       getReportsPreviewAttritionRisk(token),
       getReportsPreviewComplianceRadar(token),
       getReportsPreviewComplianceRoster(token),
+      getReportsPreviewUsClientAlignment(token),
+      getReportsPreviewTurnover(token),
+      getReportsPreviewRecruitmentSpeed(token),
+      getReportsPreviewRecruitmentFunnel(token),
+      getReportsPreviewPerformanceEngagement(token),
+      getPulseSurveyInsights(token),
       getDepartments(token),
     ])
       .then(
@@ -111,17 +166,26 @@ export function useReportsData(token: string | null): UseReportsDataResult {
           attendanceTrend,
           tenureSpread,
           attendanceLedger,
+          attendanceTimeliness,
           tenureMobility,
           attritionRisks,
           complianceRadar,
           complianceAssetRoster,
+          usClientAlignment,
+          turnover,
+          recruitmentSpeed,
+          recruitmentFunnel,
+          performanceEngagement,
+          pulseInsights,
           departmentLookups,
         ]) => {
           if (cancelled) return;
           const kpiCards: KpiCardData[] = [
             formatHeadcountCard(overview.headcount, overview.newJoinersThisMonth),
             formatAttendanceRateCard(overview.attendanceRatePercentThisMonth, overview.attendanceRatePercentLastMonth),
-            ...STILL_MOCK_KPI_CARDS,
+            formatTurnoverCard(turnover),
+            formatRecruitmentSpeedCard(recruitmentSpeed),
+            formatWorkforceSentimentCard(pulseInsights),
           ];
           const data: ReportsData = {
             kpiCards,
@@ -129,11 +193,13 @@ export function useReportsData(token: string | null): UseReportsDataResult {
             tenureSpread,
             attritionRisks,
             complianceRadar,
-            usClientAlignment: US_CLIENT_ALIGNMENT,
+            usClientAlignment,
             attendanceLedger,
+            attendanceTimeliness,
             tenureMobility,
-            recruitmentFunnel: RECRUITMENT_FUNNEL,
+            recruitmentFunnel,
             complianceAssetRoster,
+            performanceEngagement,
             departments: departmentLookups.map((d) => d.name).sort((a, b) => a.localeCompare(b)),
           };
           setState({ data, loading: false, error: null });

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
   API_BASE,
+  getAnnouncements,
   getCompanyDocuments,
   getDashboardSummary,
   getMyAssets,
@@ -12,6 +13,7 @@ import {
   openAuthedFile,
 } from '../lib/api';
 import {
+  Announcement,
   AssetAssignment,
   CompanyDocument,
   DashboardSummary,
@@ -19,6 +21,7 @@ import {
   MyProjectAssignment,
   UpcomingBirthday,
 } from '../types';
+import AnnouncementBoard from '../components/AnnouncementBoard';
 import { CATEGORY_LABELS as ASSET_CATEGORY_LABELS, STATUS_BADGE as ASSET_STATUS_BADGE, STATUS_LABELS as ASSET_STATUS_LABELS } from '../lib/assetCategories';
 import {
   EMPLOYEE_DOCUMENT_TYPE_LABELS,
@@ -26,7 +29,20 @@ import {
   EXPIRY_STATUS_LABELS,
   getExpiryStatus,
 } from '../lib/documentCategories';
-import { CakeIcon } from '../components/icons';
+import {
+  AlertTriangleIcon,
+  AwardIcon,
+  BriefcaseIcon,
+  CakeIcon,
+  CalendarCheckIcon,
+  CheckCircleIcon,
+  GaugeIcon,
+  GraduationCapIcon,
+  PackageIcon,
+  UsersIcon,
+} from '../components/icons';
+import MetricTile from '../components/MetricTile';
+import { TILE_THEMES, tileWrapperClass } from '../lib/tileThemes';
 
 function birthdayWhen(daysUntil: number) {
   if (daysUntil === 0) return 'Today!';
@@ -50,6 +66,7 @@ export default function Home() {
   const [companyDocuments, setCompanyDocuments] = useState<CompanyDocument[]>([]);
   const [birthdays, setBirthdays] = useState<UpcomingBirthday[]>([]);
   const [dashboard, setDashboard] = useState<DashboardSummary | null>(null);
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
 
   const employeeId = user?.kind === 'EMPLOYEE' ? user.id : user?.employeeId;
 
@@ -59,6 +76,15 @@ export default function Home() {
       .then(setBirthdays)
       .catch(() => {});
   }, [token]);
+
+  const loadAnnouncements = () => {
+    if (!token) return;
+    getAnnouncements(token)
+      .then(setAnnouncements)
+      .catch(() => {});
+  };
+
+  useEffect(loadAnnouncements, [token]);
 
   useEffect(() => {
     if (!token || !isStaff) return;
@@ -93,6 +119,19 @@ export default function Home() {
     <div className="space-y-6">
       <h1 className="text-2xl font-semibold text-slate-800">Welcome, {user?.name?.split(' ')[0]}</h1>
 
+      {announcements.length > 0 && token && (
+        <div>
+          <h2 className="text-sm font-semibold text-slate-800 mb-3">Announcements</h2>
+          <AnnouncementBoard
+            announcements={announcements}
+            token={token}
+            isStaff={!!isStaff}
+            onChanged={loadAnnouncements}
+            limit={6}
+          />
+        </div>
+      )}
+
       {isStaff && dashboard && (
         <div className="bg-white border border-slate-200 rounded-xl p-6">
           <div className="flex items-center justify-between mb-4">
@@ -102,42 +141,52 @@ export default function Home() {
             </Link>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Link to="/employees" className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 hover:bg-indigo-100">
-              <p className="text-xs font-medium text-indigo-600">Headcount</p>
-              <p className="text-2xl font-semibold text-slate-800 mt-1">{dashboard.headcount}</p>
-              {dashboard.newJoinersThisMonth > 0 && (
-                <p className="text-xs text-indigo-500 mt-1">+{dashboard.newJoinersThisMonth} this month</p>
-              )}
+            <Link to="/employees" className={tileWrapperClass(TILE_THEMES[0])}>
+              <MetricTile
+                icon={UsersIcon}
+                label="Headcount"
+                value={dashboard.headcount}
+                sub={dashboard.newJoinersThisMonth > 0 ? `+${dashboard.newJoinersThisMonth} this month` : undefined}
+              />
             </Link>
-            <Link to="/leave" className="bg-amber-50 border border-amber-200 rounded-xl p-4 hover:bg-amber-100">
-              <p className="text-xs font-medium text-amber-600">Leave Days This Month</p>
-              <p className="text-2xl font-semibold text-slate-800 mt-1">{dashboard.leaveDaysThisMonth}</p>
+            <Link to="/leave" className={tileWrapperClass(TILE_THEMES[1])}>
+              <MetricTile icon={CalendarCheckIcon} label="Leave Days This Month" value={dashboard.leaveDaysThisMonth} />
             </Link>
-            <Link to="/projects" className="bg-sky-50 border border-sky-200 rounded-xl p-4 hover:bg-sky-100">
-              <p className="text-xs font-medium text-sky-600">Active Projects</p>
-              <p className="text-2xl font-semibold text-slate-800 mt-1">{dashboard.activeProjects}</p>
+            <Link to="/projects" className={tileWrapperClass(TILE_THEMES[2])}>
+              <MetricTile icon={BriefcaseIcon} label="Active Projects" value={dashboard.activeProjects} />
             </Link>
-            <Link to="/utilization" className="bg-fuchsia-50 border border-fuchsia-200 rounded-xl p-4 hover:bg-fuchsia-100">
-              <p className="text-xs font-medium text-fuchsia-600">On Bench</p>
-              <p className="text-2xl font-semibold text-slate-800 mt-1">{dashboard.utilizationSummary.bench}</p>
-              <p className="text-xs text-fuchsia-500 mt-1">of {dashboard.utilizationSummary.total} active</p>
+            <Link to="/utilization" className={tileWrapperClass(TILE_THEMES[5])}>
+              <MetricTile
+                icon={GaugeIcon}
+                label="On Bench"
+                value={dashboard.utilizationSummary.bench}
+                sub={`of ${dashboard.utilizationSummary.total} active`}
+              />
             </Link>
-            <Link to="/assets" className="bg-teal-50 border border-teal-200 rounded-xl p-4 hover:bg-teal-100">
-              <p className="text-xs font-medium text-teal-600">Assets Assigned</p>
-              <p className="text-2xl font-semibold text-slate-800 mt-1">{dashboard.assetStatusCounts.ASSIGNED || 0}</p>
-              <p className="text-xs text-teal-500 mt-1">of {Object.values(dashboard.assetStatusCounts).reduce((a, b) => a + b, 0)} total</p>
+            <Link to="/assets" className={tileWrapperClass(TILE_THEMES[6])}>
+              <MetricTile
+                icon={PackageIcon}
+                label="Assets Assigned"
+                value={dashboard.assetStatusCounts.ASSIGNED || 0}
+                sub={`of ${Object.values(dashboard.assetStatusCounts).reduce((a, b) => a + b, 0)} total`}
+              />
             </Link>
-            <Link to="/training" className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 hover:bg-emerald-100">
-              <p className="text-xs font-medium text-emerald-600">Training Completion</p>
-              <p className="text-2xl font-semibold text-slate-800 mt-1">{dashboard.trainingCompletionPercent}%</p>
+            <Link to="/training" className={tileWrapperClass(TILE_THEMES[3])}>
+              <MetricTile icon={GraduationCapIcon} label="Training Completion" value={`${dashboard.trainingCompletionPercent}%`} />
             </Link>
-            <Link to="/reports" className="bg-rose-50 border border-rose-200 rounded-xl p-4 hover:bg-rose-100">
-              <p className="text-xs font-medium text-rose-600">Over-Allocated</p>
-              <p className="text-2xl font-semibold text-slate-800 mt-1">{dashboard.utilizationSummary.over}</p>
+            <Link to="/reports" className={tileWrapperClass(TILE_THEMES[4])}>
+              <MetricTile icon={AlertTriangleIcon} label="Over-Allocated" value={dashboard.utilizationSummary.over} />
             </Link>
-            <Link to="/reports" className="bg-slate-50 border border-slate-200 rounded-xl p-4 hover:bg-slate-100">
-              <p className="text-xs font-medium text-slate-600">Fully Allocated</p>
-              <p className="text-2xl font-semibold text-slate-800 mt-1">{dashboard.utilizationSummary.full}</p>
+            <Link to="/reports" className={tileWrapperClass(TILE_THEMES[7])}>
+              <MetricTile icon={CheckCircleIcon} label="Fully Allocated" value={dashboard.utilizationSummary.full} />
+            </Link>
+            <Link to="/training" className={tileWrapperClass(TILE_THEMES[5])}>
+              <MetricTile
+                icon={AwardIcon}
+                label="Assessment Pass Rate"
+                value={`${dashboard.quizPassRatePercent}%`}
+                sub={`${dashboard.quizAttemptsTotal} assessment${dashboard.quizAttemptsTotal === 1 ? '' : 's'} taken`}
+              />
             </Link>
           </div>
         </div>

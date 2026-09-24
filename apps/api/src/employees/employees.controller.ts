@@ -29,6 +29,18 @@ import { UpdateMyProfileDto } from './dto/update-my-profile.dto';
 import { ReplaceSkillsDto } from './dto/replace-skills.dto';
 import { EMPLOYEE_DOCUMENT_TYPES } from './document-types';
 
+// Roles & Permissions (minimal, Sprint 19 follow-up): only Admin/HR staff
+// may set deploymentStatus/experienceLevel — everyone else's PATCH/POST is
+// still allowed for every other field, just not these two. See auth's
+// STAFF_ROLES for the full staff-role vocabulary this checks against.
+const TALENT_DIRECTORY_FIELD_ROLES = ['ADMIN', 'HR'];
+function assertCanEditTalentDirectoryFields(req: any, dto: { experienceLevel?: string; deploymentStatus?: string }) {
+  if (dto.experienceLevel === undefined && dto.deploymentStatus === undefined) return;
+  if (req.user.kind !== 'STAFF' || !TALENT_DIRECTORY_FIELD_ROLES.includes(req.user.role)) {
+    throw new ForbiddenException('Only Admin or HR can change Experience Level or Deployment Status');
+  }
+}
+
 const PHOTO_DIR = join(process.cwd(), 'uploads', 'employee-photos');
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 
@@ -102,15 +114,22 @@ export class EmployeesController {
     return this.employeesService.findOne(id, { includeDocuments });
   }
 
+  @Get(':id/designation-history')
+  getDesignationHistory(@Param('id') id: string) {
+    return this.employeesService.getDesignationHistory(id);
+  }
+
   @UseGuards(StaffOnlyGuard)
   @Post()
-  create(@Body() dto: CreateEmployeeDto) {
+  create(@Req() req: any, @Body() dto: CreateEmployeeDto) {
+    assertCanEditTalentDirectoryFields(req, dto);
     return this.employeesService.create(dto);
   }
 
   @UseGuards(StaffOnlyGuard)
   @Patch(':id')
-  update(@Param('id') id: string, @Body() dto: UpdateEmployeeDto) {
+  update(@Req() req: any, @Param('id') id: string, @Body() dto: UpdateEmployeeDto) {
+    assertCanEditTalentDirectoryFields(req, dto);
     return this.employeesService.update(id, dto);
   }
 
@@ -173,6 +192,7 @@ export class EmployeesController {
     @Param('id') id: string,
     @Body('documentType') documentType: string,
     @Body('expiryDate') expiryDate: string | undefined,
+    @Body('notes') notes: string | undefined,
     @UploadedFile() file: Express.Multer.File,
   ) {
     if (!file) throw new BadRequestException('No file uploaded');
@@ -186,6 +206,8 @@ export class EmployeesController {
       file.originalname,
       `/secure-uploads/employee-documents/${file.filename}`,
       expiryDate || undefined,
+      file.size,
+      notes || undefined,
     );
   }
 
@@ -196,11 +218,12 @@ export class EmployeesController {
     @Param('documentId') documentId: string,
     @Body('documentType') documentType: string | undefined,
     @Body('expiryDate') expiryDate: string | null | undefined,
+    @Body('notes') notes: string | null | undefined,
   ) {
     if (documentType && !EMPLOYEE_DOCUMENT_TYPES.includes(documentType as any)) {
       throw new BadRequestException('Invalid documentType');
     }
-    return this.employeesService.updateDocument(id, documentId, { documentType, expiryDate });
+    return this.employeesService.updateDocument(id, documentId, { documentType, expiryDate, notes });
   }
 
   @UseGuards(StaffOnlyGuard)

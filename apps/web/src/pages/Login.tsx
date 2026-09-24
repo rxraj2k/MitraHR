@@ -155,7 +155,7 @@ export default function Login() {
               <button
                 type="submit"
                 disabled={busy}
-                className="w-full rounded-lg bg-gradient-to-r from-mitra-accentFrom to-mitra-accentTo text-white font-medium py-2 text-sm disabled:opacity-60"
+                className="w-full rounded-lg bg-gradient-to-r from-mitra-accentFrom to-mitra-accentTo text-white font-medium py-2 text-sm disabled:opacity-60 shadow-[0_6px_16px_-4px_rgba(124,111,255,0.55)] hover:-translate-y-0.5 hover:shadow-[0_10px_20px_-4px_rgba(124,111,255,0.6)] active:translate-y-0 active:shadow-[0_3px_8px_-2px_rgba(124,111,255,0.5)] transition-all duration-150"
               >
                 {busy ? 'Signing in...' : 'Sign in'}
               </button>
@@ -181,7 +181,7 @@ export default function Login() {
               <button
                 type="submit"
                 disabled={busy}
-                className="w-full rounded-lg bg-gradient-to-r from-mitra-accentFrom to-mitra-accentTo text-white font-medium py-2 text-sm disabled:opacity-60"
+                className="w-full rounded-lg bg-gradient-to-r from-mitra-accentFrom to-mitra-accentTo text-white font-medium py-2 text-sm disabled:opacity-60 shadow-[0_6px_16px_-4px_rgba(124,111,255,0.55)] hover:-translate-y-0.5 hover:shadow-[0_10px_20px_-4px_rgba(124,111,255,0.6)] active:translate-y-0 active:shadow-[0_3px_8px_-2px_rgba(124,111,255,0.5)] transition-all duration-150"
               >
                 {busy ? 'Sending...' : 'Send login code'}
               </button>
@@ -212,7 +212,7 @@ export default function Login() {
               <button
                 type="submit"
                 disabled={busy || otpCode.length !== 6}
-                className="w-full rounded-lg bg-gradient-to-r from-mitra-accentFrom to-mitra-accentTo text-white font-medium py-2 text-sm disabled:opacity-60"
+                className="w-full rounded-lg bg-gradient-to-r from-mitra-accentFrom to-mitra-accentTo text-white font-medium py-2 text-sm disabled:opacity-60 shadow-[0_6px_16px_-4px_rgba(124,111,255,0.55)] hover:-translate-y-0.5 hover:shadow-[0_10px_20px_-4px_rgba(124,111,255,0.6)] active:translate-y-0 active:shadow-[0_3px_8px_-2px_rgba(124,111,255,0.5)] transition-all duration-150"
               >
                 {busy ? 'Verifying...' : 'Verify & sign in'}
               </button>

@@ -13,6 +13,8 @@ apps/api/secure-uploads/company-documents/*
 !apps/api/secure-uploads/company-documents/.gitkeep
 apps/api/secure-uploads/leave-attachments/*
 !apps/api/secure-uploads/leave-attachments/.gitkeep
+apps/api/secure-uploads/candidate-resumes/*
+!apps/api/secure-uploads/candidate-resumes/.gitkeep
 .DS_Store
 *.tsbuildinfo
 apps/web/vite.config.js

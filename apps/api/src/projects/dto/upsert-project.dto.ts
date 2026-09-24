@@ -1,4 +1,4 @@
-import { IsDateString, IsIn, IsOptional, IsString, MinLength } from 'class-validator';
+import { IsArray, IsDateString, IsIn, IsOptional, IsString, MinLength } from 'class-validator';
 
 const STATUSES = ['ACTIVE', 'ON_HOLD', 'COMPLETED', 'CANCELLED'];
 const CONTRACT_TYPES = ['T_AND_M', 'FIXED_PRICE', 'RETAINER', 'MANAGED_SERVICE'];
@@ -32,9 +32,19 @@ export class UpsertProjectDto {
   @IsIn(CATEGORIES)
   category?: string;
 
+  // Legacy single-tool field — no longer written by the UI, kept for
+  // back-compat with rows created before multi-select tagging existed.
   @IsOptional()
   @IsString()
   technologyId?: string;
+
+  // Multi-select tech stack tags (Technology ids) — the live field the UI
+  // now writes; comes through as `{ set: [...] }` / `{ connect: [...] }` in
+  // the service, same m2m pattern already used by JobOpening.technologies.
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  technologyIds?: string[];
 
   // Junior employee, engaged with the client day to day.
   @IsOptional()
@@ -49,4 +59,10 @@ export class UpsertProjectDto {
   @IsOptional()
   @IsDateString()
   startDate?: string;
+
+  // Planned/forecast completion date — distinct from the actual `endDate`,
+  // which is only ever set by the End Project flow (see EndProjectDto).
+  @IsOptional()
+  @IsDateString()
+  targetCompletionDate?: string;
 }

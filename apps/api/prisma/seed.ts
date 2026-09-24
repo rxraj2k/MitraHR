@@ -76,6 +76,24 @@ const SKILLS = [
   'OWASP Top 10',
   'Network Security',
   'Endpoint Security (EDR/XDR)',
+  // AI Engineering — added for Sprint 19's Talent Directory (this
+  // department previously had no matching skills to assign at all).
+  'Python (AI/ML)',
+  'Machine Learning',
+  'Deep Learning',
+  'Large Language Models (LLMs)',
+  'Prompt Engineering',
+  'LangChain',
+  'TensorFlow',
+  'PyTorch',
+  'Retrieval-Augmented Generation (RAG)',
+  'Vector Databases',
+  'MLOps',
+  'Data Engineering (ETL/Pipelines)',
+  'Computer Vision',
+  'Natural Language Processing (NLP)',
+  'Node.js',
+  'React',
 ];
 
 

@@ -2,6 +2,9 @@ import { FormEvent, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import SearchableSelect from '../../components/SearchableSelect';
+import TechStackPicker from '../../components/TechStackPicker';
+import { RingAvatar } from '../../components/Avatar';
+import { CATEGORY_STYLES, TECH_PILL_FALLBACK } from '../../lib/projectOptions';
 import { CATEGORY_LABELS } from '../../components/TechnologyManager';
 import {
   addProjectAssignment,
@@ -65,13 +68,14 @@ export default function ProjectDetail() {
     status: 'ACTIVE' as ProjectStatus,
     contractType: '' as ContractType | '',
     category: '' as ProjectCategory | '',
-    technologyId: '',
+    technologyIds: [] as string[],
     primaryMentorId: '',
     secondaryMentorId: '',
     description: '',
+    targetCompletionDate: '',
   });
 
-  const [assignForm, setAssignForm] = useState({ employeeId: '', roleOnProject: '', allocationPercent: '100' });
+  const [assignForm, setAssignForm] = useState({ employeeId: '', roleOnProject: '', allocationPercent: '100', mentorRole: '' as '' | 'NONE' | 'PRIMARY' | 'SECONDARY' });
   const [assignSubmitting, setAssignSubmitting] = useState(false);
 
   const [showEnd, setShowEnd] = useState(false);
@@ -90,10 +94,11 @@ export default function ProjectDetail() {
           status: p.status,
           contractType: (p.contractType as ContractType) || '',
           category: (p.category as ProjectCategory) || '',
-          technologyId: p.technologyId || '',
+          technologyIds: (p.technologies?.length ? p.technologies : p.technology ? [p.technology] : []).map((t) => t.id),
           primaryMentorId: p.primaryMentorId || '',
           secondaryMentorId: p.secondaryMentorId || '',
           description: p.description || '',
+          targetCompletionDate: p.targetCompletionDate?.slice(0, 10) || '',
         });
       })
       .catch((err) => setError(err.message))
@@ -112,10 +117,11 @@ export default function ProjectDetail() {
         status: infoForm.status,
         contractType: infoForm.contractType || undefined,
         category: infoForm.category || undefined,
-        technologyId: infoForm.technologyId || undefined,
+        technologyIds: infoForm.technologyIds,
         primaryMentorId: infoForm.primaryMentorId || undefined,
         secondaryMentorId: infoForm.secondaryMentorId || undefined,
         description: infoForm.description || undefined,
+        targetCompletionDate: infoForm.targetCompletionDate || undefined,
       } as any);
       setEditingInfo(false);
       load();
@@ -156,7 +162,12 @@ export default function ProjectDetail() {
 
   async function handleAddAssignment(e: FormEvent) {
     e.preventDefault();
-    if (!token || !project || !assignForm.employeeId) return;
+    // Leadership Role has no pre-selected default anymore on purpose — it
+    // used to silently default to "Team Member", which is exactly how
+    // people who were actually meant to be Primary/Secondary mentors kept
+    // ending up untagged (the picker looked already-filled-in, so it never
+    // got a second look). Now the choice has to be made every time.
+    if (!token || !project || !assignForm.employeeId || !assignForm.mentorRole) return;
     setError('');
     setAssignSubmitting(true);
     try {
@@ -164,8 +175,9 @@ export default function ProjectDetail() {
         employeeId: assignForm.employeeId,
         roleOnProject: assignForm.roleOnProject || undefined,
         allocationPercent: Number(assignForm.allocationPercent) || 100,
+        mentorRole: assignForm.mentorRole === 'NONE' ? undefined : assignForm.mentorRole,
       });
-      setAssignForm({ employeeId: '', roleOnProject: '', allocationPercent: '100' });
+      setAssignForm({ employeeId: '', roleOnProject: '', allocationPercent: '100', mentorRole: '' });
       load();
     } catch (err: any) {
       setError(err.message);
@@ -200,9 +212,6 @@ export default function ProjectDetail() {
   if (!project) return <p className="text-slate-500 text-sm">Project not found.</p>;
 
   const employeeOptions = employees.map((e) => ({ id: e.id, name: e.fullName }));
-  const technologyOptions = technologies
-    .filter((t) => !infoForm.category || t.category === infoForm.category)
-    .map((t) => ({ id: t.id, name: t.name }));
   const active = project.assignments?.filter((a) => !a.endDate) || [];
   const past = project.assignments?.filter((a) => !!a.endDate) || [];
 
@@ -267,7 +276,7 @@ export default function ProjectDetail() {
           <button
             type="submit"
             disabled={endSubmitting || !endForm.closureSummary}
-            className="rounded-lg bg-gradient-to-r from-mitra-accentFrom to-mitra-accentTo text-white text-sm font-medium px-4 py-2 disabled:opacity-50"
+            className="rounded-lg bg-gradient-to-r from-mitra-accentFrom to-mitra-accentTo text-white text-sm font-medium px-4 py-2 disabled:opacity-50 shadow-[0_6px_16px_-4px_rgba(124,111,255,0.55)] hover:-translate-y-0.5 hover:shadow-[0_10px_20px_-4px_rgba(124,111,255,0.6)] active:translate-y-0 active:shadow-[0_3px_8px_-2px_rgba(124,111,255,0.5)] transition-all duration-150"
           >
             {endSubmitting ? 'Ending...' : 'Confirm End Project'}
           </button>
@@ -311,7 +320,7 @@ export default function ProjectDetail() {
               <label className="block text-xs text-slate-500 mb-1">Category</label>
               <select
                 value={infoForm.category}
-                onChange={(e) => setInfoForm({ ...infoForm, category: e.target.value as ProjectCategory | '', technologyId: '' })}
+                onChange={(e) => setInfoForm({ ...infoForm, category: e.target.value as ProjectCategory | '' })}
                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
               >
                 <option value="">Select...</option>
@@ -322,13 +331,20 @@ export default function ProjectDetail() {
                 ))}
               </select>
             </div>
-            <div>
-              <label className="block text-xs text-slate-500 mb-1">Specific Area / Tool</label>
-              <SearchableSelect
-                options={technologyOptions}
-                value={infoForm.technologyId}
-                onChange={(v) => setInfoForm({ ...infoForm, technologyId: v })}
-                placeholder={infoForm.category ? 'Search tool...' : 'Pick a category first'}
+            <div className="md:col-span-3">
+              <label className="block text-xs text-slate-500 mb-1.5">Tools & Technologies</label>
+              <TechStackPicker
+                technologies={technologies}
+                category={infoForm.category}
+                selectedIds={infoForm.technologyIds}
+                onToggle={(id) =>
+                  setInfoForm({
+                    ...infoForm,
+                    technologyIds: infoForm.technologyIds.includes(id)
+                      ? infoForm.technologyIds.filter((t) => t !== id)
+                      : [...infoForm.technologyIds, id],
+                  })
+                }
               />
             </div>
             <div>
@@ -347,9 +363,7 @@ export default function ProjectDetail() {
               </select>
             </div>
             <div>
-              <label className="block text-xs text-slate-500 mb-1">
-                Primary Mentor <span className="text-slate-400">(junior, day-to-day)</span>
-              </label>
+              <label className="block text-xs text-slate-500 mb-1">Primary Leadership & Team</label>
               <SearchableSelect
                 options={employeeOptions}
                 value={infoForm.primaryMentorId}
@@ -358,14 +372,21 @@ export default function ProjectDetail() {
               />
             </div>
             <div>
-              <label className="block text-xs text-slate-500 mb-1">
-                Secondary Mentor <span className="text-slate-400">(senior, as needed)</span>
-              </label>
+              <label className="block text-xs text-slate-500 mb-1">Secondary Leadership & Team</label>
               <SearchableSelect
                 options={employeeOptions}
                 value={infoForm.secondaryMentorId}
                 onChange={(v) => setInfoForm({ ...infoForm, secondaryMentorId: v })}
                 placeholder="Search employee..."
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-slate-500 mb-1">Target Completion Date</label>
+              <input
+                type="date"
+                value={infoForm.targetCompletionDate}
+                onChange={(e) => setInfoForm({ ...infoForm, targetCompletionDate: e.target.value })}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
               />
             </div>
             <div className="md:col-span-3">
@@ -390,25 +411,56 @@ export default function ProjectDetail() {
               <p className="text-xs text-slate-500">Category</p>
               <p className="mt-1 text-slate-700">{project.category ? CATEGORY_LABELS[project.category] : '—'}</p>
             </div>
-            <div>
-              <p className="text-xs text-slate-500">Specific Area / Tool</p>
-              <p className="mt-1 text-slate-700">{project.technology?.name || '—'}</p>
+            <div className="col-span-full md:col-span-2">
+              <p className="text-xs text-slate-500 mb-1">Tools & Technologies</p>
+              {(() => {
+                const tools = project.technologies?.length ? project.technologies : project.technology ? [project.technology] : [];
+                return tools.length === 0 ? (
+                  <p className="text-slate-700">—</p>
+                ) : (
+                  <div className="flex flex-wrap gap-1.5">
+                    {tools.map((t) => (
+                      <span key={t.id} className={`px-2 py-0.5 rounded-full text-xs font-medium ${CATEGORY_STYLES[t.category]?.pill || TECH_PILL_FALLBACK}`}>
+                        {t.name}
+                      </span>
+                    ))}
+                  </div>
+                );
+              })()}
             </div>
             <div>
               <p className="text-xs text-slate-500">Contract Type</p>
               <p className="mt-1 text-slate-700">{project.contractType ? CONTRACT_LABELS[project.contractType] : '—'}</p>
             </div>
             <div>
-              <p className="text-xs text-slate-500">Primary Mentor</p>
-              <p className="mt-1 text-slate-700">{project.primaryMentor?.fullName || '—'}</p>
+              <p className="text-xs text-slate-500">Primary Leadership & Team</p>
+              {project.primaryMentor ? (
+                <div className="flex items-center gap-2 mt-1">
+                  <RingAvatar name={project.primaryMentor.fullName} photoUrl={project.primaryMentor.photoUrl} ring="sky" />
+                  <p className="text-slate-700">{project.primaryMentor.fullName}</p>
+                </div>
+              ) : (
+                <p className="mt-1 text-slate-700">—</p>
+              )}
             </div>
             <div>
-              <p className="text-xs text-slate-500">Secondary Mentor</p>
-              <p className="mt-1 text-slate-700">{project.secondaryMentor?.fullName || '—'}</p>
+              <p className="text-xs text-slate-500">Secondary Leadership & Team</p>
+              {project.secondaryMentor ? (
+                <div className="flex items-center gap-2 mt-1">
+                  <RingAvatar name={project.secondaryMentor.fullName} photoUrl={project.secondaryMentor.photoUrl} ring="violet" />
+                  <p className="text-slate-700">{project.secondaryMentor.fullName}</p>
+                </div>
+              ) : (
+                <p className="mt-1 text-slate-700">—</p>
+              )}
             </div>
             <div>
               <p className="text-xs text-slate-500">Start Date</p>
               <p className="mt-1 text-slate-700">{project.startDate?.slice(0, 10) || '—'}</p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-500">Target Completion Date</p>
+              <p className="mt-1 text-slate-700">{project.targetCompletionDate?.slice(0, 10) || '—'}</p>
             </div>
             <div>
               <p className="text-xs text-slate-500">End Date</p>
@@ -438,14 +490,33 @@ export default function ProjectDetail() {
       </div>
 
       <div className="bg-white border border-slate-200 rounded-xl p-6">
-        <h2 className="text-lg font-semibold text-slate-800 mb-4">Add Team Member</h2>
-        <form onSubmit={handleAddAssignment} className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <h2 className="text-lg font-semibold text-slate-800 mb-1">Add Mentors</h2>
+        <p className="text-xs text-slate-500 mb-4">
+          The people actually supporting this client and project — add them here with a role and allocation, and
+          tag whoever leads it as Primary or Secondary. Tagging someone here is what makes them the project's
+          mentor everywhere else in the app, not just a name on the Overview card.
+        </p>
+        <form onSubmit={handleAddAssignment} className="grid grid-cols-1 md:grid-cols-5 gap-4">
           <div>
             <label className="block text-xs text-slate-500 mb-1">Employee</label>
             <SearchableSelect
               options={employeeOptions}
               value={assignForm.employeeId}
-              onChange={(v) => setAssignForm({ ...assignForm, employeeId: v })}
+              onChange={(v) =>
+                setAssignForm({
+                  ...assignForm,
+                  employeeId: v,
+                  // Suggest a role when this person is already the project's
+                  // picked Leadership — still an explicit, visible, changeable
+                  // choice, not a silent auto-tag.
+                  mentorRole:
+                    v && v === project?.primaryMentorId
+                      ? 'PRIMARY'
+                      : v && v === project?.secondaryMentorId
+                        ? 'SECONDARY'
+                        : assignForm.mentorRole,
+                })
+              }
               placeholder="Search employee..."
             />
           </div>
@@ -469,11 +540,33 @@ export default function ProjectDetail() {
               className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
             />
           </div>
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Leadership Role *</label>
+            <select
+              value={assignForm.mentorRole}
+              onChange={(e) => setAssignForm({ ...assignForm, mentorRole: e.target.value as '' | 'NONE' | 'PRIMARY' | 'SECONDARY' })}
+              required
+              className={`w-full rounded-lg border px-3 py-2 text-sm ${
+                assignForm.mentorRole ? 'border-slate-300' : 'border-amber-300 bg-amber-50/60'
+              }`}
+            >
+              <option value="" disabled>
+                Choose role...
+              </option>
+              <option value="PRIMARY">Primary Mentor</option>
+              <option value="SECONDARY">Secondary Mentor</option>
+              <option value="NONE">Team Member (not a mentor)</option>
+            </select>
+            <p className="mt-1 text-[11px] text-slate-400">
+              Leadership on file: Primary — {project.primaryMentor?.fullName || 'none picked'} · Secondary —{' '}
+              {project.secondaryMentor?.fullName || 'none picked'}
+            </p>
+          </div>
           <div className="flex items-end">
             <button
               type="submit"
-              disabled={assignSubmitting || !assignForm.employeeId}
-              className="rounded-lg bg-gradient-to-r from-mitra-accentFrom to-mitra-accentTo text-white text-sm font-medium px-4 py-2 disabled:opacity-50"
+              disabled={assignSubmitting || !assignForm.employeeId || !assignForm.mentorRole}
+              className="rounded-lg bg-gradient-to-r from-mitra-accentFrom to-mitra-accentTo text-white text-sm font-medium px-4 py-2 disabled:opacity-50 shadow-[0_6px_16px_-4px_rgba(124,111,255,0.55)] hover:-translate-y-0.5 hover:shadow-[0_10px_20px_-4px_rgba(124,111,255,0.6)] active:translate-y-0 active:shadow-[0_3px_8px_-2px_rgba(124,111,255,0.5)] transition-all duration-150"
             >
               {assignSubmitting ? 'Adding...' : 'Add to Team'}
             </button>
@@ -500,7 +593,21 @@ export default function ProjectDetail() {
               <tbody className="divide-y divide-slate-100">
                 {active.map((a) => (
                   <tr key={a.id}>
-                    <td className="py-2 font-medium text-slate-700">{a.employee.fullName}</td>
+                    <td className="py-2 font-medium text-slate-700">
+                      <span className="inline-flex items-center gap-2">
+                        {a.employee.fullName}
+                        {a.mentorRole === 'PRIMARY' && (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-sky-100 text-sky-700 border border-sky-200">
+                            Primary Mentor
+                          </span>
+                        )}
+                        {a.mentorRole === 'SECONDARY' && (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-violet-100 text-violet-700 border border-violet-200">
+                            Secondary Mentor
+                          </span>
+                        )}
+                      </span>
+                    </td>
                     <td className="py-2 text-slate-500">{a.roleOnProject || '—'}</td>
                     <td className="py-2 text-slate-500">{a.allocationPercent}%</td>
                     <td className="py-2 text-slate-500">{a.startDate.slice(0, 10)}</td>

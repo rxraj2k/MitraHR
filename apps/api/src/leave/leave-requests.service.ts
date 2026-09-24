@@ -55,6 +55,7 @@ export class LeaveRequestsService {
       return {
         leaveTypeId,
         leaveTypeName: leaveType.name,
+        leaveTypeCode: leaveType.code,
         isPaid: leaveType.isPaid,
         annualQuota: null,
         accrued,
@@ -84,6 +85,7 @@ export class LeaveRequestsService {
     return {
       leaveTypeId,
       leaveTypeName: leaveType.name,
+      leaveTypeCode: leaveType.code,
       isPaid: leaveType.isPaid,
       annualQuota: leaveType.annualQuota,
       accrued,
@@ -97,9 +99,12 @@ export class LeaveRequestsService {
     return Promise.all(types.map((t) => this.computeBalance(employeeId, t.id)));
   }
 
-  async create(
+  // Shared by create() and update() -- same date/day-part/holiday/balance
+  // validation either way, since editing a still-pending request is really
+  // just "re-run the same checks against the new numbers."
+  private async validateAndCompute(
     employeeId: string,
-    input: { leaveTypeId: string; startDate: string; endDate: string; dayPart?: string; reason?: string },
+    input: { leaveTypeId: string; startDate: string; endDate: string; dayPart?: string },
   ) {
     const start = new Date(input.startDate);
     const end = new Date(input.endDate);
@@ -133,6 +138,15 @@ export class LeaveRequestsService {
       }
     }
 
+    return { start, end, dayPart, leaveType, totalDays };
+  }
+
+  async create(
+    employeeId: string,
+    input: { leaveTypeId: string; startDate: string; endDate: string; dayPart?: string; reason?: string },
+  ) {
+    const { start, end, dayPart, leaveType, totalDays } = await this.validateAndCompute(employeeId, input);
+
     const request = await this.prisma.leaveRequest.create({
       data: {
         employeeId,
@@ -153,6 +167,55 @@ export class LeaveRequestsService {
       link: '/leave',
     });
     return request;
+  }
+
+  // Editing is only allowed while a request is still PENDING -- once staff
+  // has decided it, the way to change it is cancel + re-apply (see
+  // cancel(), which now lets an employee cancel their own APPROVED request
+  // too), not silently rewriting something already approved or rejected.
+  // The owning employee can edit their own pending request; staff can edit
+  // any pending request (e.g. fixing a typo on someone's behalf).
+  async update(
+    id: string,
+    requester: { kind: string; sub: string },
+    input: { leaveTypeId?: string; startDate?: string; endDate?: string; dayPart?: string; reason?: string },
+  ) {
+    const existing = await this.prisma.leaveRequest.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Leave request not found');
+    if (requester.kind === 'EMPLOYEE' && existing.employeeId !== requester.sub) {
+      throw new ForbiddenException('Not your leave request');
+    }
+    if (existing.status !== 'PENDING') {
+      throw new BadRequestException('Only a pending request can be edited — cancel it and submit a new one instead');
+    }
+
+    const merged = {
+      leaveTypeId: input.leaveTypeId ?? existing.leaveTypeId,
+      startDate: input.startDate ?? toISODate(existing.startDate),
+      endDate: input.endDate ?? toISODate(existing.endDate),
+      dayPart: input.dayPart ?? existing.dayPart,
+    };
+    const { start, end, dayPart, leaveType, totalDays } = await this.validateAndCompute(existing.employeeId, merged);
+
+    const updated = await this.prisma.leaveRequest.update({
+      where: { id },
+      data: {
+        leaveTypeId: merged.leaveTypeId,
+        startDate: start,
+        endDate: end,
+        dayPart,
+        totalDays,
+        reason: input.reason ?? existing.reason,
+      },
+      include: { leaveType: true, employee: { select: { fullName: true } } },
+    });
+    await this.notifications.notifyAllStaff({
+      type: 'LEAVE_EDITED',
+      title: `${updated.employee.fullName} updated their ${leaveType.name} request`,
+      body: `${toISODate(start)} → ${toISODate(end)} (${totalDays} day${totalDays === 1 ? '' : 's'})`,
+      link: '/leave',
+    });
+    return updated;
   }
 
   findForEmployee(employeeId: string) {
@@ -203,16 +266,49 @@ export class LeaveRequestsService {
     return updated;
   }
 
+  // Both an employee and staff can cancel a PENDING or APPROVED request --
+  // an employee's plans change after approval as often as before it, so
+  // cancelling isn't limited to "not yet decided" the way editing is (an
+  // approved leave that needs different dates goes through cancel +
+  // re-apply, not an edit). Each side notifies the other so a cancelled-
+  // after-approval leave doesn't just quietly disappear from view.
   async cancel(id: string, requester: { kind: string; sub: string }) {
-    const request = await this.prisma.leaveRequest.findUnique({ where: { id } });
+    const request = await this.prisma.leaveRequest.findUnique({
+      where: { id },
+      include: { leaveType: true, employee: { select: { fullName: true } } },
+    });
     if (!request) throw new NotFoundException('Leave request not found');
     if (requester.kind === 'EMPLOYEE') {
       if (request.employeeId !== requester.sub) throw new ForbiddenException('Not your leave request');
-      if (request.status !== 'PENDING') throw new BadRequestException('Only a pending request can be cancelled');
+      if (!['PENDING', 'APPROVED'].includes(request.status)) {
+        throw new BadRequestException('Only a pending or approved request can be cancelled');
+      }
     } else if (!['PENDING', 'APPROVED'].includes(request.status)) {
       throw new BadRequestException('This request cannot be cancelled');
     }
-    return this.prisma.leaveRequest.update({ where: { id }, data: { status: 'CANCELLED' } });
+    const wasApproved = request.status === 'APPROVED';
+    const updated = await this.prisma.leaveRequest.update({ where: { id }, data: { status: 'CANCELLED' } });
+    const dateRange = `${toISODate(request.startDate)} → ${toISODate(request.endDate)}`;
+    if (requester.kind === 'EMPLOYEE') {
+      await this.notifications.notifyAllStaff({
+        type: 'LEAVE_CANCELLED',
+        title: `${request.employee.fullName} cancelled their ${request.leaveType.name} request`,
+        body: dateRange,
+        link: '/leave',
+      });
+    } else if (wasApproved) {
+      // Only worth telling the employee when staff cancels one that was
+      // already approved -- cancelling a still-pending request just means
+      // it never reaches their queue, nothing to be notified about.
+      await this.notifications.notifyEmployee(request.employeeId, {
+        type: 'LEAVE_CANCELLED',
+        title: `Your approved ${request.leaveType.name} request was cancelled`,
+        body: dateRange,
+        employeeLink: '/my-leave',
+        staffLink: '/leave',
+      });
+    }
+    return updated;
   }
 
   // Attach an optional supporting document (e.g. a medical certificate) to

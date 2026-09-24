@@ -5,6 +5,10 @@ export interface SendMailInput {
   to: string;
   subject: string;
   text: string;
+  // Optional rich body (e.g. the Quiz Results "certificate" email) — sent
+  // alongside `text` as the multipart alternative; the console-logging
+  // fallback still prints just `text`, since HTML in a terminal is noise.
+  html?: string;
 }
 
 // Email delivery is provider-swappable via EMAIL_PROVIDER:
@@ -48,6 +52,7 @@ export class MailService implements OnModuleInit {
         to: input.to,
         subject: input.subject,
         text: input.text,
+        html: input.html,
       });
       return;
     }

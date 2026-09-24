@@ -2,7 +2,15 @@ import { BadRequestException, ForbiddenException, Injectable, NotFoundException 
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 
-const COURSE_INCLUDE = { resources: { orderBy: { order: 'asc' as const } } };
+// quiz is surfaced (safe fields only — no questions/answers) on every
+// course fetch so the Learning Center "Assessments" tab can show a Take
+// Assessment button without a second round trip; QuizzesService's
+// staff/employee endpoints are still the only place actual questions are
+// ever returned.
+const COURSE_INCLUDE = {
+  resources: { orderBy: { order: 'asc' as const } },
+  quiz: { select: { id: true, title: true, passPercent: true, active: true } },
+};
 
 @Injectable()
 export class TrainingService {
@@ -164,7 +172,11 @@ export class TrainingService {
   // One row per active employee with their assignment counts — feeds the
   // Team Progress table, and the same shape the Bench & Utilization view
   // uses to flag "In Training".
-  async getProgressSummary() {
+  // categories, when passed, scopes the whole summary to just that track
+  // (e.g. IAM Engineering) — same shape, same math, just counting only the
+  // courses that belong to it. Nothing is filtered when it is omitted.
+  async getProgressSummary(categories?: string[]) {
+    const assignmentWhere = categories?.length ? { course: { category: { in: categories } } } : undefined;
     const employees = await this.prisma.employee.findMany({
       where: { status: 'ACTIVE' },
       select: {
@@ -174,7 +186,7 @@ export class TrainingService {
         photoUrl: true,
         department: { select: { name: true } },
         designation: { select: { name: true } },
-        trainingAssignments: { select: { status: true } },
+        trainingAssignments: { where: assignmentWhere, select: { status: true } },
       },
       orderBy: { fullName: 'asc' },
     });

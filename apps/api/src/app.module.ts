@@ -21,10 +21,21 @@ import { CompanyDocumentsModule } from './company-documents/company-documents.mo
 import { NotificationsModule } from './notifications/notifications.module';
 import { ReportsModule } from './reports/reports.module';
 import { StaffingSandboxModule } from './staffing-sandbox/staffing-sandbox.module';
+import { LearningResourcesModule } from './learning-resources/learning-resources.module';
 import { AnnouncementsModule } from './announcements/announcements.module';
 import { FavoritesModule } from './favorites/favorites.module';
 import { ClientContractsModule } from './client-contracts/client-contracts.module';
 import { EmployeeExitsModule } from './employee-exits/employee-exits.module';
+import { RecruitmentModule } from './recruitment/recruitment.module';
+import { PerformanceModule } from './performance/performance.module';
+import { EngagementModule } from './engagement/engagement.module';
+import { WorkLocationsModule } from './work-locations/work-locations.module';
+import { AssetCategoriesModule } from './asset-categories/asset-categories.module';
+import { AssetVendorsModule } from './asset-vendors/asset-vendors.module';
+import { DocumentTypesModule } from './document-types/document-types.module';
+import { QuizzesModule } from './quizzes/quizzes.module';
+import { ContractTypesModule } from './contract-types/contract-types.module';
+import { CandidateSourcesModule } from './candidate-sources/candidate-sources.module';
 
 @Module({
   imports: [
@@ -50,10 +61,21 @@ import { EmployeeExitsModule } from './employee-exits/employee-exits.module';
     CompanyDocumentsModule,
     ReportsModule,
     StaffingSandboxModule,
+    LearningResourcesModule,
     AnnouncementsModule,
     FavoritesModule,
     ClientContractsModule,
     EmployeeExitsModule,
+    RecruitmentModule,
+    PerformanceModule,
+    EngagementModule,
+    WorkLocationsModule,
+    AssetCategoriesModule,
+    AssetVendorsModule,
+    DocumentTypesModule,
+    QuizzesModule,
+    ContractTypesModule,
+    CandidateSourcesModule,
   ],
 })
 export class AppModule {}

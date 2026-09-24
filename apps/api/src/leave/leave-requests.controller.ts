@@ -22,6 +22,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { StaffOnlyGuard } from '../auth/staff-only.guard';
 import { LeaveRequestsService } from './leave-requests.service';
 import { CreateLeaveRequestDto } from './dto/create-leave-request.dto';
+import { UpdateLeaveRequestDto } from './dto/update-leave-request.dto';
 import { DecideLeaveRequestDto } from './dto/decide-leave-request.dto';
 
 // Kept outside the publicly-served `uploads/` root (see main.ts) since
@@ -73,6 +74,14 @@ export class LeaveRequestsController {
       return this.leaveRequestsService.findForEmployee(req.user.sub);
     }
     return this.leaveRequestsService.findAll({ employeeId, status });
+  }
+
+  // Owner (while pending) or any staff member (also while pending) may
+  // edit -- ownership and the pending-only rule are enforced in the
+  // service, same pattern as cancel/attachment below.
+  @Patch(':id')
+  update(@Req() req: any, @Param('id') id: string, @Body() dto: UpdateLeaveRequestDto) {
+    return this.leaveRequestsService.update(id, req.user, dto);
   }
 
   @Patch(':id/cancel')

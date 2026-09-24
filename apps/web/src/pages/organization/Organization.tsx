@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import TabBar, { TabBarItem } from '../../components/TabBar';
 import {
   BuildingIcon,
+  CakeIcon,
   ChevronRightIcon,
   FileTextIcon,
   PhoneIcon,
@@ -14,7 +15,10 @@ import {
 } from '../../components/icons';
 import {
   API_BASE,
+  acknowledgeCompanyDocument,
   addFavorite,
+  getAnnouncements,
+  getCompanyDocumentAcknowledgments,
   getCompanyDocuments,
   getDepartments,
   getEmployees,
@@ -23,9 +27,20 @@ import {
   openAuthedFile,
   removeFavorite,
 } from '../../lib/api';
-import { CompanyDocument, Employee, FavoriteColleague, LookupItem, UpcomingBirthday } from '../../types';
+import {
+  Announcement,
+  CompanyDocument,
+  CompanyDocumentAcknowledgmentStatus,
+  Employee,
+  FavoriteColleague,
+  LookupItem,
+  UpcomingBirthday,
+} from '../../types';
+import MetricTile from '../../components/MetricTile';
+import { TILE_THEMES, tileWrapperClass } from '../../lib/tileThemes';
 import OrgChart from '../OrgChart';
 import AnnouncementsTab from './AnnouncementsTab';
+import AnnouncementBoard from '../../components/AnnouncementBoard';
 import EmployeeProfileModal from './EmployeeProfileModal';
 
 export function initials(name: string): string {
@@ -159,11 +174,20 @@ export default function Organization() {
         <p className="text-sm text-slate-400">Loading…</p>
       ) : (
         <>
-          {tab === 'overview' && <OverviewTab employees={employees} departments={departments} onNavigateTab={setTab} />}
+          {tab === 'overview' && (
+            <OverviewTab
+              employees={employees}
+              departments={departments}
+              token={token}
+              isStaff={isStaff}
+              onNavigateTab={setTab}
+              onSelectDepartment={goToDepartment}
+            />
+          )}
           {tab === 'announcements' && (
             <AnnouncementsTab token={token} isStaff={isStaff} departments={departments} employees={employees} />
           )}
-          {tab === 'policies' && <PoliciesTab token={token} />}
+          {tab === 'policies' && <PoliciesTab token={token} isStaff={isStaff} />}
           {tab === 'employee-tree' && <EmployeeTreeTab />}
           {tab === 'department-tree' && (
             <DepartmentTreeTab employees={employees} departments={departments} onSelectDepartment={goToDepartment} />
@@ -202,7 +226,8 @@ function EmployeeTreeTab() {
   return (
     <div>
       <p className="text-sm text-slate-500 mb-4">
-        Click any card to open that employee's profile. Use the − / + button to collapse or expand a team.
+        Search, zoom, or switch to the nested list to explore reporting lines. Click any card to open the read-only
+        Talent Profile drawer.
       </p>
       <OrgChart hideHeader />
     </div>
@@ -212,12 +237,36 @@ function EmployeeTreeTab() {
 function OverviewTab({
   employees,
   departments,
+  token,
+  isStaff,
   onNavigateTab,
+  onSelectDepartment,
 }: {
   employees: Employee[];
   departments: LookupItem[];
+  token: string;
+  isStaff: boolean;
   onNavigateTab: (tab: TabKey) => void;
+  onSelectDepartment: (departmentId: string) => void;
 }) {
+  // Overview-only widgets (birthdays, announcements) fetch their own data
+  // rather than lifting more state into the parent Organization component —
+  // keeps this reorg scoped to the Overview tab instead of touching the
+  // other tabs' existing data flow.
+  const [birthdays, setBirthdays] = useState<UpcomingBirthday[]>([]);
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [widgetsLoading, setWidgetsLoading] = useState(true);
+
+  useEffect(() => {
+    Promise.all([getUpcomingBirthdays(token, 30), getAnnouncements(token)])
+      .then(([b, a]) => {
+        setBirthdays(b);
+        setAnnouncements(a);
+      })
+      .catch(() => {})
+      .finally(() => setWidgetsLoading(false));
+  }, [token]);
+
   const activeEmployees = employees.filter((e) => e.status === 'ACTIVE');
   const now = new Date();
   const newHiresThisMonth = activeEmployees.filter((e) => {
@@ -226,61 +275,289 @@ function OverviewTab({
     return d.getUTCFullYear() === now.getUTCFullYear() && d.getUTCMonth() === now.getUTCMonth();
   }).length;
 
-  const tiles = [
-    { label: 'Active Employees', value: activeEmployees.length, icon: UsersIcon },
-    { label: 'Departments', value: departments.length, icon: BuildingIcon },
-    { label: 'New Hires This Month', value: newHiresThisMonth, icon: SparkleIcon },
+  const tiles: { label: string; value: number; icon: typeof UsersIcon; tab: TabKey; sub?: string }[] = [
+    { label: 'Active Employees', value: activeEmployees.length, icon: UsersIcon, tab: 'department-directory' },
+    { label: 'Departments', value: departments.length, icon: BuildingIcon, tab: 'department-tree' },
+    { label: 'New Hires This Month', value: newHiresThisMonth, icon: SparkleIcon, tab: 'new-hires' },
+    {
+      label: 'Upcoming Birthdays',
+      value: birthdays.length,
+      icon: CakeIcon,
+      tab: 'birthdays',
+      sub: 'Next 30 days',
+    },
   ];
 
+  // Employee Tree / Department Directory / Company Policies only, per spec —
+  // Department Tree, Birthday Folks, and New Hires already get their own
+  // rich widgets below, and stay reachable via the tab bar above.
   const quickLinks: { label: string; tab: TabKey }[] = [
-    { label: 'Department Directory', tab: 'department-directory' },
     { label: 'Employee Tree', tab: 'employee-tree' },
-    { label: 'Department Tree', tab: 'department-tree' },
-    { label: 'Policies', tab: 'policies' },
-    { label: 'Birthday Folks', tab: 'birthdays' },
-    { label: 'New Hires', tab: 'new-hires' },
+    { label: 'Department Directory', tab: 'department-directory' },
+    { label: 'Company Policies', tab: 'policies' },
   ];
+
+  const newHires = [...activeEmployees]
+    .filter((e) => e.dateOfJoining)
+    .sort((a, b) => new Date(b.dateOfJoining as string).getTime() - new Date(a.dateOfJoining as string).getTime())
+    .slice(0, 5);
+
+  const deptSnapshot = departments.map((d) => ({
+    department: d,
+    count: activeEmployees.filter((e) => e.departmentId === d.id).length,
+  }));
 
   return (
     <div>
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-        {tiles.map((t) => (
-          <div key={t.label} className="bg-white border border-slate-200 rounded-xl p-5">
-            <div className="flex items-center gap-2 text-slate-400">
-              <t.icon className="w-4 h-4" />
-              <p className="text-xs font-medium">{t.label}</p>
-            </div>
-            <p className="text-2xl font-semibold text-slate-800 mt-1">{t.value}</p>
-          </div>
-        ))}
-      </div>
-      <h3 className="text-sm font-semibold text-slate-700 mb-3">Quick Links</h3>
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-        {quickLinks.map((q) => (
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        {tiles.map((t, i) => (
           <button
-            key={q.tab}
+            key={t.label}
             type="button"
-            onClick={() => onNavigateTab(q.tab)}
-            className="text-left bg-white border border-slate-200 rounded-xl p-4 hover:border-mitra-accentFrom/40 hover:shadow-sm text-sm text-slate-700 flex items-center justify-between group"
+            onClick={() => onNavigateTab(t.tab)}
+            className={tileWrapperClass(TILE_THEMES[i % TILE_THEMES.length])}
           >
-            {q.label}
-            <ChevronRightIcon className="w-4 h-4 text-slate-300 group-hover:text-mitra-accentFrom" />
+            <MetricTile icon={t.icon} label={t.label} value={t.value} sub={t.sub} />
           </button>
         ))}
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left column — primary feeds */}
+        <div className="lg:col-span-2 space-y-6">
+          <div className="bg-white border border-slate-200 rounded-xl p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-semibold text-slate-800">Company Announcements</h3>
+              <button
+                type="button"
+                onClick={() => onNavigateTab('announcements')}
+                className="text-xs font-medium text-mitra-accentFrom hover:underline"
+              >
+                View all →
+              </button>
+            </div>
+            {widgetsLoading ? (
+              <p className="text-sm text-slate-400">Loading…</p>
+            ) : (
+              <AnnouncementBoard
+                announcements={announcements}
+                token={token}
+                isStaff={isStaff}
+                departments={departments}
+                onChanged={() => getAnnouncements(token).then(setAnnouncements).catch(() => {})}
+                limit={3}
+                emptyMessage="No announcements posted yet."
+              />
+            )}
+          </div>
+
+          <div>
+            <h3 className="text-sm font-semibold text-slate-700 mb-3">Quick Links</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {quickLinks.map((q) => (
+                <button
+                  key={q.tab}
+                  type="button"
+                  onClick={() => onNavigateTab(q.tab)}
+                  className="text-left bg-white border border-slate-200 rounded-xl p-4 hover:border-mitra-accentFrom/40 hover:shadow-sm text-sm text-slate-700 flex items-center justify-between group"
+                >
+                  {q.label}
+                  <ChevronRightIcon className="w-4 h-4 text-slate-300 group-hover:text-mitra-accentFrom" />
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Right column — widgets */}
+        <div className="space-y-6">
+          <div className="bg-white border border-slate-200 rounded-xl p-5">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-slate-800">Birthday Folks</h3>
+              <button
+                type="button"
+                onClick={() => onNavigateTab('birthdays')}
+                className="text-xs font-medium text-mitra-accentFrom hover:underline"
+              >
+                View all →
+              </button>
+            </div>
+            {widgetsLoading ? (
+              <p className="text-sm text-slate-400">Loading…</p>
+            ) : birthdays.length === 0 ? (
+              <p className="text-sm text-slate-400">No birthdays in the next 30 days.</p>
+            ) : (
+              <ul className="space-y-2.5">
+                {birthdays.slice(0, 5).map((b) => (
+                  <li key={b.id} className="flex items-center gap-2.5">
+                    <Avatar name={b.fullName} photoUrl={b.photoUrl} size="sm" />
+                    <span className="min-w-0 flex-1 truncate text-sm text-slate-700">{b.fullName}</span>
+                    <span className="text-xs text-fuchsia-500 font-medium flex-shrink-0">
+                      {b.daysUntil === 0 ? 'Today!' : b.daysUntil === 1 ? 'Tomorrow' : `In ${b.daysUntil} days`}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <div className="bg-white border border-slate-200 rounded-xl p-5">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-slate-800">New Hires</h3>
+              <button
+                type="button"
+                onClick={() => onNavigateTab('new-hires')}
+                className="text-xs font-medium text-mitra-accentFrom hover:underline"
+              >
+                View all →
+              </button>
+            </div>
+            {newHires.length === 0 ? (
+              <p className="text-sm text-slate-400">No joining dates on file yet.</p>
+            ) : (
+              <ul className="space-y-2.5">
+                {newHires.map((e) => (
+                  <li key={e.id} className="flex items-center gap-2.5">
+                    <Avatar name={e.fullName} photoUrl={e.photoUrl} size="sm" />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm text-slate-700">{e.fullName}</p>
+                      <p className="text-xs text-slate-400">Joined {new Date(e.dateOfJoining as string).toLocaleDateString()}</p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <div className="bg-white border border-slate-200 rounded-xl p-5">
+            <h3 className="text-sm font-semibold text-slate-800 mb-3">Department Snapshot</h3>
+            {deptSnapshot.length === 0 ? (
+              <p className="text-sm text-slate-400">No departments set up yet.</p>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {deptSnapshot.map(({ department, count }) => (
+                  <button
+                    key={department.id}
+                    type="button"
+                    onClick={() => onSelectDepartment(department.id)}
+                    className="inline-flex items-center gap-1.5 rounded-full bg-slate-50 border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:border-mitra-accentFrom/40 hover:text-mitra-accentFrom"
+                  >
+                    {department.name}: {count}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );
 }
 
-function PoliciesTab({ token }: { token: string }) {
-  const [docs, setDocs] = useState<CompanyDocument[]>([]);
+function PolicyAcknowledgmentModal({
+  token,
+  doc,
+  onClose,
+}: {
+  token: string;
+  doc: CompanyDocument;
+  onClose: () => void;
+}) {
+  const [status, setStatus] = useState<CompanyDocumentAcknowledgmentStatus | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    getCompanyDocumentAcknowledgments(token, doc.id)
+      .then(setStatus)
+      .finally(() => setLoading(false));
+  }, [token, doc.id]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" onClick={onClose}>
+      <div
+        className="bg-white rounded-xl shadow-xl w-full max-w-md max-h-[80vh] overflow-y-auto p-5"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-2 mb-3">
+          <div>
+            <p className="text-sm font-semibold text-slate-800">{doc.title}</p>
+            <p className="text-xs text-slate-400">Policy acknowledgment status</p>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-sm">
+            Close
+          </button>
+        </div>
+        {loading ? (
+          <p className="text-sm text-slate-400">Loading…</p>
+        ) : status ? (
+          <div className="space-y-4">
+            <div>
+              <p className="text-xs font-medium text-slate-500 mb-2">
+                Acknowledged ({status.acknowledged.length})
+              </p>
+              {status.acknowledged.length === 0 ? (
+                <p className="text-xs text-slate-400">No one yet.</p>
+              ) : (
+                <ul className="space-y-1.5">
+                  {status.acknowledged.map((a) => (
+                    <li key={a.employee.id} className="flex items-center justify-between text-sm">
+                      <span className="flex items-center gap-2">
+                        <Avatar name={a.employee.fullName} photoUrl={a.employee.photoUrl} size="sm" />
+                        <span className="text-slate-700">{a.employee.fullName}</span>
+                      </span>
+                      <span className="text-xs text-slate-400">{new Date(a.acknowledgedAt).toLocaleDateString()}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            <div>
+              <p className="text-xs font-medium text-slate-500 mb-2">Pending ({status.pending.length})</p>
+              {status.pending.length === 0 ? (
+                <p className="text-xs text-emerald-600">Everyone has acknowledged this policy.</p>
+              ) : (
+                <ul className="space-y-1.5">
+                  {status.pending.map((e) => (
+                    <li key={e.id} className="flex items-center gap-2 text-sm">
+                      <Avatar name={e.fullName} photoUrl={e.photoUrl} size="sm" />
+                      <span className="text-slate-700">{e.fullName}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        ) : (
+          <p className="text-sm text-red-500">Failed to load status.</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function PoliciesTab({ token, isStaff }: { token: string; isStaff: boolean }) {
+  const [docs, setDocs] = useState<CompanyDocument[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [acking, setAcking] = useState<string | null>(null);
+  const [statusDoc, setStatusDoc] = useState<CompanyDocument | null>(null);
+
+  function load() {
     getCompanyDocuments(token)
       .then(setDocs)
       .finally(() => setLoading(false));
-  }, [token]);
+  }
+
+  useEffect(load, [token]);
+
+  async function handleAcknowledge(id: string) {
+    setAcking(id);
+    try {
+      await acknowledgeCompanyDocument(token, id);
+      load();
+    } finally {
+      setAcking(null);
+    }
+  }
 
   if (loading) return <p className="text-sm text-slate-400">Loading policies…</p>;
 
@@ -297,24 +574,57 @@ function PoliciesTab({ token }: { token: string }) {
         <p className="text-sm text-slate-400">No company documents uploaded yet.</p>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {docs.map((d) => (
-            <button
-              key={d.id}
-              type="button"
-              onClick={() => openAuthedFile(token, `/company-documents/${d.id}/file`)}
-              className="text-left bg-white border border-slate-200 rounded-xl p-4 hover:border-mitra-accentFrom/40 flex items-start gap-3"
-            >
-              <FileTextIcon className="w-5 h-5 text-slate-400 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="text-sm font-medium text-slate-800">{d.title}</p>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  {d.category} · Updated {new Date(d.updatedAt).toLocaleDateString()}
-                </p>
+          {docs.map((d) => {
+            const isPolicy = d.category === 'POLICY';
+            return (
+              <div
+                key={d.id}
+                className="text-left bg-white border border-slate-200 rounded-xl p-4 hover:border-mitra-accentFrom/40"
+              >
+                <button
+                  type="button"
+                  onClick={() => openAuthedFile(token, `/company-documents/${d.id}/file`)}
+                  className="w-full text-left flex items-start gap-3"
+                >
+                  <FileTextIcon className="w-5 h-5 text-slate-400 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-medium text-slate-800">{d.title}</p>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      {d.category} · Updated {new Date(d.updatedAt).toLocaleDateString()}
+                    </p>
+                  </div>
+                </button>
+                {isPolicy && (
+                  <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+                    {d.acknowledgedByMe ? (
+                      <span className="text-xs font-medium text-emerald-600">✓ Acknowledged</span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => handleAcknowledge(d.id)}
+                        disabled={acking === d.id}
+                        className="text-xs font-medium text-white bg-mitra-accentFrom rounded-lg px-2.5 py-1 disabled:opacity-50"
+                      >
+                        {acking === d.id ? 'Saving…' : 'Acknowledge'}
+                      </button>
+                    )}
+                    {isStaff && (
+                      <button
+                        type="button"
+                        onClick={() => setStatusDoc(d)}
+                        className="text-xs text-slate-500 hover:text-mitra-accentFrom hover:underline"
+                      >
+                        {d.acknowledgedCount ?? 0}/{d.eligibleCount ?? 0} acknowledged
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
-            </button>
-          ))}
+            );
+          })}
         </div>
       )}
+      {statusDoc && <PolicyAcknowledgmentModal token={token} doc={statusDoc} onClose={() => setStatusDoc(null)} />}
     </div>
   );
 }

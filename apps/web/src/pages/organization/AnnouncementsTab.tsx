@@ -1,17 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import {
-  addAnnouncementComment,
-  createAnnouncement,
-  deleteAnnouncement,
-  getAnnouncementComments,
-  getAnnouncements,
-  likeAnnouncement,
-  openAuthedFile,
-  unlikeAnnouncement,
-  updateAnnouncement,
-} from '../../lib/api';
-import { FileTextIcon, XIcon } from '../../components/icons';
-import { Announcement, AnnouncementAudienceType, AnnouncementComment, Employee, LookupItem } from '../../types';
+import { createAnnouncement, getAnnouncements } from '../../lib/api';
+import AnnouncementBoard from '../../components/AnnouncementBoard';
+import { XIcon } from '../../components/icons';
+import { Announcement, AnnouncementAudienceType, Employee, LookupItem } from '../../types';
 
 // Full Zoho-style Announcements: rich-text body (a lightweight
 // contentEditable editor — no new dependency), an optional attachment,
@@ -79,16 +70,15 @@ export default function AnnouncementsTab({
       {error && <p className="text-sm text-rose-600 mb-4">{error}</p>}
       {loading ? (
         <p className="text-sm text-slate-400">Loading announcements…</p>
-      ) : announcements.length === 0 ? (
-        <p className="text-sm text-slate-400">
-          {isStaff ? 'No announcements yet — post the first one.' : 'No announcements right now.'}
-        </p>
       ) : (
-        <div className="space-y-4">
-          {announcements.map((a) => (
-            <AnnouncementCard key={a.id} announcement={a} token={token} isStaff={isStaff} departments={departments} onChanged={load} />
-          ))}
-        </div>
+        <AnnouncementBoard
+          announcements={announcements}
+          token={token}
+          isStaff={isStaff}
+          departments={departments}
+          onChanged={load}
+          emptyMessage={isStaff ? 'No announcements yet — post the first one.' : 'No announcements right now.'}
+        />
       )}
 
       {showForm && (
@@ -102,181 +92,6 @@ export default function AnnouncementsTab({
             load();
           }}
         />
-      )}
-    </div>
-  );
-}
-
-function AnnouncementCard({
-  announcement,
-  token,
-  isStaff,
-  departments,
-  onChanged,
-}: {
-  announcement: Announcement;
-  token: string;
-  isStaff: boolean;
-  departments: LookupItem[];
-  onChanged: () => void;
-}) {
-  const [liked, setLiked] = useState(announcement.likedByMe);
-  const [likeCount, setLikeCount] = useState(announcement.likeCount);
-  const [likeBusy, setLikeBusy] = useState(false);
-  const [commentsOpen, setCommentsOpen] = useState(false);
-  const [commentsLoaded, setCommentsLoaded] = useState(false);
-  const [comments, setComments] = useState<AnnouncementComment[]>([]);
-  const [newComment, setNewComment] = useState('');
-  const [commentError, setCommentError] = useState('');
-
-  async function toggleLike() {
-    setLikeBusy(true);
-    try {
-      if (liked) {
-        await unlikeAnnouncement(token, announcement.id);
-        setLiked(false);
-        setLikeCount((c) => Math.max(0, c - 1));
-      } else {
-        await likeAnnouncement(token, announcement.id);
-        setLiked(true);
-        setLikeCount((c) => c + 1);
-      }
-    } catch {
-      // Best-effort — most likely cause is a staff account with no linked
-      // Employee record, which can't like/comment as anyone. Leave state as-is.
-    } finally {
-      setLikeBusy(false);
-    }
-  }
-
-  async function toggleComments() {
-    setCommentsOpen((o) => !o);
-    if (!commentsLoaded) {
-      try {
-        setComments(await getAnnouncementComments(token, announcement.id));
-      } finally {
-        setCommentsLoaded(true);
-      }
-    }
-  }
-
-  async function submitComment() {
-    if (!newComment.trim()) return;
-    setCommentError('');
-    try {
-      const created = await addAnnouncementComment(token, announcement.id, newComment.trim());
-      setComments((c) => [...c, created]);
-      setNewComment('');
-    } catch (err: any) {
-      setCommentError(err.message || 'Failed to post comment');
-    }
-  }
-
-  async function handleDelete() {
-    if (!window.confirm('Delete this announcement? This cannot be undone.')) return;
-    await deleteAnnouncement(token, announcement.id);
-    onChanged();
-  }
-
-  async function togglePin() {
-    await updateAnnouncement(token, announcement.id, { pinned: !announcement.pinned });
-    onChanged();
-  }
-
-  const audienceLabel =
-    announcement.audienceType === 'DEPARTMENTS'
-      ? departments
-          .filter((d) => announcement.audienceDepartmentIds.includes(d.id))
-          .map((d) => d.name)
-          .join(', ') || 'Specific departments'
-      : announcement.audienceType === 'INDIVIDUALS'
-      ? `${announcement.audienceEmployeeCount} employee${announcement.audienceEmployeeCount === 1 ? '' : 's'}`
-      : 'Everyone';
-
-  return (
-    <div
-      className={`bg-white border rounded-xl p-5 ${
-        announcement.pinned ? 'border-mitra-accentFrom/40' : 'border-slate-200'
-      } ${announcement.isExpired ? 'opacity-60' : ''}`}
-    >
-      <div className="flex items-start justify-between gap-3 mb-1 flex-wrap">
-        <div className="flex items-center gap-2 flex-wrap">
-          {announcement.pinned && (
-            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-mitra-accentFrom/10 text-mitra-accentFrom border border-mitra-accentFrom/30">
-              Pinned
-            </span>
-          )}
-          {announcement.category && (
-            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">{announcement.category}</span>
-          )}
-          {announcement.isExpired && (
-            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-slate-100 text-slate-400">Expired</span>
-          )}
-          <h3 className="text-sm font-semibold text-slate-800">{announcement.title}</h3>
-        </div>
-        {isStaff && (
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <button type="button" onClick={togglePin} className="text-xs text-slate-400 hover:text-slate-600">
-              {announcement.pinned ? 'Unpin' : 'Pin'}
-            </button>
-            <button type="button" onClick={handleDelete} className="text-xs text-rose-400 hover:text-rose-600">
-              Delete
-            </button>
-          </div>
-        )}
-      </div>
-      <p className="text-xs text-slate-400 mb-3">
-        {announcement.createdByName} · {new Date(announcement.createdAt).toLocaleDateString()} · To: {audienceLabel}
-        {announcement.expiresAt && !announcement.isExpired && <> · Expires {new Date(announcement.expiresAt).toLocaleDateString()}</>}
-      </p>
-      <div className="text-sm text-slate-700 leading-relaxed [&_ul]:list-disc [&_ul]:pl-5" dangerouslySetInnerHTML={{ __html: announcement.body }} />
-      {announcement.attachmentUrl && (
-        <button
-          type="button"
-          onClick={() => openAuthedFile(token, `/announcements/${announcement.id}/file`)}
-          className="mt-3 text-xs text-mitra-accentFrom hover:underline flex items-center gap-1"
-        >
-          <FileTextIcon className="w-3.5 h-3.5" /> {announcement.attachmentName || 'View attachment'}
-        </button>
-      )}
-      <div className="flex items-center gap-4 mt-4 pt-3 border-t border-slate-100">
-        <button
-          type="button"
-          onClick={toggleLike}
-          disabled={likeBusy}
-          className={`text-xs flex items-center gap-1 ${liked ? 'text-mitra-accentFrom font-medium' : 'text-slate-500 hover:text-slate-700'}`}
-        >
-          👍 {likeCount > 0 ? likeCount : ''} Like{likeCount === 1 ? '' : 's'}
-        </button>
-        {!announcement.commentsDisabled && (
-          <button type="button" onClick={toggleComments} className="text-xs text-slate-500 hover:text-slate-700">
-            💬 {announcement.commentCount > 0 ? announcement.commentCount : ''} Comment{announcement.commentCount === 1 ? '' : 's'}
-          </button>
-        )}
-      </div>
-      {commentsOpen && !announcement.commentsDisabled && (
-        <div className="mt-3 pt-3 border-t border-slate-100 space-y-2">
-          {comments.map((c) => (
-            <div key={c.id} className="text-xs">
-              <span className="font-medium text-slate-700">{c.employee.fullName}</span>{' '}
-              <span className="text-slate-400">{new Date(c.createdAt).toLocaleDateString()}</span>
-              <p className="text-slate-600 mt-0.5">{c.body}</p>
-            </div>
-          ))}
-          {commentError && <p className="text-xs text-rose-600">{commentError}</p>}
-          <div className="flex gap-2 mt-2">
-            <input
-              value={newComment}
-              onChange={(e) => setNewComment(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && submitComment()}
-              placeholder="Write a comment…"
-              className="flex-1 rounded-lg border border-slate-300 px-3 py-1.5 text-xs"
-            />
-            <button type="button" onClick={submitComment} className="text-xs px-3 py-1.5 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200">
-              Post
-            </button>
-          </div>
-        </div>
       )}
     </div>
   );

@@ -9,6 +9,7 @@ export const EMPLOYEE_DOCUMENT_TYPES = [
   'EXPERIENCE_LETTER',
   'CONTRACT',
   'CERTIFICATION',
+  'VISA',
   'OTHER',
 ] as const;
 

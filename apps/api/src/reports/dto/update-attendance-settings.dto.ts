@@ -8,11 +8,23 @@ export class UpdateAttendanceSettingsDto {
   @Matches(/^([01]\d|2[0-3]):([0-5]\d)$/, { message: 'expectedStartTime must be in HH:MM (24h) format' })
   expectedStartTime?: string;
 
+  // Shift start while US Daylight Saving is in effect — see us-dst.util.ts.
+  @IsOptional()
+  @IsString()
+  @Matches(/^([01]\d|2[0-3]):([0-5]\d)$/, { message: 'expectedStartTimeDst must be in HH:MM (24h) format' })
+  expectedStartTimeDst?: string;
+
   @IsOptional()
   @IsInt()
   @Min(0)
   @Max(180)
   graceMinutes?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(180)
+  earlyThresholdMinutes?: number;
 
   @IsOptional()
   @IsNumber()
