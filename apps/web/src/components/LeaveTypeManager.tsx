@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { createLeaveType, deleteLeaveType, getLeaveTypes, updateLeaveType } from '../lib/api';
 import { AccrualMethod, LeaveType } from '../types';
@@ -55,7 +55,7 @@ function Pill({ tone, children }: { tone: 'slate' | 'emerald' | 'amber' | 'sky' 
   return <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-medium ${TONE[tone]}`}>{children}</span>;
 }
 
-export default function LeaveTypeManager() {
+export default function LeaveTypeManager({ searchQuery }: { searchQuery?: string } = {}) {
   const { token } = useAuth();
   const [items, setItems] = useState<LeaveType[]>([]);
   const [loading, setLoading] = useState(true);
@@ -132,6 +132,11 @@ export default function LeaveTypeManager() {
       setDeleting(false);
     }
   }
+
+  const shown = useMemo(() => {
+    const q = (searchQuery ?? '').trim().toLowerCase();
+    return q ? items.filter((i) => i.name.toLowerCase().includes(q)) : items;
+  }, [items, searchQuery]);
 
   return (
     <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-6 md:col-span-2">
@@ -214,11 +219,11 @@ export default function LeaveTypeManager() {
 
       {loading ? (
         <p className="text-slate-500 text-sm">Loading...</p>
-      ) : items.length === 0 ? (
-        <p className="text-slate-500 text-sm">None yet.</p>
+      ) : shown.length === 0 ? (
+        <p className="text-slate-500 text-sm">{items.length === 0 ? 'None yet.' : 'No matches.'}</p>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {items.map((item) =>
+          {shown.map((item) =>
             editingId === item.id ? (
               <div key={item.id} className="rounded-xl border border-indigo-200 bg-indigo-50/40 p-4 space-y-2">
                 <input
@@ -300,9 +305,12 @@ export default function LeaveTypeManager() {
                     </button>
                     <button
                       onClick={() => setConfirmTarget(item)}
-                      disabled={!!item.usageCount}
                       title={item.usageCount ? `Cannot delete: ${item.usageCount} ${item.usageLabel}.` : 'Delete'}
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:text-slate-400 disabled:hover:bg-transparent"
+                      className={`p-1.5 rounded-lg transition-colors ${
+                        item.usageCount
+                          ? 'text-slate-300 hover:text-amber-600 hover:bg-amber-50'
+                          : 'text-slate-400 hover:text-red-600 hover:bg-red-50'
+                      }`}
                     >
                       <TrashIcon className="w-4 h-4" />
                     </button>
@@ -328,8 +336,13 @@ export default function LeaveTypeManager() {
 
       <ConfirmModal
         open={!!confirmTarget}
-        title={`Delete "${confirmTarget?.name}"?`}
-        message="This cannot be undone."
+        singleAction={!!confirmTarget?.usageCount}
+        title={confirmTarget?.usageCount ? `Cannot delete "${confirmTarget?.name}"` : `Delete "${confirmTarget?.name}"?`}
+        message={
+          confirmTarget?.usageCount
+            ? `${confirmTarget.usageCount} ${confirmTarget.usageLabel}. Mark it inactive instead.`
+            : 'This cannot be undone.'
+        }
         busy={deleting}
         onConfirm={confirmDelete}
         onCancel={() => setConfirmTarget(null)}

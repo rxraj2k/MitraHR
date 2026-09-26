@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import {
   getReviewCycles,
@@ -46,6 +47,8 @@ import { TargetIcon, ChartBarIcon, ClockIcon, TrophyIcon, StarIcon, GridIcon } f
 import MetricTile from '../../components/MetricTile';
 import Progress3DBar from '../../components/Progress3DBar';
 import { TILE_THEMES, tileWrapperClass } from '../../lib/tileThemes';
+import TabBar, { TabBarItem } from '../../components/TabBar';
+import AdminAppraisalDashboard from '../../components/AdminAppraisalDashboard';
 
 // --- Labels & badge lookups ------------------------------------------------
 
@@ -1483,8 +1486,17 @@ function ScorecardDrawer({
 
 // --- Main page -----------------------------------------------------------------
 
+type Section = 'okrs' | 'appraisals';
+const SECTION_TABS: TabBarItem<Section>[] = [
+  { key: 'okrs', label: 'OKRs & Reviews', color: 'indigo' },
+  { key: 'appraisals', label: 'Appraisals', color: 'amber' },
+];
+
 export default function AdminPerformance() {
   const { token } = useAuth();
+  const [searchParams] = useSearchParams();
+  const requestedSection = searchParams.get('tab');
+  const [section, setSection] = useState<Section>(requestedSection === 'appraisals' ? 'appraisals' : 'okrs');
   const [cycles, setCycles] = useState<ReviewCycle[]>([]);
   const [goals, setGoals] = useState<Goal[]>([]);
   const [reviews, setReviews] = useState<PerformanceReview[]>([]);
@@ -1595,6 +1607,12 @@ export default function AdminPerformance() {
         </div>
       </div>
 
+      <TabBar tabs={SECTION_TABS} active={section} onChange={setSection} />
+
+      {section === 'appraisals' && <AdminAppraisalDashboard />}
+
+      {section === 'okrs' && (
+        <>
       {loadError && (
         <div className="rounded-lg border border-red-200 bg-red-50 text-red-700 text-sm px-4 py-3">
           Couldn't load performance data: {loadError}
@@ -1860,6 +1878,8 @@ export default function AdminPerformance() {
           onClose={() => setOpenReviewId(null)}
           onChanged={load}
         />
+      )}
+        </>
       )}
     </div>
   );

@@ -370,7 +370,12 @@ export class QuizzesService {
     const html = this.buildCertificateHtml(employee, quiz, attempt);
     const text = this.buildCertificateText(employee, quiz, attempt);
     const subject = `Assessment Result: ${employee.fullName} — "${this.subjectTitle(quiz)}" (${attempt.percent}%)`;
-    const recipients = Array.from(new Set([employee.email, ...admins.map((a) => a.email)]));
+    // The employee's own copy respects their emailOnAssessmentResult
+    // preference; admin oversight/certification-record copies are not the
+    // employee's preference to control and always go out.
+    const recipients = Array.from(
+      new Set([...(employee.emailOnAssessmentResult ? [employee.email] : []), ...admins.map((a) => a.email)]),
+    );
     await Promise.all(recipients.map((to) => this.mail.sendMail({ to, subject, text, html }).catch(() => {})));
   }
 

@@ -1,0 +1,20 @@
+<svg width="120" height="100" viewBox="0 0 120 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="nexusGrad1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#EC4899" />
+      <stop offset="100%" stop-color="#8B5CF6" />
+    </linearGradient>
+    <linearGradient id="nexusGrad2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#06B6D4" />
+      <stop offset="100%" stop-color="#3B82F6" />
+    </linearGradient>
+  </defs>
+  <g transform="translate(0, 5)">
+    <path d="M 25 75 Q 15 40 40 35 Q 65 30 50 65" fill="none" stroke="url(#nexusGrad1)" stroke-width="12" stroke-linecap="round" />
+    <circle cx="30" cy="18" r="9" fill="#EC4899" />
+    <path d="M 50 65 Q 65 25 80 25 Q 95 25 80 65" fill="none" stroke="url(#nexusGrad2)" stroke-width="12" stroke-linecap="round" />
+    <circle cx="65" cy="10" r="10" fill="#06B6D4" />
+    <path d="M 80 65 Q 65 30 90 35 Q 115 40 105 75" fill="none" stroke="#F59E0B" stroke-width="12" stroke-linecap="round" />
+    <circle cx="100" cy="18" r="9" fill="#F59E0B" />
+  </g>
+</svg>

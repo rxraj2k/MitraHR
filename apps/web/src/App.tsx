@@ -40,6 +40,8 @@ import Recruitment from './pages/recruitment/Recruitment';
 import AdminPerformance from './pages/performance/AdminPerformance';
 import MyPerformance from './pages/performance/MyPerformance';
 import Engagement from './pages/engagement/Engagement';
+import OfficeWall from './pages/officewall/OfficeWall';
+import AdminCenter from './pages/AdminCenter';
 
 function ProtectedRoute({ children }: { children: JSX.Element }) {
   const { token, loading } = useAuth();
@@ -56,6 +58,17 @@ function ProtectedRoute({ children }: { children: JSX.Element }) {
 function StaffOnlyRoute({ children }: { children: JSX.Element }) {
   const { isStaff } = useAuth();
   if (!isStaff) return <Navigate to="/employees" replace />;
+  return children;
+}
+
+// Stricter than StaffOnlyRoute: Admin Center is Administrator-only per the
+// spec (the sidebar already hides the link for HR/Manager/IT Support, this
+// is the direct-URL/bookmark backstop) -- everyone else bounces to Home
+// rather than the Talent Directory redirect StaffOnlyRoute uses, since a
+// non-admin landing here typed the URL rather than clicked a stray link.
+function AdminOnlyRoute({ children }: { children: JSX.Element }) {
+  const { isStaff, user } = useAuth();
+  if (!isStaff || user?.role !== 'ADMIN') return <Navigate to="/" replace />;
   return children;
 }
 
@@ -216,6 +229,15 @@ export default function App() {
         />
         <Route path="my-performance" element={<MyPerformance />} />
         <Route path="engagement" element={<Engagement />} />
+        <Route path="office-wall" element={<OfficeWall />} />
+        <Route
+          path="admin-center"
+          element={
+            <AdminOnlyRoute>
+              <AdminCenter />
+            </AdminOnlyRoute>
+          }
+        />
         <Route
           path="reports"
           element={

@@ -27,12 +27,18 @@ model User {
   // "last login timestamp"). Not touched by employee OTP login, which is a
   // separate account type (Employee, not User).
   lastLoginAt          DateTime?
+  // Same presence concept as Employee.presenceStatus, for a STAFF session
+  // that either isn't linked to an Employee record or whose own header dot
+  // should reflect their admin login regardless of that link.
+  presenceStatus       String    @default("AVAILABLE")
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
   decidedLeaveRequests LeaveRequest[] @relation("LeaveDecidedBy")
   decidedCompOffEntries CompOffLedger[] @relation("CompOffDecidedBy")
   announcements        Announcement[]
   createdPulseSurveys  PulseSurvey[]
+  reviewedAppraisals   Appraisal[] @relation("AppraisalManagerReviewer")
+  finalizedAppraisals  Appraisal[] @relation("AppraisalFinalizer")
 }
 
 // Managed lookup list — editable from Settings (add/rename/delete).
@@ -65,7 +71,8 @@ model Skill {
   name      String           @unique
   createdAt DateTime         @default(now())
   updatedAt DateTime         @updatedAt
-  employees EmployeeSkill[]
+  employees  EmployeeSkill[]
+  appraisals AppraisalSkill[]
 }
 
 // Simple named counters used to generate sequential, human-friendly IDs
@@ -152,6 +159,11 @@ model Employee {
   recognitionsReceived  Recognition[]         @relation("RecognitionReceived")
   recognitionLikes      RecognitionLike[]
   recognitionComments   RecognitionComment[]
+  officeWallPosts       OfficeWallPost[]     @relation("OfficeWallAuthor")
+  officeWallTaggedIn    OfficeWallPost[]     @relation("OfficeWallTagged")
+  officeWallMentions    OfficeWallMention[]
+  officeWallLikes       OfficeWallLike[]
+  officeWallComments    OfficeWallComment[]
   pulseSurveyResponses  PulseSurveyResponse[]
   documentAcknowledgments CompanyDocumentAcknowledgment[]
   designationHistory      DesignationHistory[]
@@ -159,6 +171,29 @@ model Employee {
   dateOfJoining DateTime?
   dateOfBirth   DateTime?
   status        String    @default("ACTIVE")
+
+  // Header profile-menu presence toggle (Available/Away) -- own-account
+  // concept, not team-visible anywhere yet; see AuthService.getMe/setPresence.
+  presenceStatus String @default("AVAILABLE")
+
+  // Personal email opt-outs, Account Settings > Notifications. Every email
+  // MitraHR sends to an individual employee (as opposed to an admin
+  // oversight copy) is one of these four categories -- see
+  // announcements.service.ts, leave-requests.service.ts, quizzes.service.ts,
+  // and daily-jobs.service.ts's birthday check. In-app bell notifications
+  // are never gated by these; only the email send is.
+  emailOnLeaveDecision    Boolean @default(true)
+  emailOnAnnouncement     Boolean @default(true)
+  emailOnAssessmentResult Boolean @default(true)
+  emailOnBirthday         Boolean @default(true)
+  emailOnAppraisal        Boolean @default(true)
+
+  // Simple stored payroll figure (annual CTC) -- this app has no separate
+  // payroll module, so the appraisal compensation workflow reads/writes
+  // this field directly rather than integrating with an external system.
+  currentCTC Float?
+  appraisals Appraisal[]
+
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 }
@@ -1248,6 +1283,115 @@ model ReviewFeedback {
 }
 
 
+// --- Sprint 20: Semi-Annual Self-Appraisal & Compensation Review --------
+// Distinct from the general 360 PerformanceReview/ReviewCycle system above
+// (manually cycle-launched, goal/OKR-linked) -- this is an automatic,
+// per-employee cadence driven purely by dateOfJoining (every 180 days),
+// feeding a fixed weighted-criteria scorecard into a compensation decision.
+// The two systems intentionally don't share tables: an appraisal cycle
+// isn't tied to a company-wide ReviewCycle, and its scoring shape (a
+// handful of weighted criteria -> one number) doesn't fit the open-ended
+// ReviewFeedback ratings above.
+
+// Master-data scorecard definition (Settings > Master Data > Appraisal
+// Criteria) -- editable so HR can rebalance weights or wording without a
+// code change. The app warns, but doesn't hard-block, when active
+// criteria don't sum to 100.
+model AppraisalCriterion {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  weight      Float
+  sortOrder   Int      @default(0)
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  scores AppraisalCriterionScore[]
+}
+
+model Appraisal {
+  id         String   @id @default(uuid())
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  // 1 = the 6-month mark, 2 = 12-month, 3 = 18-month, etc -- a display
+  // label only ("6-Month Review" / "12-Month Review"); dueDate carries the
+  // actual date.
+  cycleNumber Int
+  dueDate     DateTime
+  emailSentAt DateTime?
+
+  // PENDING_EMPLOYEE (email sent, self-appraisal not yet submitted) ->
+  // UNDER_MANAGER_REVIEW (employee submitted, awaiting admin review) ->
+  // COMPLETED (admin finalized the compensation decision). The dashboard
+  // shows an "Email Triggered" badge off emailSentAt rather than a
+  // separate status value, since those two facts land at the same moment.
+  status String @default("PENDING_EMPLOYEE")
+
+  selfSubmittedAt       DateTime?
+  selfCareerGoals       String?
+  selfManagementSupport String?
+  // Free-text courses/certs completed, alongside the structured skill
+  // picks in AppraisalSkill below (Master Data Skills).
+  selfCertifications    String?
+
+  managerReviewedByUserId String?
+  managerReviewedBy       User?     @relation("AppraisalManagerReviewer", fields: [managerReviewedByUserId], references: [id])
+  managerReviewedAt       DateTime?
+
+  selfWeightedScore    Float?
+  managerWeightedScore Float?
+
+  // Compensation decision -- snapshotted onto the appraisal record (not
+  // just read live off Employee.currentCTC) so a finalized appraisal keeps
+  // an accurate historical record even if the employee's CTC changes again
+  // later.
+  currentCTC       Float?
+  incrementPercent Float?
+  incrementAmount  Float?
+  revisedCTC       Float?
+  effectiveDate    DateTime?
+
+  finalizedAt       DateTime?
+  finalizedByUserId String?
+  finalizedBy       User?     @relation("AppraisalFinalizer", fields: [finalizedByUserId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  criteriaScores AppraisalCriterionScore[]
+  skillsAcquired AppraisalSkill[]
+
+  @@unique([employeeId, cycleNumber])
+}
+
+model AppraisalCriterionScore {
+  id          String             @id @default(uuid())
+  appraisalId String
+  appraisal   Appraisal          @relation(fields: [appraisalId], references: [id], onDelete: Cascade)
+  criterionId String
+  criterion   AppraisalCriterion @relation(fields: [criterionId], references: [id])
+
+  selfRating     Int?
+  selfComment    String?
+  managerRating  Int?
+  managerComment String?
+
+  @@unique([appraisalId, criterionId])
+}
+
+model AppraisalSkill {
+  id          String    @id @default(uuid())
+  appraisalId String
+  appraisal   Appraisal @relation(fields: [appraisalId], references: [id], onDelete: Cascade)
+  skillId     String
+  skill       Skill     @relation(fields: [skillId], references: [id])
+
+  @@unique([appraisalId, skillId])
+}
+
+
 // --- Sprint 15: Employee Engagement & Feedback --------------------------
 // Peer recognition ("kudos") any employee can post about any colleague,
 // plus lightweight pulse surveys — both intentionally simple (a feed with
@@ -1420,4 +1564,189 @@ model DesignationHistory {
   note              String?
 
   @@index([employeeId, changedAt])
+}
+
+// --- Admin Center -----------------------------------------------------
+
+// Singleton row (fixed id "default", same pattern as AttendanceSettings)
+// holding the Admin Center's Security & Automations configuration.
+//
+// IMPORTANT — different kinds of field live here:
+//  - The email/notification toggle and template fields ARE enforced: the
+//    relevant send path (AppraisalsService, AssetsService, DailyJobsService)
+//    reads this row and checks the flag before firing.
+//  - sessionIdleTimeoutMin IS enforced, but not as a login-blocking timeout
+//    -- AdminService.getLiveActivity() reads it as the Active/Away cutoff
+//    for the Admin Center's Live User Activity panel (UserSession rows).
+//  - enforceMfaForAdmins / passwordExpiryDays / ipWhitelist / backupSchedule
+//    are still POLICY ONLY — there is no MFA challenge flow, no
+//    password-expiry check at login, and no IP-filtering guard anywhere in
+//    the app yet. They're stored so an admin can set intended policy now,
+//    and the Admin Center UI labels them "Not yet enforced" rather than
+//    implying they already gate anything. Wiring real enforcement for
+//    these is a larger, separate follow-on project.
+model AdminSettings {
+  id String @id @default("default")
+
+  // --- Security & Authentication ---
+  enforceMfaForAdmins   Boolean @default(false) // POLICY ONLY — see model comment
+  passwordExpiryDays    Int     @default(90) // POLICY ONLY — see model comment
+  sessionIdleTimeoutMin Int     @default(30) // ENFORCED — Live User Activity's Away cutoff
+  // Comma-separated CIDR/IP entries. Not read by any request guard yet.
+  ipWhitelist           String  @default("")
+
+  // --- Automated email/notification triggers (ENFORCED) ---
+  appraisalEmailEnabled       Boolean @default(true)
+  assetAssignmentNoticeEnabled Boolean @default(true)
+  documentExpiryAlertEnabled  Boolean @default(true)
+
+  // Optional custom subject/intro for the appraisal trigger email — when
+  // null, AppraisalsService falls back to its built-in copy. Supports
+  // {{firstName}}, {{cycleLabel}}, {{dueDate}} tokens, substituted at send
+  // time. The other two triggers are in-app notifications only today (see
+  // model comment) so there's nothing to template for them yet.
+  appraisalEmailSubjectTemplate String?
+  appraisalEmailBodyTemplate    String?
+
+  // --- Backup (POLICY for the schedule dropdown; the on-demand export
+  // button itself is real — see AdminService.createBackup) ---
+  backupSchedule String    @default("WEEKLY") // NONE | DAILY | WEEKLY
+  lastBackupAt   DateTime?
+
+  updatedAt DateTime @updatedAt
+}
+
+// Append-only record of sensitive admin actions for the Admin Center's
+// Audit Logs tab. Deliberately narrow rather than an interceptor logging
+// every mutation in the app — see AuditLogService for exactly which
+// actions call it today (compensation changes via appraisal finalize,
+// asset assignment/return, admin invites and role changes). userId/Name/
+// Email are denormalized (not a User relation) so a row still reads
+// correctly if that admin account is ever removed later.
+model AuditLog {
+  id          String   @id @default(uuid())
+  createdAt   DateTime @default(now())
+  userId      String?
+  userName    String
+  userEmail   String
+  module      String // HR | ASSETS | SECURITY | SYSTEM
+  action      String // CREATE | UPDATE | DELETE
+  description String
+  severity    String   @default("INFO") // INFO | WARNING | CRITICAL
+  ipAddress   String?
+
+  @@index([createdAt])
+  @@index([module])
+  @@index([userId])
+}
+
+// Real, per-login session records -- created at login (password or OTP
+// verify), refreshed by a lightweight heartbeat the frontend calls every
+// minute or so while a tab is open, and closed on an explicit logout. This
+// is what actually powers the Admin Center's Live User Activity panel
+// (Data & System Health): unlike the old recentLogins24h proxy (just
+// "logged in sometime in the last 24h"), this can tell Active from Away
+// from genuinely logged-out, and "Force End Session" is real -- JwtStrategy
+// checks `revoked` on every request, so ending a session here actually
+// invalidates that person's token immediately rather than just hiding a row.
+// userId/name/email/role are denormalized (not a relation) for the same
+// reason AuditLog's are: the row still reads correctly even if that
+// account is later removed.
+model UserSession {
+  id            String    @id @default(uuid())
+  sessionId     String    @unique // the random id embedded in the JWT as "sid"
+  userKind      String // STAFF | EMPLOYEE
+  userId        String // User.id or Employee.id depending on userKind
+  name          String
+  email         String
+  role          String
+  ipAddress     String?
+  userAgent     String?
+  loginAt       DateTime  @default(now())
+  lastSeenAt    DateTime  @default(now())
+  loggedOutAt   DateTime?
+  revoked       Boolean   @default(false)
+  revokedAt     DateTime?
+  revokedByName String?
+
+  @@index([lastSeenAt])
+  @@index([userId])
+}
+// --- Office Wall: a free-form internal social feed. Kept separate from
+// the existing Announcement (official, staff-posted, targeted) and
+// Recognition (formal points-based kudos) features, which keep their own
+// dedicated homes on Organization/Engagement -- this is the "share an
+// update, shoutout, or project win" feed the whole company scrolls,
+// reachable from its own nav pill next to Organization. ---
+
+model OfficeWallPost {
+  id               String    @id @default(uuid())
+  authorId         String
+  author           Employee  @relation("OfficeWallAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  body             String
+  // GENERAL, SHOUTOUT, MILESTONE, ANNOUNCEMENT, EVENT
+  category         String    @default("GENERAL")
+  // A Shoutout/Kudos post can name the colleague it's about -- separate
+  // from any @mentions typed into the body (OfficeWallMention), which can
+  // tag any number of people.
+  taggedEmployeeId String?
+  taggedEmployee   Employee? @relation("OfficeWallTagged", fields: [taggedEmployeeId], references: [id], onDelete: SetNull)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  media    OfficeWallMedia[]
+  mentions OfficeWallMention[]
+  likes    OfficeWallLike[]
+  comments OfficeWallComment[]
+
+  @@index([createdAt])
+}
+
+model OfficeWallMedia {
+  id        String         @id @default(uuid())
+  postId    String
+  post      OfficeWallPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  url       String
+  fileName  String
+  sortOrder Int            @default(0)
+}
+
+// One row per tagged colleague per post -- resolved client-side from the
+// @mention picker at compose time (not re-parsed from free text
+// server-side), so a mention is always a confirmed real employee tag.
+model OfficeWallMention {
+  id         String         @id @default(uuid())
+  postId     String
+  post       OfficeWallPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  employeeId String
+  employee   Employee       @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, employeeId])
+}
+
+model OfficeWallLike {
+  id           String         @id @default(uuid())
+  postId       String
+  post         OfficeWallPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  employeeId   String
+  employee     Employee       @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  // LIKE, HEART, CELEBRATE, HANDS_UP -- one row per employee per reaction
+  // type (same multi-reaction pattern as RecognitionLike), so a person can
+  // react with more than one emoji on the same post.
+  reactionType String         @default("LIKE")
+  createdAt    DateTime       @default(now())
+
+  @@unique([postId, employeeId, reactionType])
+}
+
+model OfficeWallComment {
+  id         String         @id @default(uuid())
+  postId     String
+  post       OfficeWallPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  employeeId String
+  employee   Employee       @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  body       String
+  createdAt  DateTime       @default(now())
+
+  @@index([postId, createdAt])
 }

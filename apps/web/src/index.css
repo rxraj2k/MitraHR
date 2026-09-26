@@ -2,6 +2,40 @@
 @tailwind components;
 @tailwind utilities;
 
+/* App-wide dark mode base -- individual pages opt in with `dark:` utility
+   variants (tailwind.config.js has darkMode: 'class'); this just sets the
+   default canvas so a page that hasn't been given dark: variants yet still
+   reads as a (light-toned) surface rather than white-on-white or, worse,
+   the browser's stark default black. */
+:root {
+  color-scheme: light;
+  /* Chrome + accent theme variables (see lib/themes.ts) -- these defaults
+     match neon-aurora, the dark default theme, so the sidebar/header don't
+     flash unstyled for the one frame before ThemeContext's effect runs and
+     overwrites them with whatever theme is actually persisted. */
+  --bg-primary: #0f1030;
+  --bg-card: #1a1b3f;
+  --text-primary: #F5F3FF;
+  --text-secondary: #A5ADCB;
+  --chrome-border: rgba(255, 255, 255, 0.08);
+  --nav-hover-bg: rgba(255, 255, 255, 0.06);
+  --nav-active-bg: rgba(255, 255, 255, 0.10);
+  --accent-from: #EC4899;
+  --accent-to: #8B5CF6;
+  --accent-solid: #C084FC;
+  --accent-glow: rgba(236, 72, 153, 0.45);
+  --nav-card-bg: transparent;
+  --nav-card-border: transparent;
+  --nav-card-shadow: 0 0 0 transparent;
+  --glass-blur: none;
+}
+html.dark {
+  color-scheme: dark;
+}
+body {
+  @apply bg-slate-50 text-slate-800 dark:bg-slate-950 dark:text-slate-100;
+}
+
 /* Org chart — pure-CSS connector lines for a recursive tree.
    Root nodes get the "org-root" class (no incoming connector).
    Every other <li> draws a horizontal half-bar to its siblings plus a
@@ -118,4 +152,68 @@
 }
 .topology-scroll::-webkit-scrollbar-thumb:hover {
   background-color: #94a3b8;
+}
+
+/* Small slide-down + fade for popovers (header profile menu, etc.) --
+   Tailwind arbitrary-value `animate-[dropdownIn_0.15s_ease-out]` utilities
+   reference this by name. */
+@keyframes dropdownIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Toast pop-up notifications (ToastContext.tsx) -- slide in from the right
+   and fade, matching this file's other `animate-[name_...]` arbitrary-value
+   convention (see dropdownIn above). toastProgress drives each card's
+   auto-dismiss timer bar, animating its width from full to empty over the
+   toast's visible duration. */
+@keyframes toastSlideIn {
+  from {
+    opacity: 0;
+    transform: translateX(24px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes toastProgress {
+  from {
+    width: 100%;
+  }
+  to {
+    width: 0%;
+  }
+}
+
+/* Print / "Save PDF" support for Reports & Analytics (and reusable by any
+   future page): app chrome the printed page has no use for -- the sidebar,
+   header, tab bar, and the filter/export toolbar itself -- is hidden via
+   the .no-print class rather than a page-specific stylesheet, so any page
+   can opt an element out of printing the same way. Everything else keeps
+   its normal layout; only the screen-only chrome disappears and the
+   printable content is allowed to flow across pages instead of being
+   clipped to one viewport height. */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  html,
+  body {
+    background: #fff !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+  main,
+  .print-flow {
+    overflow: visible !important;
+    height: auto !important;
+  }
 }

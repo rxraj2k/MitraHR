@@ -1,6 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
+import { PrismaService } from '../prisma/prisma.service';
 
 // "STAFF" = password-login account (Admin today; HR/Manager/IT Support once
 // multi-admin invites need finer-grained roles) — sub is a User id.
@@ -18,11 +19,17 @@ export interface JwtPayload {
   // (e.g. an Admin who is also staff on the org chart) — lets them use
   // employee-facing features like "My Leave" for their own record.
   employeeId?: string | null;
+  // The UserSession row this token belongs to (see schema.prisma) — checked
+  // below on every request so "Force End Session" in the Admin Center's
+  // Live User Activity panel actually revokes access immediately, not just
+  // hides a row. Optional so a token issued before this existed (there
+  // shouldn't be any live ones, but just in case) still authenticates.
+  sid?: string;
 }
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
-  constructor() {
+  constructor(private prisma: PrismaService) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
@@ -31,6 +38,12 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: JwtPayload) {
+    if (payload.sid) {
+      const session = await this.prisma.userSession.findUnique({ where: { sessionId: payload.sid } });
+      if (!session || session.revoked) {
+        throw new UnauthorizedException('This session has been ended. Please log in again.');
+      }
+    }
     return payload;
   }
 }

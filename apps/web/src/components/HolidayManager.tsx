@@ -36,7 +36,7 @@ interface FormState {
 
 const EMPTY: FormState = { name: '', date: '', region: 'US', type: 'NATIONAL' };
 
-export default function HolidayManager() {
+export default function HolidayManager({ searchQuery }: { searchQuery?: string } = {}) {
   const { token } = useAuth();
   const [items, setItems] = useState<Holiday[]>([]);
   const [loading, setLoading] = useState(true);
@@ -104,9 +104,14 @@ export default function HolidayManager() {
     }
   }
 
+  const effectiveQuery = (searchQuery ?? '').trim().toLowerCase();
   const shown = useMemo(
-    () => items.filter((i) => regionTab === 'ALL' || i.region === regionTab).sort((a, b) => a.date.localeCompare(b.date)),
-    [items, regionTab],
+    () =>
+      items
+        .filter((i) => regionTab === 'ALL' || i.region === regionTab)
+        .filter((i) => !effectiveQuery || i.name.toLowerCase().includes(effectiveQuery))
+        .sort((a, b) => a.date.localeCompare(b.date)),
+    [items, regionTab, effectiveQuery],
   );
 
   return (
@@ -132,7 +137,9 @@ export default function HolidayManager() {
       {loading ? (
         <p className="text-slate-500 text-sm">Loading...</p>
       ) : shown.length === 0 ? (
-        <p className="text-slate-500 text-sm mb-4">No holidays in this calendar yet.</p>
+        <p className="text-slate-500 text-sm mb-4">
+          {items.length === 0 ? 'No holidays in this calendar yet.' : 'No matches.'}
+        </p>
       ) : (
         <ul className="divide-y divide-slate-100 max-h-80 overflow-y-auto mb-4">
           {shown.map((item) =>

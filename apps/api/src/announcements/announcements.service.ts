@@ -105,7 +105,11 @@ export class AnnouncementsService {
     audienceDepartmentIds?: string[],
     audienceEmployeeIds?: string[],
   ) {
-    const activeOnly = { status: 'ACTIVE' } as const;
+    // emailOnAnnouncement is each employee's own opt-out -- applied as a
+    // plain where-clause condition alongside the audience filter, so an
+    // employee who muted announcement emails is simply excluded from the
+    // recipient list rather than fetched and then filtered in memory.
+    const activeOnly = { status: 'ACTIVE', emailOnAnnouncement: true } as const;
     let recipients: { email: string }[];
     if (announcement.audienceType === 'DEPARTMENTS' && audienceDepartmentIds?.length) {
       recipients = await this.prisma.employee.findMany({

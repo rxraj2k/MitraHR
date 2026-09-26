@@ -4,6 +4,8 @@ import * as bcrypt from 'bcryptjs';
 import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { MailService } from '../mail/mail.service';
+import { NotificationsService } from '../notifications/notifications.service';
+import { AuditActor, auditEntry, describeUserAgent } from '../audit/audit.util';
 
 const OTP_TTL_MINUTES = 10;
 const OTP_RESEND_COOLDOWN_SECONDS = 30;
@@ -16,7 +18,118 @@ export class AuthService {
     private prisma: PrismaService,
     private jwtService: JwtService,
     private mailService: MailService,
+    private notifications: NotificationsService,
   ) {}
+
+  // The linked Employee's photo (when there is one) so the header profile
+  // menu can show a real photo instead of always falling back to initials
+  // -- an EMPLOYEE session's photo is its own record; a STAFF session only
+  // has one if that admin has been linked to an Employee record.
+  async getMe(sessionUser: { sub: string; kind: 'STAFF' | 'EMPLOYEE'; email: string; name: string; role: string; employeeId?: string | null }) {
+    const employeeId = sessionUser.kind === 'EMPLOYEE' ? sessionUser.sub : sessionUser.employeeId ?? null;
+    const employee = employeeId
+      ? await this.prisma.employee.findUnique({
+          where: { id: employeeId },
+          select: {
+            photoUrl: true,
+            presenceStatus: true,
+            emailOnLeaveDecision: true,
+            emailOnAnnouncement: true,
+            emailOnAssessmentResult: true,
+            emailOnBirthday: true,
+            emailOnAppraisal: true,
+          },
+        })
+      : null;
+    // A STAFF session's presence lives on its own User row -- it's about
+    // the login itself, not the (possibly absent) linked Employee record.
+    const presenceStatus =
+      sessionUser.kind === 'EMPLOYEE'
+        ? employee?.presenceStatus ?? 'AVAILABLE'
+        : (await this.prisma.user.findUnique({ where: { id: sessionUser.sub }, select: { presenceStatus: true } }))
+            ?.presenceStatus ?? 'AVAILABLE';
+    return {
+      id: sessionUser.sub,
+      kind: sessionUser.kind,
+      email: sessionUser.email,
+      name: sessionUser.name,
+      role: sessionUser.role,
+      employeeId,
+      photoUrl: employee?.photoUrl ?? null,
+      presenceStatus,
+      // null (never a default-filled object) when there's no personal
+      // Employee record to hold these against -- Account Settings shows an
+      // honest "not applicable" state instead of toggles that would
+      // silently do nothing for a pure admin-only login.
+      notificationPreferences: employee
+        ? {
+            emailOnLeaveDecision: employee.emailOnLeaveDecision,
+            emailOnAnnouncement: employee.emailOnAnnouncement,
+            emailOnAssessmentResult: employee.emailOnAssessmentResult,
+            emailOnBirthday: employee.emailOnBirthday,
+            emailOnAppraisal: employee.emailOnAppraisal,
+          }
+        : null,
+    };
+  }
+
+  async setPresence(sessionUser: { sub: string; kind: 'STAFF' | 'EMPLOYEE' }, status: string) {
+    if (sessionUser.kind === 'EMPLOYEE') {
+      await this.prisma.employee.update({ where: { id: sessionUser.sub }, data: { presenceStatus: status } });
+    } else {
+      await this.prisma.user.update({ where: { id: sessionUser.sub }, data: { presenceStatus: status } });
+    }
+    return { presenceStatus: status };
+  }
+
+  async updateNotificationPreferences(
+    sessionUser: { sub: string; kind: 'STAFF' | 'EMPLOYEE'; employeeId?: string | null },
+    prefs: Partial<{
+      emailOnLeaveDecision: boolean;
+      emailOnAnnouncement: boolean;
+      emailOnAssessmentResult: boolean;
+      emailOnBirthday: boolean;
+      emailOnAppraisal: boolean;
+    }>,
+  ) {
+    const employeeId = sessionUser.kind === 'EMPLOYEE' ? sessionUser.sub : sessionUser.employeeId ?? null;
+    if (!employeeId) {
+      throw new BadRequestException('This account has no linked employee record to hold notification preferences');
+    }
+    return this.prisma.employee.update({
+      where: { id: employeeId },
+      data: prefs,
+      select: {
+        emailOnLeaveDecision: true,
+        emailOnAnnouncement: true,
+        emailOnAssessmentResult: true,
+        emailOnBirthday: true,
+        emailOnAppraisal: true,
+      },
+    });
+  }
+
+  // Self-service password change for a logged-in STAFF account -- an
+  // EMPLOYEE (OTP) session has no password at all, so this route is
+  // STAFF-only (enforced by the controller via req.user.kind). Requires the
+  // current password (not just being logged in) since the JWT alone
+  // shouldn't be enough to take over the account from an unattended
+  // session.
+  async changePassword(userId: string, currentPassword: string, newPassword: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException('Account not found');
+    if (!user.passwordHash) {
+      throw new BadRequestException('This account has not set a password yet — check your invite email');
+    }
+    const matches = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!matches) throw new UnauthorizedException('Current password is incorrect');
+    if (newPassword.length < 8) {
+      throw new BadRequestException('New password must be at least 8 characters');
+    }
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    await this.prisma.user.update({ where: { id: userId }, data: { passwordHash } });
+    return { success: true };
+  }
 
   // --- Staff (password) login — Admin today; HR/Manager/IT Support once
   // multi-admin invites need finer-grained roles. ---
@@ -32,10 +145,11 @@ export class AuthService {
     return user;
   }
 
-  async login(email: string, password: string) {
+  async login(email: string, password: string, ip?: string | null, userAgent?: string | null) {
     const user = await this.validateUser(email, password);
     // Best-effort — never let a timestamp write block or fail a login.
     this.prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } }).catch(() => {});
+    const sid = await this.startSession('STAFF', user.id, user.name, user.email, user.role, ip, userAgent);
     const payload = {
       sub: user.id,
       kind: 'STAFF' as const,
@@ -43,6 +157,7 @@ export class AuthService {
       role: user.role,
       name: user.name,
       employeeId: user.employeeId ?? null,
+      sid,
     };
     return {
       accessToken: this.jwtService.sign(payload),
@@ -57,6 +172,64 @@ export class AuthService {
     };
   }
 
+  // --- Live sessions (Admin Center > Data & System Health > Live User
+  // Activity) -- a real row per login, not a fabricated "active sessions"
+  // count. See UserSession's model comment for the full picture; startSession
+  // is called from both login() and verifyEmployeeOtp() below, heartbeat()
+  // is hit every ~60s by the frontend while a tab is open, and logout()
+  // closes it out on an explicit sign-out. Every write here is best-effort
+  // (.catch(() => {})) so a logging hiccup never blocks or breaks a login,
+  // heartbeat, or logout for the person using the app.
+  private async startSession(
+    userKind: 'STAFF' | 'EMPLOYEE',
+    userId: string,
+    name: string,
+    email: string,
+    role: string,
+    ip?: string | null,
+    userAgent?: string | null,
+  ): Promise<string> {
+    // A "New Sign-In" toast only earns its keep when it tells you
+    // something you don't already know -- your own ordinary daily login
+    // isn't news to you. So this only fires when the account ALREADY has
+    // another session that still counts as Active (the same idle-timeout
+    // definition Live User Activity uses -- see AdminService) at the
+    // moment this new one starts: someone/something is signing in while
+    // you appear to already be using the account elsewhere.
+    const settings = await this.prisma.adminSettings.findUnique({ where: { id: 'default' } }).catch(() => null);
+    const idleMs = (settings?.sessionIdleTimeoutMin ?? 30) * 60 * 1000;
+    const existingActive = await this.prisma.userSession
+      .findFirst({
+        where: { userKind, userId, revoked: false, loggedOutAt: null, lastSeenAt: { gte: new Date(Date.now() - idleMs) } },
+      })
+      .catch(() => null);
+
+    const sessionId = crypto.randomUUID();
+    await this.prisma.userSession
+      .create({ data: { sessionId, userKind, userId, name, email, role, ipAddress: ip || null, userAgent: userAgent || null } })
+      .catch(() => {});
+
+    if (existingActive) {
+      this.notifications
+        .notifySelf(userKind, userId, {
+          type: 'NEW_LOGIN',
+          title: 'New sign-in to your account',
+          body: `${describeUserAgent(userAgent)}${ip ? ` • ${ip}` : ''} — while another session was already active.`,
+        })
+        .catch(() => {});
+    }
+
+    return sessionId;
+  }
+
+  async heartbeat(sessionId: string) {
+    await this.prisma.userSession.update({ where: { sessionId }, data: { lastSeenAt: new Date() } }).catch(() => {});
+  }
+
+  async endSession(sessionId: string) {
+    await this.prisma.userSession.update({ where: { sessionId }, data: { loggedOutAt: new Date() } }).catch(() => {});
+  }
+
   // --- Multi-admin invites — an existing admin adds a new one by email;
   // they get a "set your password" link instead of a shared password. ---
 
@@ -68,7 +241,7 @@ export class AuthService {
     return process.env.APP_URL || process.env.CORS_ORIGIN || 'http://localhost:5173';
   }
 
-  async inviteAdmin(name: string, email: string, employeeId?: string, role?: string) {
+  async inviteAdmin(actor: AuditActor, name: string, email: string, employeeId?: string, role?: string) {
     const existing = await this.prisma.user.findUnique({ where: { email } });
     if (existing && existing.passwordHash) {
       throw new BadRequestException('An active account with this email already exists');
@@ -101,6 +274,10 @@ export class AuthService {
       subject: "You've been added as an admin on MitraHR",
       text: `Hi ${name},\n\nYou've been added as an admin on MitraHR. Set your password to activate your account:\n\n${link}\n\nThis link expires in ${INVITE_TTL_DAYS} days. If you weren't expecting this, you can ignore it.`,
     });
+
+    await this.prisma.auditLog
+      .create({ data: auditEntry(actor, 'SECURITY', 'CREATE', `Invited ${name} (${email}) as ${user.role}`) })
+      .catch(() => {});
 
     return { id: user.id, name: user.name, email: user.email, role: user.role, status: 'INVITED' as const };
   }
@@ -191,10 +368,17 @@ export class AuthService {
   // fact. Deliberately doesn't block someone from demoting themselves —
   // there's always at least the one seeded admin account, and re-promoting
   // is just as easy through this same endpoint by any other Admin.
-  async updateAdminRole(userId: string, role: string) {
+  async updateAdminRole(actor: AuditActor, userId: string, role: string) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new NotFoundException('Admin account not found');
     const updated = await this.prisma.user.update({ where: { id: userId }, data: { role } });
+    await this.prisma.auditLog
+      .create({
+        data: auditEntry(actor, 'SECURITY', 'UPDATE', `Changed ${user.name}'s role from ${user.role} to ${role}`, {
+          severity: 'WARNING',
+        }),
+      })
+      .catch(() => {});
     return {
       id: updated.id,
       name: updated.name,
@@ -259,7 +443,7 @@ export class AuthService {
     return AuthService.GENERIC_OTP_RESPONSE;
   }
 
-  async verifyEmployeeOtp(email: string, code: string) {
+  async verifyEmployeeOtp(email: string, code: string, ip?: string | null, userAgent?: string | null) {
     const invalid = () => new UnauthorizedException('Invalid or expired code');
     const employee = await this.prisma.employee.findUnique({ where: { email } });
     if (!employee) throw invalid();
@@ -280,12 +464,14 @@ export class AuthService {
     await this.prisma.employeeOtp.update({ where: { id: otp.id }, data: { consumedAt: new Date() } });
 
     const role = employee.systemRole || 'EMPLOYEE';
+    const sid = await this.startSession('EMPLOYEE', employee.id, employee.fullName, employee.email, role, ip, userAgent);
     const payload = {
       sub: employee.id,
       kind: 'EMPLOYEE' as const,
       email: employee.email,
       role,
       name: employee.fullName,
+      sid,
     };
     return {
       accessToken: this.jwtService.sign(payload),

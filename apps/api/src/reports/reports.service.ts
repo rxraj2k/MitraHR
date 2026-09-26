@@ -57,6 +57,7 @@ export interface PunctualityRow {
   employeeId: string;
   name: string;
   department: string;
+  employmentType: string;
   date: string;
   checkIn: string;
   checkOut: string;
@@ -114,34 +115,100 @@ export class ReportsService {
     return [h, m];
   }
 
-  // Staff-only Home dashboard tiles. Every number here is a live query
-  // against real records — no cached/derived counters to drift out of sync.
-  async dashboardSummary() {
+  // A trailing/period date window for the dashboard's analytics widgets —
+  // 'month' is the current calendar month, 'quarter' the calendar quarter
+  // containing today, 'year' Jan 1 through today. Only ever used for the
+  // period-scoped widgets (new joiners, leave days, the attendance trend
+  // chart); point-in-time snapshots (headcount, on-leave-today, active
+  // projects, utilization, assets, training, department mix, project
+  // allocation) are always "right now" regardless of range, since nothing
+  // in the schema tracks their history — scoping them to a range would
+  // mean fabricating numbers, which this dashboard deliberately never does.
+  private periodBounds(now: Date, range: 'month' | 'quarter' | 'year'): { start: Date; end: Date } {
+    const y = now.getUTCFullYear();
+    if (range === 'year') {
+      return { start: new Date(Date.UTC(y, 0, 1)), end: new Date(Date.UTC(y, 11, 31, 23, 59, 59)) };
+    }
+    if (range === 'quarter') {
+      const qStartMonth = Math.floor(now.getUTCMonth() / 3) * 3;
+      return {
+        start: new Date(Date.UTC(y, qStartMonth, 1)),
+        end: new Date(Date.UTC(y, qStartMonth + 3, 0, 23, 59, 59)),
+      };
+    }
+    return {
+      start: new Date(Date.UTC(y, now.getUTCMonth(), 1)),
+      end: new Date(Date.UTC(y, now.getUTCMonth() + 1, 0, 23, 59, 59)),
+    };
+  }
+
+  // Daily present-vs-on-leave counts for the Attendance & Leave Trends
+  // chart, built from the same day-by-day breakdown the Team Calendar and
+  // absenteeism() already rely on (AttendanceService.calendar) so this can
+  // never disagree with what those views show. Walks one calendar month at
+  // a time across the requested period and stops at today — future days
+  // have no attendance yet, so they're left out rather than shown as 0s
+  // that would misleadingly read as "nobody present".
+  private async attendanceTrend(start: Date, end: Date, todayIso: string) {
+    const points: { date: string; present: number; onLeave: number }[] = [];
+    let cursor = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), 1));
+    const last = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), 1));
+    while (cursor.getTime() <= last.getTime()) {
+      const { days } = await this.attendance.calendar(cursor.getUTCFullYear(), cursor.getUTCMonth() + 1);
+      for (const day of days) {
+        if (day.date < toISODate(start) || day.date > todayIso) continue;
+        points.push({
+          date: day.date,
+          present: day.present.length + day.presentOnHoliday.length + day.presentOnWeekend.length,
+          onLeave: day.onLeave.length,
+        });
+      }
+      cursor = new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth() + 1, 1));
+    }
+    return points;
+  }
+
+  // Staff-only Home dashboard. Every number here is a live query against
+  // real records — no cached/derived counters to drift out of sync, and no
+  // widget shows a figure the schema can't actually back.
+  async dashboardSummary(range: 'month' | 'quarter' | 'year' = 'month') {
     const now = new Date();
-    const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-    const monthEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0, 23, 59, 59));
+    const { start: periodStart, end: periodEnd } = this.periodBounds(now, range);
+    const todayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+    const todayEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 59));
+    const todayIso = toISODate(now);
 
     const [
       headcount,
-      newJoinersThisMonth,
+      newJoinersInPeriod,
       leaveAgg,
+      onLeaveToday,
       activeProjects,
       utilization,
       assetGroups,
       trainingGroups,
       quizAttemptsTotal,
       quizAttemptsPassed,
+      departmentRows,
+      activeProjectRows,
+      attendanceTrend,
     ] = await Promise.all([
       this.prisma.employee.count({ where: { status: 'ACTIVE' } }),
       this.prisma.employee.count({
-        where: { status: 'ACTIVE', dateOfJoining: { gte: monthStart, lte: monthEnd } },
+        where: { status: 'ACTIVE', dateOfJoining: { gte: periodStart, lte: periodEnd } },
       }),
-      // "Leave days this month" = approved requests whose start date falls
-      // in the current calendar month — a dashboard tile, not a payroll
-      // figure, so a multi-month leave isn't prorated across the split.
+      // "Leave days in period" = approved requests whose start date falls
+      // in the selected range — a dashboard tile, not a payroll figure, so
+      // a multi-month leave isn't prorated across the split.
       this.prisma.leaveRequest.aggregate({
         _sum: { totalDays: true },
-        where: { status: 'APPROVED', startDate: { gte: monthStart, lte: monthEnd } },
+        where: { status: 'APPROVED', startDate: { gte: periodStart, lte: periodEnd } },
+      }),
+      // Approved leave that covers today specifically — independent of the
+      // range selector, same "is this a leave day" test the Team Calendar
+      // uses (startDate <= today <= endDate).
+      this.prisma.leaveRequest.count({
+        where: { status: 'APPROVED', startDate: { lte: todayEnd }, endDate: { gte: todayStart } },
       }),
       this.prisma.project.count({ where: { status: { in: ['ACTIVE', 'ON_HOLD'] } } }),
       this.utilization.findAll(),
@@ -150,21 +217,64 @@ export class ReportsService {
       // Learning Center "Tests" tab — org-wide knowledge-check stats.
       this.prisma.quizAttempt.count(),
       this.prisma.quizAttempt.count({ where: { passed: true } }),
+      // Department/Team Allocation donut — real headcount by department,
+      // not a mix of unrelated dimensions (deployment status has its own
+      // home in utilizationSummary.bench, surfaced separately).
+      this.prisma.employee.findMany({
+        where: { status: 'ACTIVE' },
+        select: { department: { select: { name: true } } },
+      }),
+      // Project Resource Utilization bars — average current allocation
+      // across each active project's open (still-assigned) team members.
+      this.prisma.project.findMany({
+        where: { status: 'ACTIVE' },
+        select: {
+          id: true,
+          name: true,
+          assignments: { where: { endDate: null }, select: { allocationPercent: true } },
+        },
+        orderBy: { name: 'asc' },
+      }),
+      this.attendanceTrend(periodStart, periodEnd, todayIso),
     ]);
 
     const trainingTotal = trainingGroups.reduce((sum, g) => sum + g._count._all, 0);
     const trainingCompleted = trainingGroups.find((g) => g.status === 'COMPLETED')?._count._all || 0;
 
+    const deptCounts = new Map<string, number>();
+    for (const row of departmentRows) {
+      const name = row.department?.name || 'Unassigned';
+      deptCounts.set(name, (deptCounts.get(name) || 0) + 1);
+    }
+    const departmentBreakdown = Array.from(deptCounts.entries())
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count);
+
+    const projectUtilization = activeProjectRows
+      .map((p) => {
+        const allocations = p.assignments.map((a) => a.allocationPercent);
+        const utilizationPercent = allocations.length
+          ? Math.round(allocations.reduce((sum, v) => sum + v, 0) / allocations.length)
+          : 0;
+        return { id: p.id, name: p.name, utilizationPercent, assignedCount: allocations.length };
+      })
+      .sort((a, b) => b.utilizationPercent - a.utilizationPercent);
+
     return {
+      range,
       headcount,
-      newJoinersThisMonth,
+      newJoinersThisMonth: newJoinersInPeriod,
       leaveDaysThisMonth: Math.round((leaveAgg._sum.totalDays || 0) * 100) / 100,
+      onLeaveToday,
       activeProjects,
       utilizationSummary: utilization.summary,
       assetStatusCounts: Object.fromEntries(assetGroups.map((g) => [g.status, g._count._all])),
       trainingCompletionPercent: trainingTotal ? Math.round((trainingCompleted / trainingTotal) * 100) : 0,
       quizAttemptsTotal,
       quizPassRatePercent: quizAttemptsTotal ? Math.round((quizAttemptsPassed / quizAttemptsTotal) * 100) : 0,
+      departmentBreakdown,
+      projectUtilization,
+      attendanceTrend,
     };
   }
 
@@ -276,6 +386,7 @@ export class ReportsService {
         id: true,
         fullName: true,
         dateOfJoining: true,
+        employmentType: true,
         department: { select: { name: true } },
         designation: { select: { name: true } },
       },
@@ -284,6 +395,7 @@ export class ReportsService {
       id: e.id,
       fullName: e.fullName,
       dateOfJoining: e.dateOfJoining,
+      employmentType: e.employmentType,
       department: e.department?.name ?? 'Unassigned',
       designation: e.designation?.name ?? '—',
     }));
@@ -448,6 +560,7 @@ export class ReportsService {
             employeeId: emp.id,
             name: emp.fullName,
             department: emp.department,
+            employmentType: emp.employmentType,
             date: iso,
             checkIn: formatClockTime(record.markedAt),
             checkOut: record.checkOutAt ? formatClockTime(record.checkOutAt) : '—',
@@ -461,6 +574,7 @@ export class ReportsService {
             employeeId: emp.id,
             name: emp.fullName,
             department: emp.department,
+            employmentType: emp.employmentType,
             date: iso,
             checkIn: '—',
             checkOut: '—',
@@ -499,6 +613,7 @@ export class ReportsService {
         id: string;
         name: string;
         department: string;
+        employmentType: string;
         earlyDays: number;
         onTimeDays: number;
         lateDays: number;
@@ -518,6 +633,7 @@ export class ReportsService {
         id: r.employeeId,
         name: r.name,
         department: r.department,
+        employmentType: r.employmentType,
         earlyDays: 0,
         onTimeDays: 0,
         lateDays: 0,
@@ -544,6 +660,7 @@ export class ReportsService {
         id: e.id,
         name: e.name,
         department: e.department,
+        employmentType: e.employmentType,
         earlyDays: e.earlyDays,
         onTimeDays: e.onTimeDays,
         lateDays: e.lateDays,
@@ -590,6 +707,7 @@ export class ReportsService {
         id: e.id,
         name: e.fullName,
         department: e.department,
+        employmentType: e.employmentType,
         designation: e.designation,
         joinDate: e.dateOfJoining ? toISODate(e.dateOfJoining) : '—',
         tenureBucket: tenureBucket(e.dateOfJoining, now),
@@ -920,4 +1038,361 @@ export class ReportsService {
       };
     });
   }
+
+  // New: monthly leave utilization by leave type (whatever LeaveType rows
+  // this company actually has configured -- Casual/Sick/Earned only shows
+  // up here if those are real configured types, real values only) over the
+  // trailing 12 months, for the Reports audit's Leaves & Attendance
+  // category. Only APPROVED requests count -- a pending/rejected request
+  // never consumed leave.
+  async previewLeaveUtilization() {
+    const now = new Date();
+    const start = new Date(now);
+    start.setUTCMonth(start.getUTCMonth() - 11, 1);
+    start.setUTCHours(0, 0, 0, 0);
+
+    const requests = await this.prisma.leaveRequest.findMany({
+      where: { status: 'APPROVED', startDate: { gte: start } },
+      select: {
+        id: true,
+        totalDays: true,
+        startDate: true,
+        endDate: true,
+        leaveType: { select: { name: true } },
+        employee: { select: { fullName: true, department: { select: { name: true } } } },
+      },
+      orderBy: { startDate: 'desc' },
+    });
+
+    const byType = new Map<string, { type: string; totalDays: number; requestCount: number }>();
+    const byMonth = new Map<string, Record<string, number>>();
+
+    for (const r of requests) {
+      const type = r.leaveType.name;
+      const typeEntry = byType.get(type) || { type, totalDays: 0, requestCount: 0 };
+      typeEntry.totalDays = Math.round((typeEntry.totalDays + r.totalDays) * 10) / 10;
+      typeEntry.requestCount += 1;
+      byType.set(type, typeEntry);
+
+      const monthKey = `${MONTH_LABELS[r.startDate.getUTCMonth()]} ${r.startDate.getUTCFullYear()}`;
+      const monthEntry = byMonth.get(monthKey) || {};
+      monthEntry[type] = Math.round(((monthEntry[type] || 0) + r.totalDays) * 10) / 10;
+      byMonth.set(monthKey, monthEntry);
+    }
+
+    const chronological = Array.from(byMonth.keys()).sort(
+      (a, b) => new Date(`1 ${a}`).getTime() - new Date(`1 ${b}`).getTime(),
+    );
+
+    return {
+      types: Array.from(byType.values()).sort((a, b) => b.totalDays - a.totalDays),
+      monthly: chronological.map((month) => ({ month, byType: byMonth.get(month)! })),
+      rows: requests.map((r) => ({
+        id: r.id,
+        name: r.employee.fullName,
+        department: r.employee.department?.name ?? 'Unassigned',
+        leaveType: r.leaveType.name,
+        startDate: toISODate(r.startDate),
+        endDate: toISODate(r.endDate),
+        totalDays: r.totalDays,
+      })),
+    };
+  }
+
+  // New: Working Hours & Overtime summary for the Reports audit's Leaves &
+  // Attendance category. Real daily hours come from AttendanceRecord's
+  // markedAt -> checkOutAt pair (only counted for a day someone actually
+  // logged a check-out). "Overtime" is the real, approved-workflow
+  // definition already in the app -- CompOffLedger rows (an
+  // employee-logged extra day, admin-approved) -- rather than an inferred
+  // "over 8 hours" guess this schema has no shift length to validate
+  // against.
+  async previewHoursOvertime() {
+    const today = new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), new Date().getUTCDate()));
+    const start30 = new Date(today);
+    start30.setUTCDate(start30.getUTCDate() - 29);
+    const start90 = new Date(today);
+    start90.setUTCDate(start90.getUTCDate() - 89);
+
+    const [records, compOffs] = await Promise.all([
+      this.prisma.attendanceRecord.findMany({
+        where: { date: { gte: start30, lte: today }, checkOutAt: { not: null } },
+        select: {
+          employeeId: true,
+          markedAt: true,
+          checkOutAt: true,
+          employee: { select: { fullName: true, status: true, department: { select: { name: true } } } },
+        },
+      }),
+      this.prisma.compOffLedger.findMany({
+        where: { workedDate: { gte: start90 } },
+        select: {
+          id: true,
+          workedDate: true,
+          daysEarned: true,
+          status: true,
+          reason: true,
+          employee: { select: { fullName: true, department: { select: { name: true } } } },
+        },
+        orderBy: { workedDate: 'desc' },
+      }),
+    ]);
+
+    const byEmployee = new Map<
+      string,
+      { id: string; name: string; department: string; totalHours: number; daysLogged: number }
+    >();
+    let companyTotalHours = 0;
+    let companyDaysLogged = 0;
+
+    for (const r of records) {
+      if (r.employee.status !== 'ACTIVE') continue;
+      const hours = (r.checkOutAt!.getTime() - r.markedAt.getTime()) / 3_600_000;
+      // Guards a bad/missing checkout pairing rather than reporting it as a
+      // 0-hour or 400-hour day.
+      if (hours <= 0 || hours > 20) continue;
+      companyTotalHours += hours;
+      companyDaysLogged += 1;
+      const entry = byEmployee.get(r.employeeId) || {
+        id: r.employeeId,
+        name: r.employee.fullName,
+        department: r.employee.department?.name ?? 'Unassigned',
+        totalHours: 0,
+        daysLogged: 0,
+      };
+      entry.totalHours += hours;
+      entry.daysLogged += 1;
+      byEmployee.set(r.employeeId, entry);
+    }
+
+    const rows = Array.from(byEmployee.values())
+      .map((e) => ({
+        id: e.id,
+        name: e.name,
+        department: e.department,
+        daysLogged: e.daysLogged,
+        avgHoursPerDay: Math.round((e.totalHours / e.daysLogged) * 10) / 10,
+      }))
+      .sort((a, b) => b.avgHoursPerDay - a.avgHoursPerDay);
+
+    const approvedCompOffs = compOffs.filter((c) => c.status === 'APPROVED');
+
+    return {
+      windowDays: 29,
+      companyAvgHoursPerDay: companyDaysLogged === 0 ? null : Math.round((companyTotalHours / companyDaysLogged) * 10) / 10,
+      employeesWithLoggedHours: byEmployee.size,
+      rows,
+      overtime: {
+        windowDays: 89,
+        approvedInstances: approvedCompOffs.length,
+        totalDaysEarned: Math.round(approvedCompOffs.reduce((s, c) => s + c.daysEarned, 0) * 10) / 10,
+        pendingApprovalCount: compOffs.filter((c) => c.status === 'PENDING').length,
+        rows: compOffs.map((c) => ({
+          id: c.id,
+          name: c.employee.fullName,
+          department: c.employee.department?.name ?? 'Unassigned',
+          workedDate: toISODate(c.workedDate),
+          daysEarned: c.daysEarned,
+          status: c.status,
+          reason: c.reason,
+        })),
+      },
+    };
+  }
+
+  // New: Office Wall & Engagement Analytics for the Reports audit -- the
+  // one module the audit named that had zero representation in Reports
+  // before. Entirely real (OfficeWallPost/Like/Comment) and, like
+  // Recruitment Speed above, returns honest zeros/empty arrays rather than
+  // a fabricated number when nobody's posted yet.
+  async previewOfficeWallEngagement() {
+    const now = new Date();
+    const start90 = new Date(now);
+    start90.setUTCDate(start90.getUTCDate() - 89);
+
+    const [posts, activeEmployeeCount] = await Promise.all([
+      this.prisma.officeWallPost.findMany({
+        where: { createdAt: { gte: start90 } },
+        select: {
+          id: true,
+          category: true,
+          createdAt: true,
+          author: { select: { id: true, fullName: true, department: { select: { name: true } } } },
+          _count: { select: { likes: true, comments: true } },
+          likes: { select: { employeeId: true } },
+          comments: { select: { employeeId: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.employee.count({ where: { status: 'ACTIVE' } }),
+    ]);
+
+    const byWeek = new Map<string, number>();
+    const contributorStats = new Map<
+      string,
+      { id: string; name: string; department: string; posts: number; likesReceived: number; commentsReceived: number }
+    >();
+    const activeParticipants = new Set<string>();
+    let totalLikes = 0;
+    let totalComments = 0;
+    const byCategory = new Map<string, number>();
+
+    for (const p of posts) {
+      activeParticipants.add(p.author.id);
+      for (const l of p.likes) activeParticipants.add(l.employeeId);
+      for (const c of p.comments) activeParticipants.add(c.employeeId);
+      totalLikes += p._count.likes;
+      totalComments += p._count.comments;
+      byCategory.set(p.category, (byCategory.get(p.category) || 0) + 1);
+
+      // ISO-ish week bucket (Mon-start), labeled by its Monday date, for a
+      // simple weekly activity trend without pulling in a date library.
+      const weekStart = new Date(Date.UTC(p.createdAt.getUTCFullYear(), p.createdAt.getUTCMonth(), p.createdAt.getUTCDate()));
+      const dow = (weekStart.getUTCDay() + 6) % 7; // Mon=0..Sun=6
+      weekStart.setUTCDate(weekStart.getUTCDate() - dow);
+      const weekKey = toISODate(weekStart);
+      byWeek.set(weekKey, (byWeek.get(weekKey) || 0) + 1);
+
+      const entry = contributorStats.get(p.author.id) || {
+        id: p.author.id,
+        name: p.author.fullName,
+        department: p.author.department?.name ?? 'Unassigned',
+        posts: 0,
+        likesReceived: 0,
+        commentsReceived: 0,
+      };
+      entry.posts += 1;
+      entry.likesReceived += p._count.likes;
+      entry.commentsReceived += p._count.comments;
+      contributorStats.set(p.author.id, entry);
+    }
+
+    const weeklyTrend = Array.from(byWeek.entries())
+      .sort(([a], [b]) => (a < b ? -1 : 1))
+      .map(([weekOf, postCount]) => ({ weekOf, posts: postCount }));
+
+    const topContributors = Array.from(contributorStats.values())
+      .sort((a, b) => b.posts + b.likesReceived + b.commentsReceived - (a.posts + a.likesReceived + a.commentsReceived))
+      .slice(0, 25);
+
+    const engagementRatePercent =
+      activeEmployeeCount === 0 ? 0 : Math.round((activeParticipants.size / activeEmployeeCount) * 1000) / 10;
+
+    return {
+      windowDays: 89,
+      totalPosts: posts.length,
+      totalLikes,
+      totalComments,
+      activeParticipants: activeParticipants.size,
+      engagementRatePercent,
+      weeklyTrend,
+      topContributors,
+      byCategory: Array.from(byCategory.entries()).map(([category, count]) => ({ category, count })),
+    };
+  }
+
+  // New: 6-Month Appraisal Cycle Status + Team Goals/Rating Distribution
+  // for the Reports audit's Performance & Appraisals category. Two
+  // genuinely distinct systems live under one tab here (see the Appraisal
+  // model's own schema comment for why they don't share tables): the
+  // semi-annual Appraisal cycle (cycleNumber/status/dueDate) and the
+  // goal-cycle system's Goal.status + PerformanceReview.overallRating,
+  // which the compact Performance & Engagement KPI card above never broke
+  // down -- this is the distribution view for it.
+  async previewAppraisalCycleStatus() {
+    const [appraisals, goals, reviews] = await Promise.all([
+      this.prisma.appraisal.findMany({
+        select: {
+          id: true,
+          cycleNumber: true,
+          dueDate: true,
+          status: true,
+          employee: { select: { fullName: true, department: { select: { name: true } } } },
+        },
+        orderBy: { dueDate: 'desc' },
+      }),
+      this.prisma.goal.findMany({ select: { status: true } }),
+      this.prisma.performanceReview.findMany({
+        where: { overallRating: { not: null } },
+        select: { overallRating: true },
+      }),
+    ]);
+
+    const statusCounts: Record<string, number> = { PENDING_EMPLOYEE: 0, UNDER_MANAGER_REVIEW: 0, COMPLETED: 0 };
+    for (const a of appraisals) statusCounts[a.status] = (statusCounts[a.status] || 0) + 1;
+
+    const goalStatusMap = new Map<string, number>();
+    for (const g of goals) goalStatusMap.set(g.status, (goalStatusMap.get(g.status) || 0) + 1);
+
+    const ratingDistribution = [1, 2, 3, 4, 5].map((rating) => ({
+      rating,
+      count: reviews.filter((r) => r.overallRating === rating).length,
+    }));
+
+    return {
+      statusCounts,
+      goalStatusCounts: Array.from(goalStatusMap.entries()).map(([status, count]) => ({ status, count })),
+      ratingDistribution,
+      ratingsSubmittedCount: reviews.length,
+      rows: appraisals.map((a) => ({
+        id: a.id,
+        name: a.employee.fullName,
+        department: a.employee.department?.name ?? 'Unassigned',
+        cycleLabel: `${a.cycleNumber * 6}-Month Review`,
+        dueDate: toISODate(a.dueDate),
+        status: a.status,
+      })),
+    };
+  }
+
+  // New: Hardware & Software Asset distribution for the Reports audit's
+  // Projects & Asset Allocation category -- the existing "Compliance &
+  // Asset Roster" tab is actually EmployeeDocument expiry data
+  // (visas/certs), not physical assets at all, so this closes a real gap
+  // rather than duplicating it. There is no warrantyExpiry field on Asset
+  // in the schema yet, so warranty-expiration reporting isn't included
+  // here -- that would need a schema addition, which is flagged as a
+  // follow-up rather than guessed at.
+  async previewAssetInventory() {
+    const assets = await this.prisma.asset.findMany({
+      select: {
+        id: true,
+        assetTag: true,
+        category: true,
+        name: true,
+        status: true,
+        purchaseDate: true,
+        assignments: {
+          where: { returnedAt: null },
+          select: { employee: { select: { fullName: true } } },
+          take: 1,
+        },
+      },
+      orderBy: { assetTag: 'asc' },
+    });
+
+    const byCategory = new Map<string, number>();
+    const byStatus = new Map<string, number>();
+    for (const a of assets) {
+      byCategory.set(a.category, (byCategory.get(a.category) || 0) + 1);
+      byStatus.set(a.status, (byStatus.get(a.status) || 0) + 1);
+    }
+
+    return {
+      totalAssets: assets.length,
+      unassignedCount: assets.filter((a) => a.status === 'AVAILABLE').length,
+      byCategory: Array.from(byCategory.entries()).map(([category, count]) => ({ category, count })),
+      byStatus: Array.from(byStatus.entries()).map(([status, count]) => ({ status, count })),
+      rows: assets.map((a) => ({
+        id: a.id,
+        assetTag: a.assetTag,
+        name: a.name,
+        category: a.category,
+        status: a.status,
+        assignedTo: a.assignments[0]?.employee.fullName ?? '—',
+        purchaseDate: a.purchaseDate ? toISODate(a.purchaseDate) : '—',
+      })),
+    };
+  }
+
 }

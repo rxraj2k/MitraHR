@@ -1,14 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { useAutoRefresh } from '../hooks/useAutoRefresh';
-import {
-  getNotifications,
-  getUnreadNotificationCount,
-  markAllNotificationsRead,
-  markNotificationRead,
-  runDailyNotificationCheck,
-} from '../lib/api';
+import { useToasts } from '../context/ToastContext';
 import { AppNotification } from '../types';
 import { BellIcon } from './icons';
 
@@ -24,90 +17,51 @@ function timeAgo(iso: string) {
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
+// The dropdown feed here and the floating toast pop-ups (ToastContext) both
+// read from the same ToastProvider — one poll, one notifications list, so
+// the bell badge and the toasts can never drift out of sync with each
+// other the way two independent polling loops could.
 export default function NotificationBell() {
-  const { token, isStaff } = useAuth();
+  const { isStaff } = useAuth();
+  const { notifications, unreadCount, markRead, markAllRead, runDailyCheck, runningDailyCheck } = useToasts();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
-  const [items, setItems] = useState<AppNotification[]>([]);
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [runningCheck, setRunningCheck] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
 
-  async function loadCount() {
-    if (!token) return;
-    try {
-      const { count } = await getUnreadNotificationCount(token);
-      setUnreadCount(count);
-    } catch {
-      // best-effort — a failed poll shouldn't disrupt the page
-    }
-  }
-
-  async function loadList() {
-    if (!token) return;
-    try {
-      setItems(await getNotifications(token));
-    } catch {
-      // best-effort
-    }
-  }
-
+  // Outside-click/Escape closing via a document listener + ref (not a
+  // `fixed inset-0` invisible catcher div) -- a catcher div's `position:
+  // fixed` sizes itself against the nearest ancestor with a transform or
+  // backdrop-filter (one of the chrome themes puts a real blur on the
+  // header this bell lives in), which would shrink it down to the
+  // header's own box instead of the full page. This listener approach,
+  // already used by UserProfileMenu, doesn't have that failure mode.
   useEffect(() => {
-    loadCount();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token]);
-
-  useAutoRefresh(loadCount, 20000);
-
-  useEffect(() => {
-    if (open) loadList();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (!open) return;
+    function onPointerDown(e: MouseEvent) {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
+    }
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') setOpen(false);
+    }
+    document.addEventListener('mousedown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
   }, [open]);
 
   async function handleOpenNotification(n: AppNotification) {
-    if (!token) return;
-    if (!n.readAt) {
-      try {
-        await markNotificationRead(token, n.id);
-      } catch {
-        // best-effort
-      }
-      setItems((list) => list.map((x) => (x.id === n.id ? { ...x, readAt: new Date().toISOString() } : x)));
-      setUnreadCount((c) => Math.max(0, c - 1));
-    }
+    if (!n.readAt) await markRead(n.id);
     setOpen(false);
     if (n.link) navigate(n.link);
   }
 
-  async function handleRunDailyCheck() {
-    if (!token) return;
-    setRunningCheck(true);
-    try {
-      await runDailyNotificationCheck(token);
-      await loadCount();
-      await loadList();
-    } catch {
-      // best-effort
-    } finally {
-      setRunningCheck(false);
-    }
-  }
-
-  async function handleMarkAllRead() {
-    if (!token) return;
-    try {
-      await markAllNotificationsRead(token);
-    } catch {
-      // best-effort
-    }
-    setItems((list) => list.map((x) => ({ ...x, readAt: x.readAt || new Date().toISOString() })));
-    setUnreadCount(0);
-  }
-
   return (
-    <div className="relative">
+    <div className="relative" ref={rootRef}>
       <button
         onClick={() => setOpen((o) => !o)}
-        className="relative rounded-full p-2 text-slate-500 hover:bg-slate-100"
+        className="relative rounded-full p-2 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
         aria-label="Notifications"
       >
         <BellIcon className="w-5 h-5" />
@@ -118,45 +72,43 @@ export default function NotificationBell() {
         )}
       </button>
       {open && (
-        <>
-          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 mt-2 w-80 max-h-96 overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-lg z-20">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 sticky top-0 bg-white">
-              <span className="text-sm font-semibold text-slate-700">Notifications</span>
+        <div className="absolute right-0 mt-2 w-80 max-h-96 overflow-y-auto bg-white border border-slate-200 dark:bg-slate-900 dark:border-slate-800 rounded-xl shadow-lg z-20">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 dark:border-slate-800 sticky top-0 bg-white dark:bg-slate-900">
+              <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">Notifications</span>
               <div className="flex items-center gap-3">
                 {isStaff && (
                   <button
-                    onClick={handleRunDailyCheck}
-                    disabled={runningCheck}
+                    onClick={runDailyCheck}
+                    disabled={runningDailyCheck}
                     title="Run the birthday + document-expiry check now, instead of waiting for the daily 8am run"
                     className="text-xs text-slate-400 hover:text-mitra-accentFrom disabled:opacity-50"
                   >
-                    {runningCheck ? 'Running...' : 'Run daily check'}
+                    {runningDailyCheck ? 'Running...' : 'Run daily check'}
                   </button>
                 )}
                 {unreadCount > 0 && (
-                  <button onClick={handleMarkAllRead} className="text-xs text-mitra-accentFrom hover:underline">
+                  <button onClick={markAllRead} className="text-xs text-mitra-accentFrom hover:underline">
                     Mark all read
                   </button>
                 )}
               </div>
             </div>
-            {items.length === 0 ? (
-              <p className="text-sm text-slate-400 px-4 py-6 text-center">No notifications yet.</p>
+            {notifications.length === 0 ? (
+              <p className="text-sm text-slate-400 dark:text-slate-500 px-4 py-6 text-center">No notifications yet.</p>
             ) : (
-              <ul className="divide-y divide-slate-100">
-                {items.map((n) => (
+              <ul className="divide-y divide-slate-100 dark:divide-slate-800">
+                {notifications.map((n) => (
                   <li key={n.id}>
                     <button
                       onClick={() => handleOpenNotification(n)}
-                      className={`w-full text-left px-4 py-3 hover:bg-slate-50 ${!n.readAt ? 'bg-indigo-50/60' : ''}`}
+                      className={`w-full text-left px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800 ${!n.readAt ? 'bg-indigo-50/60 dark:bg-indigo-950/30' : ''}`}
                     >
                       <div className="flex items-start gap-2">
                         {!n.readAt && <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-mitra-accentFrom flex-shrink-0" />}
                         <div className="min-w-0">
-                          <p className="text-sm text-slate-700 font-medium">{n.title}</p>
-                          {n.body && <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">{n.body}</p>}
-                          <p className="text-[11px] text-slate-400 mt-1">{timeAgo(n.createdAt)}</p>
+                          <p className="text-sm text-slate-700 dark:text-slate-200 font-medium">{n.title}</p>
+                          {n.body && <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-2">{n.body}</p>}
+                          <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">{timeAgo(n.createdAt)}</p>
                         </div>
                       </div>
                     </button>
@@ -165,7 +117,6 @@ export default function NotificationBell() {
               </ul>
             )}
           </div>
-        </>
       )}
     </div>
   );

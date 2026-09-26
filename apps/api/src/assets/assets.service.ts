@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { AuditActor, auditEntry } from '../audit/audit.util';
 
 const EMPLOYEE_REF_SELECT = { id: true, fullName: true, employeeCode: true, photoUrl: true };
 
@@ -117,7 +118,7 @@ export class AssetsService {
 
   // Hands an available asset to an employee, opening a new assignment and
   // flipping the asset to ASSIGNED in one transaction.
-  async assign(id: string, input: { employeeId: string; conditionAtAssignment?: string }) {
+  async assign(id: string, input: { employeeId: string; conditionAtAssignment?: string }, actor?: AuditActor) {
     const asset = await this.prisma.asset.findUnique({ where: { id } });
     if (!asset) throw new NotFoundException('Asset not found');
     if (asset.status !== 'AVAILABLE') {
@@ -136,18 +137,35 @@ export class AssetsService {
       }),
       this.prisma.asset.update({ where: { id }, data: { status: 'ASSIGNED' } }),
     ]);
-    await this.notifications.notifyEmployee(input.employeeId, {
-      type: 'ASSET_ASSIGNED',
-      title: `${asset.name} (${asset.assetTag}) was assigned to you`,
-      employeeLink: '/',
-      staffLink: '/assets',
-    });
+    // Admin Center > Automations toggle (in-app notice, not an email — see
+    // AdminSettings model comment). Missing settings row (pre-migration
+    // edge case) defaults to on, same as the field's own DB default.
+    const settings = await this.prisma.adminSettings.findUnique({ where: { id: 'default' } });
+    if (settings?.assetAssignmentNoticeEnabled !== false) {
+      await this.notifications.notifyEmployee(input.employeeId, {
+        type: 'ASSET_ASSIGNED',
+        title: `${asset.name} (${asset.assetTag}) was assigned to you`,
+        employeeLink: '/',
+        staffLink: '/assets',
+      });
+    }
+    if (actor) {
+      await this.prisma.auditLog
+        .create({
+          data: auditEntry(actor, 'ASSETS', 'UPDATE', `Assigned ${asset.name} (${asset.assetTag}) to ${employee.fullName}`),
+        })
+        .catch(() => {});
+    }
     return assignment;
   }
 
   // Closes out the asset's currently-open assignment and puts the asset
   // back into circulation (or wherever the hand-back condition warrants).
-  async return(id: string, input: { conditionAtReturn?: string; returnNotes?: string; resultingStatus?: string }) {
+  async return(
+    id: string,
+    input: { conditionAtReturn?: string; returnNotes?: string; resultingStatus?: string },
+    actor?: AuditActor,
+  ) {
     const asset = await this.prisma.asset.findUnique({ where: { id } });
     if (!asset) throw new NotFoundException('Asset not found');
     const open = await this.prisma.assetAssignment.findFirst({ where: { assetId: id, returnedAt: null } });
@@ -164,6 +182,18 @@ export class AssetsService {
       }),
       this.prisma.asset.update({ where: { id }, data: { status: input.resultingStatus || 'AVAILABLE' } }),
     ]);
+    if (actor) {
+      await this.prisma.auditLog
+        .create({
+          data: auditEntry(
+            actor,
+            'ASSETS',
+            'UPDATE',
+            `${assignment.employee.fullName} returned ${asset.name} (${asset.assetTag})`,
+          ),
+        })
+        .catch(() => {});
+    }
     return assignment;
   }
 

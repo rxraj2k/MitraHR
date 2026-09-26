@@ -173,9 +173,12 @@ export default function AssetCategoryManager({ searchQuery }: { searchQuery?: st
                   </button>
                   <button
                     onClick={() => setConfirmTarget(item)}
-                    disabled={!!item.usageCount}
                     title={item.usageCount ? `Cannot delete: ${item.usageCount} ${item.usageLabel}.` : 'Delete'}
-                    className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:text-slate-400 disabled:hover:bg-transparent"
+                    className={`p-1.5 rounded-lg transition-colors ${
+                      item.usageCount
+                        ? 'text-slate-300 hover:text-amber-600 hover:bg-amber-50'
+                        : 'text-slate-400 hover:text-red-600 hover:bg-red-50'
+                    }`}
                   >
                     <TrashIcon className="w-4 h-4" />
                   </button>
@@ -188,8 +191,13 @@ export default function AssetCategoryManager({ searchQuery }: { searchQuery?: st
 
       <ConfirmModal
         open={!!confirmTarget}
-        title={`Delete "${confirmTarget?.name}"?`}
-        message="This cannot be undone."
+        singleAction={!!confirmTarget?.usageCount}
+        title={confirmTarget?.usageCount ? `Cannot delete "${confirmTarget?.name}"` : `Delete "${confirmTarget?.name}"?`}
+        message={
+          confirmTarget?.usageCount
+            ? `${confirmTarget.usageCount} ${confirmTarget.usageLabel}. Mark it inactive instead.`
+            : 'This cannot be undone.'
+        }
         busy={deleting}
         onConfirm={confirmDelete}
         onCancel={() => setConfirmTarget(null)}

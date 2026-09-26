@@ -18,12 +18,17 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   getDepartments,
   getPulseSurveyInsights,
+  getReportsPreviewAppraisalCycleStatus,
+  getReportsPreviewAssetInventory,
   getReportsPreviewAttendanceLedger,
   getReportsPreviewAttendanceTimeliness,
   getReportsPreviewAttendanceTrend,
   getReportsPreviewAttritionRisk,
   getReportsPreviewComplianceRadar,
   getReportsPreviewComplianceRoster,
+  getReportsPreviewHoursOvertime,
+  getReportsPreviewLeaveUtilization,
+  getReportsPreviewOfficeWallEngagement,
   getReportsPreviewOverview,
   getReportsPreviewPerformanceEngagement,
   getReportsPreviewRecruitmentFunnel,
@@ -35,12 +40,17 @@ import {
 } from '../../lib/api';
 import {
   PulseSurveyInsights,
+  ReportsPreviewAppraisalCycleStatus,
+  ReportsPreviewAssetInventory,
   ReportsPreviewAttendanceLedgerRow,
   ReportsPreviewAttendanceTimeliness,
   ReportsPreviewAttritionRisk,
   ReportsPreviewComplianceRadar,
   ReportsPreviewComplianceRow,
   ReportsPreviewFunnelRow,
+  ReportsPreviewHoursOvertime,
+  ReportsPreviewLeaveUtilization,
+  ReportsPreviewOfficeWallEngagement,
   ReportsPreviewPerformanceEngagement,
   ReportsPreviewTenureMobilityRow,
   ReportsPreviewTenureSpreadRow,
@@ -62,6 +72,11 @@ export interface ReportsData {
   recruitmentFunnel: ReportsPreviewFunnelRow[];
   complianceAssetRoster: ReportsPreviewComplianceRow[];
   performanceEngagement: ReportsPreviewPerformanceEngagement;
+  leaveUtilization: ReportsPreviewLeaveUtilization;
+  hoursOvertime: ReportsPreviewHoursOvertime;
+  officeWallEngagement: ReportsPreviewOfficeWallEngagement;
+  appraisalCycleStatus: ReportsPreviewAppraisalCycleStatus;
+  assetInventory: ReportsPreviewAssetInventory;
   departments: string[];
 }
 
@@ -159,6 +174,11 @@ export function useReportsData(token: string | null): UseReportsDataResult {
       getReportsPreviewPerformanceEngagement(token),
       getPulseSurveyInsights(token),
       getDepartments(token),
+      getReportsPreviewLeaveUtilization(token),
+      getReportsPreviewHoursOvertime(token),
+      getReportsPreviewOfficeWallEngagement(token),
+      getReportsPreviewAppraisalCycleStatus(token),
+      getReportsPreviewAssetInventory(token),
     ])
       .then(
         ([
@@ -178,6 +198,11 @@ export function useReportsData(token: string | null): UseReportsDataResult {
           performanceEngagement,
           pulseInsights,
           departmentLookups,
+          leaveUtilization,
+          hoursOvertime,
+          officeWallEngagement,
+          appraisalCycleStatus,
+          assetInventory,
         ]) => {
           if (cancelled) return;
           const kpiCards: KpiCardData[] = [
@@ -200,6 +225,11 @@ export function useReportsData(token: string | null): UseReportsDataResult {
             recruitmentFunnel,
             complianceAssetRoster,
             performanceEngagement,
+            leaveUtilization,
+            hoursOvertime,
+            officeWallEngagement,
+            appraisalCycleStatus,
+            assetInventory,
             departments: departmentLookups.map((d) => d.name).sort((a, b) => a.localeCompare(b)),
           };
           setState({ data, loading: false, error: null });

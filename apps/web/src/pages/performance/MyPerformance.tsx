@@ -33,6 +33,7 @@ import {
 } from '../../types';
 import { TargetIcon, StarIcon, TrophyIcon, ClockIcon } from '../../components/icons';
 import Progress3DBar from '../../components/Progress3DBar';
+import SelfAppraisalSection from '../../components/SelfAppraisalSection';
 
 const GOAL_STATUS_LABELS: Record<GoalStatus, string> = {
   NOT_STARTED: 'Not Started',
@@ -930,6 +931,8 @@ export default function MyPerformance() {
           </p>
         </div>
       )}
+
+      <SelfAppraisalSection />
 
       <div className="bg-white border border-slate-200 rounded-xl p-5">
         <div className="flex items-center justify-between mb-4">

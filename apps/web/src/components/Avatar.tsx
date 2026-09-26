@@ -64,9 +64,19 @@ export function Avatar({
   const dim = AVATAR_SIZE_CLASSES[size];
   const rounding = shape === 'square' ? 'rounded-xl' : 'rounded-full';
   return photoUrl ? (
-    <img src={`${API_BASE}${photoUrl}`} alt="" className={`${dim} ${rounding} object-cover flex-shrink-0`} />
+    // object-position biases the crop toward the top third rather than
+    // dead-center: photos uploaded before the upload pipeline started
+    // cropping to a square client-side (see EmployeeForm's
+    // processPhotoFile) can be tall/portrait, and a plain center crop on
+    // those tends to land on the chest/shoulders instead of the face.
+    <img
+      src={`${API_BASE}${photoUrl}`}
+      alt=""
+      className={`${dim} ${rounding} object-cover flex-shrink-0`}
+      style={{ objectPosition: 'center 20%' }}
+    />
   ) : (
-    <div className={`${dim} ${rounding} bg-slate-200 flex items-center justify-center text-slate-500 flex-shrink-0 font-medium`}>
+    <div className={`${dim} ${rounding} bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-300 flex-shrink-0 font-medium`}>
       {initials(name)}
     </div>
   );

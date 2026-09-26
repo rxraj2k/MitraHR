@@ -19,3 +19,6 @@ apps/api/secure-uploads/candidate-resumes/*
 *.tsbuildinfo
 apps/web/vite.config.js
 apps/web/vite.config.d.ts
+apps/api/uploads/office-wall/*
+!apps/api/uploads/office-wall/.gitkeep
+apps/api/_to_delete/

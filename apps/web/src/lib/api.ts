@@ -12,6 +12,10 @@ import {
   AssetCategoryItem,
   AssetVendorItem,
   DocumentTypeItem,
+  AppraisalCriterion,
+  MyAppraisal,
+  AdminAppraisalRow,
+  AdminAppraisalDetail,
   LeaveBalance,
   LeaveRequest,
   LeaveType,
@@ -46,8 +50,14 @@ import {
   ReportsPreviewRecruitmentSpeed,
   ReportsPreviewFunnelRow,
   ReportsPreviewPerformanceEngagement,
+  ReportsPreviewLeaveUtilization,
+  ReportsPreviewHoursOvertime,
+  ReportsPreviewOfficeWallEngagement,
+  ReportsPreviewAppraisalCycleStatus,
+  ReportsPreviewAssetInventory,
   AppNotification,
   UpcomingBirthday,
+  DashboardRange,
   DashboardSummary,
   AbsenteeismRow,
   AttendanceAnalytics,
@@ -112,6 +122,13 @@ import {
   CreatePulseSurveyInput,
   UpdatePulseSurveyInput,
   PulseAnswerInput,
+  AdminSettings,
+  AuditLogEntry,
+  SystemHealth,
+  LiveActivity,
+  OfficeWallPost,
+  OfficeWallComment,
+  OfficeWallPresenceEntry,
 } from '../types';
 
 export const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000';
@@ -135,6 +152,35 @@ export async function fetchMe(token: string) {
   });
   if (!res.ok) throw new Error('Not authenticated');
   return res.json();
+}
+
+// Best-effort — closes this session's UserSession row (see AuthContext's
+// logout) so it shows "Logged out" instead of lingering as Active/Away in
+// the Admin Center's Live User Activity panel. Never throws: signing out
+// locally must always succeed even if this call fails or the API is down.
+export async function serverLogout(token: string): Promise<void> {
+  try {
+    await fetch(`${API_BASE}/auth/logout`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  } catch {
+    // ignored — see comment above
+  }
+}
+
+// Called every ~60s while a session is open (see AuthContext) so this
+// session's lastSeenAt stays fresh -- what actually drives Active vs. Away
+// in Live User Activity. Best-effort, same reasoning as serverLogout.
+export async function sendHeartbeat(token: string): Promise<void> {
+  try {
+    await fetch(`${API_BASE}/auth/session/heartbeat`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  } catch {
+    // ignored — see comment above
+  }
 }
 
 export async function requestEmployeeOtp(email: string): Promise<{ message: string }> {
@@ -191,10 +237,122 @@ async function authFetch(token: string, path: string, options: RequestInit = {})
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({ message: `Request failed (${res.status})` }));
+    // A 401 here means the token itself is no good any more -- expired, or
+    // (see JwtStrategy) a session an admin force-ended from the Live User
+    // Activity panel. AuthContext listens for this and signs the browser
+    // out locally right away instead of leaving someone clicking around
+    // with a dead token until their next action happens to fail.
+    if (res.status === 401) {
+      window.dispatchEvent(new CustomEvent('mitrahr:unauthorized'));
+    }
     throw new Error(err.message || 'Request failed');
   }
   if (res.status === 204) return null;
   return res.json();
+}
+
+// --- Account (self-service: presence, notification preferences, password) ---
+
+export function updatePresence(token: string, status: 'AVAILABLE' | 'AWAY') {
+  return authFetch(token, '/auth/me/presence', { method: 'PATCH', body: JSON.stringify({ status }) });
+}
+
+export function updateNotificationPreferences(
+  token: string,
+  prefs: Partial<{
+    emailOnLeaveDecision: boolean;
+    emailOnAnnouncement: boolean;
+    emailOnAssessmentResult: boolean;
+    emailOnBirthday: boolean;
+  }>,
+) {
+  return authFetch(token, '/auth/me/notification-preferences', { method: 'PATCH', body: JSON.stringify(prefs) });
+}
+
+export function changeMyPassword(token: string, currentPassword: string, newPassword: string) {
+  return authFetch(token, '/auth/me/password', { method: 'PATCH', body: JSON.stringify({ currentPassword, newPassword }) });
+}
+
+export interface SearchResultItem {
+  id: string;
+  title: string;
+  subtitle?: string | null;
+  photoUrl?: string | null;
+  link: string;
+}
+
+export interface SearchResultGroup {
+  category: string;
+  results: SearchResultItem[];
+}
+
+export function globalSearch(token: string, query: string): Promise<SearchResultGroup[]> {
+  return authFetch(token, `/search?q=${encodeURIComponent(query)}`);
+}
+
+// --- Semi-annual Self-Appraisal & Compensation Review ---
+
+export function getAppraisalCriteria(token: string): Promise<AppraisalCriterion[]> {
+  return authFetch(token, '/appraisal-criteria');
+}
+export function createAppraisalCriterion(
+  token: string,
+  data: { name: string; description?: string; weight: number; sortOrder?: number; active?: boolean },
+): Promise<AppraisalCriterion> {
+  return authFetch(token, '/appraisal-criteria', { method: 'POST', body: JSON.stringify(data) });
+}
+export function updateAppraisalCriterion(
+  token: string,
+  id: string,
+  data: { name: string; description?: string; weight: number; sortOrder?: number; active?: boolean },
+): Promise<AppraisalCriterion> {
+  return authFetch(token, `/appraisal-criteria/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+}
+export function deleteAppraisalCriterion(token: string, id: string): Promise<void> {
+  return authFetch(token, `/appraisal-criteria/${id}`, { method: 'DELETE' });
+}
+
+export function getMyAppraisals(token: string): Promise<MyAppraisal[]> {
+  return authFetch(token, '/appraisals/mine');
+}
+export function getMyAppraisal(token: string, id: string): Promise<MyAppraisal> {
+  return authFetch(token, `/appraisals/mine/${id}`);
+}
+export interface SubmitAppraisalInput {
+  criteriaScores: { criterionId: string; selfRating: number; selfComment?: string }[];
+  careerGoals?: string;
+  managementSupport?: string;
+  certifications?: string;
+  skillIds?: string[];
+}
+export function submitAppraisal(token: string, id: string, data: SubmitAppraisalInput): Promise<MyAppraisal> {
+  return authFetch(token, `/appraisals/mine/${id}/submit`, { method: 'POST', body: JSON.stringify(data) });
+}
+
+export function getAppraisals(token: string): Promise<AdminAppraisalRow[]> {
+  return authFetch(token, '/appraisals');
+}
+export function runAppraisalCycleCheck(token: string): Promise<{ triggered: number; emailed: number; backlogged: number }> {
+  return authFetch(token, '/appraisals/run-cycle-check', { method: 'POST' });
+}
+export function sendAppraisalReminder(token: string, id: string): Promise<AdminAppraisalDetail> {
+  return authFetch(token, `/appraisals/${id}/send-reminder`, { method: 'POST' });
+}
+export function getAppraisal(token: string, id: string): Promise<AdminAppraisalDetail> {
+  return authFetch(token, `/appraisals/${id}`);
+}
+export interface ReviewAppraisalInput {
+  criteriaReviews: { criterionId: string; managerRating: number; managerComment?: string }[];
+  currentCTC?: number;
+  incrementPercent?: number;
+  incrementAmount?: number;
+  effectiveDate?: string;
+}
+export function saveAppraisalReview(token: string, id: string, data: ReviewAppraisalInput): Promise<AdminAppraisalDetail> {
+  return authFetch(token, `/appraisals/${id}/review`, { method: 'PATCH', body: JSON.stringify(data) });
+}
+export function finalizeAppraisal(token: string, id: string, data: ReviewAppraisalInput): Promise<AdminAppraisalDetail> {
+  return authFetch(token, `/appraisals/${id}/finalize`, { method: 'POST', body: JSON.stringify(data) });
 }
 
 // --- Employees ---
@@ -1075,8 +1233,8 @@ export function runDailyNotificationCheck(token: string): Promise<{ success: boo
 
 // --- Reports & Dashboards ---
 
-export function getDashboardSummary(token: string): Promise<DashboardSummary> {
-  return authFetch(token, '/reports/dashboard-summary');
+export function getDashboardSummary(token: string, range: DashboardRange = 'month'): Promise<DashboardSummary> {
+  return authFetch(token, `/reports/dashboard-summary?range=${range}`);
 }
 
 export function getAbsenteeismReport(token: string, year: number, month: number): Promise<AbsenteeismRow[]> {
@@ -1163,6 +1321,26 @@ export function getReportsPreviewRecruitmentFunnel(token: string): Promise<Repor
 
 export function getReportsPreviewPerformanceEngagement(token: string): Promise<ReportsPreviewPerformanceEngagement> {
   return authFetch(token, '/reports/preview/performance-engagement');
+}
+
+export function getReportsPreviewLeaveUtilization(token: string): Promise<ReportsPreviewLeaveUtilization> {
+  return authFetch(token, '/reports/preview/leave-utilization');
+}
+
+export function getReportsPreviewHoursOvertime(token: string): Promise<ReportsPreviewHoursOvertime> {
+  return authFetch(token, '/reports/preview/hours-overtime');
+}
+
+export function getReportsPreviewOfficeWallEngagement(token: string): Promise<ReportsPreviewOfficeWallEngagement> {
+  return authFetch(token, '/reports/preview/office-wall-engagement');
+}
+
+export function getReportsPreviewAppraisalCycleStatus(token: string): Promise<ReportsPreviewAppraisalCycleStatus> {
+  return authFetch(token, '/reports/preview/appraisal-cycle-status');
+}
+
+export function getReportsPreviewAssetInventory(token: string): Promise<ReportsPreviewAssetInventory> {
+  return authFetch(token, '/reports/preview/asset-inventory');
 }
 
 // --- Staffing Sandbox ---
@@ -1704,4 +1882,154 @@ export function submitPulseSurveyResponse(
   answers: PulseAnswerInput[],
 ): Promise<{ success: boolean; updated: boolean }> {
   return authFetch(token, `/pulse-surveys/${id}/responses`, { method: 'POST', body: JSON.stringify({ answers }) });
+}
+
+// --- Admin Center ---
+
+export function getAdminSettings(token: string): Promise<AdminSettings> {
+  return authFetch(token, '/admin-center/settings');
+}
+export function updateAdminSettings(token: string, data: Partial<AdminSettings>): Promise<AdminSettings> {
+  return authFetch(token, '/admin-center/settings', { method: 'PATCH', body: JSON.stringify(data) });
+}
+
+export interface AuditLogFilters {
+  user?: string;
+  module?: string;
+  action?: string;
+  from?: string;
+  to?: string;
+}
+function auditLogQuery(filters: AuditLogFilters): string {
+  const params = new URLSearchParams();
+  if (filters.user) params.set('user', filters.user);
+  if (filters.module) params.set('module', filters.module);
+  if (filters.action) params.set('action', filters.action);
+  if (filters.from) params.set('from', filters.from);
+  if (filters.to) params.set('to', filters.to);
+  const qs = params.toString();
+  return qs ? `?${qs}` : '';
+}
+export function getAuditLogs(token: string, filters: AuditLogFilters = {}): Promise<AuditLogEntry[]> {
+  return authFetch(token, `/admin-center/audit-logs${auditLogQuery(filters)}`);
+}
+export function exportAuditLogsCsv(token: string, filters: AuditLogFilters = {}): Promise<{ csv: string }> {
+  return authFetch(token, `/admin-center/audit-logs/export${auditLogQuery(filters)}`);
+}
+
+export function getSystemHealth(token: string): Promise<SystemHealth> {
+  return authFetch(token, '/admin-center/system-health');
+}
+// Real full-database file download -- replaces the old partial JSON export
+// (see AdminService.getBackupFile's comment for why). authFetch can't be
+// used here: it always expects a JSON response, but this one is the raw
+// database file, so this does its own fetch + Blob download instead.
+export async function downloadBackup(token: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/admin-center/backup/download`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ message: `Backup failed (${res.status})` }));
+    throw new Error(err.message || 'Backup failed');
+  }
+  const blob = await res.blob();
+  const disposition = res.headers.get('Content-Disposition') || '';
+  const match = disposition.match(/filename="?([^"\n]+)"?/);
+  const filename = match ? match[1] : `mitrahr-backup-${new Date().toISOString().slice(0, 10)}.db`;
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+// Uploads a .db backup file to actually replace the live database -- see
+// AdminService.restoreBackupFile for the safety checks (magic bytes,
+// schema-migration compatibility) that run before anything is touched.
+// Goes through xhrUpload (same helper the document-upload forms use) so the
+// restore confirmation UI can show real upload progress for what may be a
+// multi-megabyte file.
+export function restoreBackup(
+  token: string,
+  file: File,
+  onProgress?: (pct: number) => void,
+): Promise<{ ok: true; restoredAt: string }> {
+  const formData = new FormData();
+  formData.append('file', file);
+  return xhrUpload(`${API_BASE}/admin-center/backup/restore`, token, formData, onProgress);
+}
+
+export function getLiveActivity(token: string): Promise<LiveActivity> {
+  return authFetch(token, '/admin-center/sessions');
+}
+export function forceEndSession(token: string, id: string): Promise<LiveActivity> {
+  return authFetch(token, `/admin-center/sessions/${id}/force-end`, { method: 'POST' });
+}
+// --- Office Wall ---
+
+export function getOfficeWallFeed(token: string, params?: { category?: string; hashtag?: string }): Promise<OfficeWallPost[]> {
+  const query = new URLSearchParams();
+  if (params?.category) query.set('category', params.category);
+  if (params?.hashtag) query.set('hashtag', params.hashtag);
+  const qs = query.toString();
+  return authFetch(token, `/office-wall/posts${qs ? `?${qs}` : ''}`);
+}
+
+export function createOfficeWallPost(
+  token: string,
+  input: { body: string; category: string; taggedEmployeeId?: string; mentionedEmployeeIds?: string[] },
+): Promise<OfficeWallPost> {
+  return authFetch(token, '/office-wall/posts', { method: 'POST', body: JSON.stringify(input) });
+}
+
+export function deleteOfficeWallPost(token: string, id: string) {
+  return authFetch(token, `/office-wall/posts/${id}`, { method: 'DELETE' });
+}
+
+// One photo per call, same convention as uploadLeaveAttachment -- the
+// composer calls this once per selected image to build up the gallery.
+export async function addOfficeWallMedia(token: string, postId: string, file: File): Promise<OfficeWallPost['media']> {
+  const formData = new FormData();
+  formData.append('file', file);
+  const res = await fetch(`${API_BASE}/office-wall/posts/${postId}/media`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: formData,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ message: 'Photo upload failed' }));
+    throw new Error(err.message || 'Photo upload failed');
+  }
+  return res.json();
+}
+
+export function addOfficeWallReaction(token: string, postId: string, reactionType: string) {
+  return authFetch(token, `/office-wall/posts/${postId}/reactions`, { method: 'POST', body: JSON.stringify({ reactionType }) });
+}
+
+export function removeOfficeWallReaction(token: string, postId: string, reactionType: string) {
+  return authFetch(token, `/office-wall/posts/${postId}/reactions/${reactionType}`, { method: 'DELETE' });
+}
+
+export function getOfficeWallComments(token: string, postId: string): Promise<OfficeWallComment[]> {
+  return authFetch(token, `/office-wall/posts/${postId}/comments`);
+}
+
+export function addOfficeWallComment(token: string, postId: string, body: string): Promise<OfficeWallComment> {
+  return authFetch(token, `/office-wall/posts/${postId}/comments`, { method: 'POST', body: JSON.stringify({ body }) });
+}
+
+export function deleteOfficeWallComment(token: string, commentId: string) {
+  return authFetch(token, `/office-wall/comments/${commentId}`, { method: 'DELETE' });
+}
+
+export function shareOfficeWallPost(token: string, postId: string, toEmployeeId: string) {
+  return authFetch(token, `/office-wall/posts/${postId}/share`, { method: 'POST', body: JSON.stringify({ toEmployeeId }) });
+}
+
+export function getOfficeWallOnline(token: string): Promise<OfficeWallPresenceEntry[]> {
+  return authFetch(token, '/office-wall/online');
 }

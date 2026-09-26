@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useAutoRefresh } from '../hooks/useAutoRefresh';
 import {
@@ -27,6 +27,15 @@ const STATUS_STYLES: Record<string, string> = {
 interface Props {
   employeeId: string;
   title?: string;
+  // When this panel is embedded on a page that renders the balance cards
+  // separately (see MyLeaveBalanceCards), hide the panel's own copy so
+  // "My Leaves" doesn't appear twice.
+  hideBalances?: boolean;
+  // Bumping this (new object identity, e.g. { id, nonce: Date.now() })
+  // pre-selects that leave type on the Request Leaves form and scrolls it
+  // into view -- how a balance card click elsewhere on the page lands the
+  // admin here ready to act, even on a repeat click of the same type.
+  prefillLeaveType?: { id: string; nonce: number } | null;
 }
 
 interface CardStyle {
@@ -117,7 +126,7 @@ const FALLBACK_CARD_STYLES: CardStyle[] = [
   },
 ];
 
-function cardStyleFor(code: string | null | undefined, fallbackIndex: number): CardStyle {
+export function cardStyleFor(code: string | null | undefined, fallbackIndex: number): CardStyle {
   if (code && CARD_STYLE_BY_CODE[code]) return CARD_STYLE_BY_CODE[code];
   return FALLBACK_CARD_STYLES[fallbackIndex % FALLBACK_CARD_STYLES.length];
 }
@@ -125,22 +134,29 @@ function cardStyleFor(code: string | null | undefined, fallbackIndex: number): C
 // Collapsed behind "show more" by default — see the comment on
 // CARD_STYLE_BY_CODE above for why this is a code-based toggle rather than
 // a gender-based filter.
-const GENDER_SPECIFIC_CODES = new Set(['MATERNITY', 'PATERNITY']);
+export const GENDER_SPECIFIC_CODES = new Set(['MATERNITY', 'PATERNITY']);
 
 const inputClass =
   'w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-mitra-accentFrom/20 focus:border-mitra-accentFrom transition-colors';
 
-function LeaveBalanceCard({ balance, style }: { balance: LeaveBalance; style: CardStyle }) {
+// `compact` is the tighter sizing used everywhere "My Leaves" now renders
+// (both here and in the standalone MyLeaveBalanceCards grid) so all of an
+// employee's leave-type cards fit on one row instead of wrapping.
+export function LeaveBalanceCard({ balance, style, compact }: { balance: LeaveBalance; style: CardStyle; compact?: boolean }) {
   const pct =
     balance.remaining != null && balance.accrued
       ? Math.max(0, Math.min(100, (balance.remaining / balance.accrued) * 100))
       : null;
   return (
-    <div className={`relative overflow-hidden rounded-2xl border ${style.border} ${style.bg} p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.6)]`}>
-      <p className={`text-xs font-medium ${style.label}`}>{balance.leaveTypeName}</p>
+    <div
+      className={`relative overflow-hidden rounded-2xl border ${style.border} ${style.bg} ${
+        compact ? 'p-3' : 'p-4'
+      } shadow-[inset_0_1px_0_rgba(255,255,255,0.6)]`}
+    >
+      <p className={`text-xs font-medium ${style.label} truncate`}>{balance.leaveTypeName}</p>
       <div className="flex items-baseline gap-1.5 mt-1">
-        <p className={`text-3xl font-bold ${style.value}`}>{balance.remaining == null ? '—' : balance.remaining}</p>
-        {balance.remaining != null && <span className={`text-xs ${style.sub}`}>/ {balance.accrued} days</span>}
+        <p className={`${compact ? 'text-2xl' : 'text-3xl'} font-bold ${style.value}`}>{balance.remaining == null ? '—' : balance.remaining}</p>
+        {balance.remaining != null && <span className={`text-[11px] ${style.sub}`}>/ {balance.accrued} days</span>}
       </div>
       <p className={`text-[11px] ${style.sub} mt-1`}>{balance.remaining == null ? 'Unlimited' : `${balance.used} used`}</p>
       {pct != null && (
@@ -149,7 +165,7 @@ function LeaveBalanceCard({ balance, style }: { balance: LeaveBalance; style: Ca
           aria-valuenow={pct}
           aria-valuemin={0}
           aria-valuemax={100}
-          className="mt-2.5 h-1.5 rounded-full bg-white/60 overflow-hidden shadow-inner"
+          className="mt-2 h-1.5 rounded-full bg-white/60 overflow-hidden shadow-inner"
         >
           <div className={`h-full rounded-full ${style.bar} shadow-[inset_0_1px_0_rgba(255,255,255,0.5)]`} style={{ width: `${pct}%` }} />
         </div>
@@ -169,7 +185,7 @@ function accrualDescription(lt: LeaveType) {
 // tracking, policy reference, and history with cancel. Used both as the OTP
 // employee's own page and, embedded, as an Admin's personal leave section
 // when their User account is linked to an Employee record.
-export default function MyLeavePanel({ employeeId, title = 'My Leaves' }: Props) {
+export default function MyLeavePanel({ employeeId, title = 'My Leaves', hideBalances, prefillLeaveType }: Props) {
   const { token } = useAuth();
   const [balances, setBalances] = useState<LeaveBalance[]>([]);
   const [requests, setRequests] = useState<LeaveRequest[]>([]);
@@ -183,6 +199,7 @@ export default function MyLeavePanel({ employeeId, title = 'My Leaves' }: Props)
   const [attachFile, setAttachFile] = useState<File | null>(null);
   const [attachingId, setAttachingId] = useState<string | null>(null);
   const [showAllLeaveTypes, setShowAllLeaveTypes] = useState(false);
+  const requestFormRef = useRef<HTMLDivElement>(null);
 
   const [compOffForm, setCompOffForm] = useState({ workedDate: '', reason: '', daysEarned: '1' });
   const [compOffSubmitting, setCompOffSubmitting] = useState(false);
@@ -209,6 +226,14 @@ export default function MyLeavePanel({ employeeId, title = 'My Leaves' }: Props)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(load, [token, employeeId]);
   useAutoRefresh(load);
+
+  useEffect(() => {
+    if (!prefillLeaveType) return;
+    setEditingId(null);
+    setForm((f) => ({ ...f, leaveTypeId: prefillLeaveType.id }));
+    requestFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefillLeaveType]);
 
   const primaryBalances = useMemo(() => balances.filter((b) => !GENDER_SPECIFIC_CODES.has(b.leaveTypeCode || '')), [balances]);
   const secondaryBalances = useMemo(() => balances.filter((b) => GENDER_SPECIFIC_CODES.has(b.leaveTypeCode || '')), [balances]);
@@ -313,37 +338,43 @@ export default function MyLeavePanel({ employeeId, title = 'My Leaves' }: Props)
     <div className="space-y-6">
       <h2 className="text-2xl font-semibold text-slate-800">{title}</h2>
 
-      {loading ? (
-        <p className="text-slate-500 text-sm">Loading...</p>
-      ) : (
-        <div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {primaryBalances.map((b, i) => (
-              <LeaveBalanceCard key={b.leaveTypeId} balance={b} style={cardStyleFor(b.leaveTypeCode, i)} />
-            ))}
-            {showAllLeaveTypes &&
-              secondaryBalances.map((b, i) => (
-                <LeaveBalanceCard key={b.leaveTypeId} balance={b} style={cardStyleFor(b.leaveTypeCode, primaryBalances.length + i)} />
+      {!hideBalances &&
+        (loading ? (
+          <p className="text-slate-500 text-sm">Loading...</p>
+        ) : (
+          <div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+              {primaryBalances.map((b, i) => (
+                <LeaveBalanceCard key={b.leaveTypeId} balance={b} style={cardStyleFor(b.leaveTypeCode, i)} compact />
               ))}
+              {showAllLeaveTypes &&
+                secondaryBalances.map((b, i) => (
+                  <LeaveBalanceCard
+                    key={b.leaveTypeId}
+                    balance={b}
+                    style={cardStyleFor(b.leaveTypeCode, primaryBalances.length + i)}
+                    compact
+                  />
+                ))}
+            </div>
+            {secondaryBalances.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowAllLeaveTypes((v) => !v)}
+                className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-slate-500 hover:text-mitra-accentFrom"
+              >
+                <ChevronDownIcon className={`w-3.5 h-3.5 transition-transform ${showAllLeaveTypes ? 'rotate-180' : ''}`} />
+                {showAllLeaveTypes
+                  ? 'Show fewer leave types'
+                  : `Show ${secondaryBalances.length} more leave type${secondaryBalances.length === 1 ? '' : 's'}`}
+              </button>
+            )}
           </div>
-          {secondaryBalances.length > 0 && (
-            <button
-              type="button"
-              onClick={() => setShowAllLeaveTypes((v) => !v)}
-              className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-slate-500 hover:text-mitra-accentFrom"
-            >
-              <ChevronDownIcon className={`w-3.5 h-3.5 transition-transform ${showAllLeaveTypes ? 'rotate-180' : ''}`} />
-              {showAllLeaveTypes
-                ? 'Show fewer leave types'
-                : `Show ${secondaryBalances.length} more leave type${secondaryBalances.length === 1 ? '' : 's'}`}
-            </button>
-          )}
-        </div>
-      )}
+        ))}
 
       {error && <div className="text-sm text-red-600">{error}</div>}
 
-      <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-6">
+      <div ref={requestFormRef} className="bg-white border border-slate-200 rounded-2xl shadow-sm p-6 scroll-mt-6">
         <h3 className="text-sm font-semibold text-slate-800 mb-4">{editingId ? 'Edit Leave Request' : 'Request Leaves'}</h3>
         <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-5">
           <div>

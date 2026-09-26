@@ -37,6 +37,16 @@ export class NotificationsService {
     return this.create('EMPLOYEE', employeeId, { ...input, link: input.employeeLink });
   }
 
+  // Notifies a session kind+id directly, bypassing the
+  // employee-record-resolution notifyEmployee does -- for events tied to
+  // the SESSION itself rather than an employee (right now: AuthService's
+  // new-sign-in alert, which needs to reach whichever exact account (a
+  // pure STAFF login with no linked Employee, or an EMPLOYEE) just signed
+  // in, not "whichever session that employee would read this as").
+  notifySelf(kind: 'STAFF' | 'EMPLOYEE', id: string, input: CreateNotificationInput) {
+    return this.create(kind, id, input);
+  }
+
   async notifyAllStaff(input: CreateNotificationInput) {
     const staff = await this.prisma.user.findMany({ select: { id: true } });
     if (staff.length === 0) return;

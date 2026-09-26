@@ -13,8 +13,8 @@ export class ReportsController {
   constructor(private reportsService: ReportsService) {}
 
   @Get('dashboard-summary')
-  dashboardSummary() {
-    return this.reportsService.dashboardSummary();
+  dashboardSummary(@Query('range') range?: 'month' | 'quarter' | 'year') {
+    return this.reportsService.dashboardSummary(range);
   }
 
   @Get('absenteeism')
@@ -118,5 +118,33 @@ export class ReportsController {
   @Get('preview/performance-engagement')
   previewPerformanceEngagement() {
     return this.reportsService.previewPerformanceEngagement();
+  }
+
+  // --- Reports audit additions: Leave Utilization, Hours & Overtime,
+  // Office Wall Engagement, Appraisal Cycle Status, Asset Inventory ---
+
+  @Get('preview/leave-utilization')
+  previewLeaveUtilization() {
+    return this.reportsService.previewLeaveUtilization();
+  }
+
+  @Get('preview/hours-overtime')
+  previewHoursOvertime() {
+    return this.reportsService.previewHoursOvertime();
+  }
+
+  @Get('preview/office-wall-engagement')
+  previewOfficeWallEngagement() {
+    return this.reportsService.previewOfficeWallEngagement();
+  }
+
+  @Get('preview/appraisal-cycle-status')
+  previewAppraisalCycleStatus() {
+    return this.reportsService.previewAppraisalCycleStatus();
+  }
+
+  @Get('preview/asset-inventory')
+  previewAssetInventory() {
+    return this.reportsService.previewAssetInventory();
   }
 }

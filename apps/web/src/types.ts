@@ -418,10 +418,32 @@ export interface AttendanceSettings {
   updatedAt: string;
 }
 
+export type DashboardRange = 'month' | 'quarter' | 'year';
+
+export interface DashboardAttendanceTrendPoint {
+  date: string;
+  present: number;
+  onLeave: number;
+}
+
+export interface DashboardDepartmentSlice {
+  name: string;
+  count: number;
+}
+
+export interface DashboardProjectUtilization {
+  id: string;
+  name: string;
+  utilizationPercent: number;
+  assignedCount: number;
+}
+
 export interface DashboardSummary {
+  range: DashboardRange;
   headcount: number;
   newJoinersThisMonth: number;
   leaveDaysThisMonth: number;
+  onLeaveToday: number;
   activeProjects: number;
   utilizationSummary: {
     total: number;
@@ -435,6 +457,9 @@ export interface DashboardSummary {
   trainingCompletionPercent: number;
   quizAttemptsTotal: number;
   quizPassRatePercent: number;
+  departmentBreakdown: DashboardDepartmentSlice[];
+  projectUtilization: DashboardProjectUtilization[];
+  attendanceTrend: DashboardAttendanceTrendPoint[];
 }
 
 export interface AbsenteeismRow {
@@ -497,6 +522,7 @@ export interface ReportsPreviewAttendanceLedgerRow {
   id: string;
   name: string;
   department: string;
+  employmentType: string;
   date: string;
   checkIn: string;
   checkOut: string;
@@ -520,6 +546,7 @@ export interface ReportsPreviewAttendanceTimelinessRow {
   id: string;
   name: string;
   department: string;
+  employmentType: string;
   earlyDays: number;
   onTimeDays: number;
   lateDays: number;
@@ -573,6 +600,7 @@ export interface ReportsPreviewTenureMobilityRow {
   id: string;
   name: string;
   department: string;
+  employmentType: string;
   designation: string;
   joinDate: string;
   tenureBucket: ReportsPreviewTenureBucket;
@@ -613,6 +641,124 @@ export interface ReportsPreviewComplianceRow {
   itemType: string;
   status: ReportsPreviewComplianceStatus;
   dueDate: string;
+}
+
+// --- Reports audit additions (Leave Utilization, Hours & Overtime,
+// Office Wall Engagement, Appraisal Cycle Status, Asset Inventory) ---
+
+export interface ReportsPreviewLeaveTypeSlice {
+  type: string;
+  totalDays: number;
+  requestCount: number;
+}
+
+export interface ReportsPreviewLeaveMonthPoint {
+  month: string;
+  byType: Record<string, number>;
+}
+
+export interface ReportsPreviewLeaveRow {
+  id: string;
+  name: string;
+  department: string;
+  leaveType: string;
+  startDate: string;
+  endDate: string;
+  totalDays: number;
+}
+
+export interface ReportsPreviewLeaveUtilization {
+  types: ReportsPreviewLeaveTypeSlice[];
+  monthly: ReportsPreviewLeaveMonthPoint[];
+  rows: ReportsPreviewLeaveRow[];
+}
+
+export interface ReportsPreviewHoursRow {
+  id: string;
+  name: string;
+  department: string;
+  daysLogged: number;
+  avgHoursPerDay: number;
+}
+
+export interface ReportsPreviewCompOffRow {
+  id: string;
+  name: string;
+  department: string;
+  workedDate: string;
+  daysEarned: number;
+  status: string;
+  reason: string;
+}
+
+export interface ReportsPreviewHoursOvertime {
+  windowDays: number;
+  companyAvgHoursPerDay: number | null;
+  employeesWithLoggedHours: number;
+  rows: ReportsPreviewHoursRow[];
+  overtime: {
+    windowDays: number;
+    approvedInstances: number;
+    totalDaysEarned: number;
+    pendingApprovalCount: number;
+    rows: ReportsPreviewCompOffRow[];
+  };
+}
+
+export interface ReportsPreviewOfficeWallContributor {
+  id: string;
+  name: string;
+  department: string;
+  posts: number;
+  likesReceived: number;
+  commentsReceived: number;
+}
+
+export interface ReportsPreviewOfficeWallEngagement {
+  windowDays: number;
+  totalPosts: number;
+  totalLikes: number;
+  totalComments: number;
+  activeParticipants: number;
+  engagementRatePercent: number;
+  weeklyTrend: { weekOf: string; posts: number }[];
+  topContributors: ReportsPreviewOfficeWallContributor[];
+  byCategory: { category: string; count: number }[];
+}
+
+export interface ReportsPreviewAppraisalRow {
+  id: string;
+  name: string;
+  department: string;
+  cycleLabel: string;
+  dueDate: string;
+  status: string;
+}
+
+export interface ReportsPreviewAppraisalCycleStatus {
+  statusCounts: Record<string, number>;
+  goalStatusCounts: { status: string; count: number }[];
+  ratingDistribution: { rating: number; count: number }[];
+  ratingsSubmittedCount: number;
+  rows: ReportsPreviewAppraisalRow[];
+}
+
+export interface ReportsPreviewAssetRow {
+  id: string;
+  assetTag: string;
+  name: string;
+  category: string;
+  status: string;
+  assignedTo: string;
+  purchaseDate: string;
+}
+
+export interface ReportsPreviewAssetInventory {
+  totalAssets: number;
+  unassignedCount: number;
+  byCategory: { category: string; count: number }[];
+  byStatus: { status: string; count: number }[];
+  rows: ReportsPreviewAssetRow[];
 }
 
 export interface SandboxEmployeeCard {
@@ -943,7 +1089,9 @@ export interface AssetAssignment {
 
 export type NotificationType =
   | 'LEAVE_SUBMITTED'
+  | 'LEAVE_EDITED'
   | 'LEAVE_DECIDED'
+  | 'LEAVE_CANCELLED'
   | 'COMP_OFF_SUBMITTED'
   | 'COMP_OFF_DECIDED'
   | 'TRAINING_ASSIGNED'
@@ -951,9 +1099,31 @@ export type NotificationType =
   | 'PROJECT_ASSIGNMENT_ENDED'
   | 'ASSET_ASSIGNED'
   | 'DOCUMENT_EXPIRING'
+  | 'CONTRACT_EXPIRING'
+  | 'ACCESS_REVOCATION_DUE'
+  | 'EXIT_INITIATED'
+  | 'EXIT_COMPLETED'
+  | 'APPRAISAL_DUE'
+  | 'APPRAISAL_SUBMITTED'
+  | 'APPRAISAL_FINALIZED'
+  | 'QUIZ_RESULT'
   | 'BIRTHDAY'
   | 'RECOGNITION_RECEIVED'
-  | 'PULSE_SURVEY_LAUNCHED';
+  | 'PULSE_SURVEY_LAUNCHED'
+  // New sign-in alert -- see AuthService.startSession. Only fires when the
+  // account already has another active session at the moment of the new
+  // login (i.e. someone/something signed in while you were already using
+  // it elsewhere) -- not on every ordinary daily login, which would just
+  // be a toast telling you about the login you're currently doing.
+  | 'NEW_LOGIN'
+  // Office Wall (see office-wall.service.ts) -- a new post toasts everyone
+  // currently online, a tag/@mention notifies whoever was named, and a
+  // like/comment notifies the post's author.
+  | 'OFFICE_WALL_POST'
+  | 'OFFICE_WALL_MENTION'
+  | 'OFFICE_WALL_LIKE'
+  | 'OFFICE_WALL_COMMENT'
+  | 'OFFICE_WALL_SHARE';
 
 export interface AppNotification {
   id: string;
@@ -1808,4 +1978,236 @@ export interface DocumentTypeItem {
   active: boolean;
   usageCount?: number;
   usageLabel?: string;
+}
+
+// --- Semi-annual Self-Appraisal & Compensation Review -----------------
+
+export interface AppraisalCriterion {
+  id: string;
+  name: string;
+  description?: string | null;
+  weight: number;
+  sortOrder: number;
+  active: boolean;
+  // Present on the Master Data list response: how many AppraisalCriterionScore
+  // rows reference this criterion, mirroring every other lookup's usage badge.
+  usageCount?: number;
+  usageLabel?: string;
+}
+
+export type AppraisalStatus = 'PENDING_EMPLOYEE' | 'UNDER_MANAGER_REVIEW' | 'COMPLETED';
+
+export interface AppraisalCriterionEntry {
+  criterionId: string;
+  name: string;
+  description?: string | null;
+  weight: number;
+  selfRating: number | null;
+  selfComment?: string | null;
+  managerRating: number | null;
+  managerComment?: string | null;
+}
+
+export interface AppraisalEmployeeCard {
+  id: string;
+  fullName: string;
+  email: string;
+  photoUrl?: string | null;
+  employeeCode?: string | null;
+  currentCTC?: number | null;
+  dateOfJoining?: string | null;
+  department?: { name: string } | null;
+  designation?: { name: string } | null;
+}
+
+// Shape returned to the employee themselves (my-performance).
+export interface MyAppraisal {
+  id: string;
+  cycleNumber: number;
+  cycleLabel: string;
+  dueDate: string;
+  status: AppraisalStatus;
+  emailSentAt?: string | null;
+  selfSubmittedAt?: string | null;
+  selfWeightedScore: number | null;
+  managerWeightedScore: number | null;
+  currentCTC: number | null;
+  incrementPercent: number | null;
+  incrementAmount: number | null;
+  revisedCTC: number | null;
+  effectiveDate: string | null;
+  finalizedAt?: string | null;
+  careerGoals?: string | null;
+  managementSupport?: string | null;
+  certifications?: string | null;
+  skillsAcquired: { id: string; name: string }[];
+  criteria: AppraisalCriterionEntry[];
+}
+
+// Shape returned to admins (dashboard row + full review detail).
+export interface AdminAppraisalRow {
+  id: string;
+  employee: AppraisalEmployeeCard;
+  cycleNumber: number;
+  cycleLabel: string;
+  dueDate: string;
+  status: AppraisalStatus;
+  emailSentAt?: string | null;
+  selfSubmittedAt?: string | null;
+  selfWeightedScore: number | null;
+  managerWeightedScore: number | null;
+  revisedCTC: number | null;
+}
+
+export interface AdminAppraisalDetail extends AdminAppraisalRow {
+  careerGoals?: string | null;
+  managementSupport?: string | null;
+  certifications?: string | null;
+  skillsAcquired: { id: string; name: string }[];
+  managerReviewedByName?: string | null;
+  managerReviewedAt?: string | null;
+  finalizedByName?: string | null;
+  finalizedAt?: string | null;
+  currentCTC: number | null;
+  incrementPercent: number | null;
+  incrementAmount: number | null;
+  effectiveDate: string | null;
+  criteria: AppraisalCriterionEntry[];
+}
+
+// --- Admin Center ---
+// See AdminSettings model comment (apps/api/prisma/schema.prisma) for
+// which of these fields are actually enforced vs. policy-only today.
+export interface AdminSettings {
+  enforceMfaForAdmins: boolean;
+  passwordExpiryDays: number;
+  sessionIdleTimeoutMin: number;
+  ipWhitelist: string;
+  appraisalEmailEnabled: boolean;
+  assetAssignmentNoticeEnabled: boolean;
+  documentExpiryAlertEnabled: boolean;
+  appraisalEmailSubjectTemplate?: string | null;
+  appraisalEmailBodyTemplate?: string | null;
+  backupSchedule: 'NONE' | 'DAILY' | 'WEEKLY';
+  lastBackupAt?: string | null;
+}
+
+export type AuditSeverity = 'INFO' | 'WARNING' | 'CRITICAL';
+
+export interface AuditLogEntry {
+  id: string;
+  createdAt: string;
+  userId?: string | null;
+  userName: string;
+  userEmail: string;
+  module: string;
+  action: string;
+  description: string;
+  severity: AuditSeverity;
+  ipAddress?: string | null;
+}
+
+export interface SystemHealth {
+  employeeCount: number;
+  adminCount: number;
+  auditLogCount: number;
+  dbSizeBytes: number | null;
+  recentLogins24h: number;
+  backupSchedule: 'NONE' | 'DAILY' | 'WEEKLY';
+  lastBackupAt?: string | null;
+}
+
+// Live User Activity (Data & System Health) -- real per-login sessions, see
+// UserSession's model comment (apps/api/prisma/schema.prisma).
+export type LiveSessionStatus = 'ACTIVE' | 'AWAY' | 'LOGGED_OUT';
+
+export interface LiveSessionEntry {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  userKind: 'STAFF' | 'EMPLOYEE';
+  status: LiveSessionStatus;
+  statusLabel: string;
+  ipAddress: string | null;
+  device: string;
+  loginAt: string;
+  lastSeenAt: string;
+  durationLabel: string;
+  canForceEnd: boolean;
+}
+
+export interface LiveActivity {
+  summary: {
+    activeCount: number;
+    awayCount: number;
+    loggedOutCount24h: number;
+    awayThresholdMin: number;
+  };
+  sessions: LiveSessionEntry[];
+}
+// --- Office Wall: a free-form internal social feed (see
+// office-wall.service.ts for how it differs from Announcements/Recognition) ---
+
+export const OFFICE_WALL_CATEGORIES = ['GENERAL', 'SHOUTOUT', 'MILESTONE', 'ANNOUNCEMENT', 'EVENT'] as const;
+export type OfficeWallCategory = (typeof OFFICE_WALL_CATEGORIES)[number];
+
+export const OFFICE_WALL_REACTION_TYPES = ['LIKE', 'HEART', 'CELEBRATE', 'HANDS_UP'] as const;
+export type OfficeWallReactionType = (typeof OFFICE_WALL_REACTION_TYPES)[number];
+
+export interface OfficeWallPersonRef {
+  id: string;
+  fullName: string;
+  employeeCode?: string | null;
+  photoUrl?: string | null;
+  department?: { name: string } | null;
+  designation?: { name: string } | null;
+  online?: boolean;
+}
+
+export interface OfficeWallMedia {
+  id: string;
+  url: string;
+  fileName: string;
+}
+
+export interface OfficeWallReactionCount {
+  type: OfficeWallReactionType;
+  count: number;
+}
+
+export interface OfficeWallMentionRef {
+  id: string;
+  fullName: string;
+}
+
+export interface OfficeWallPost {
+  id: string;
+  author: OfficeWallPersonRef;
+  body: string;
+  category: OfficeWallCategory | string;
+  taggedEmployee?: OfficeWallPersonRef | null;
+  media: OfficeWallMedia[];
+  mentions: OfficeWallMentionRef[];
+  createdAt: string;
+  reactions: OfficeWallReactionCount[];
+  myReactions: string[];
+  commentCount: number;
+  canDelete: boolean;
+}
+
+export interface OfficeWallComment {
+  id: string;
+  postId: string;
+  body: string;
+  createdAt: string;
+  employee: { id: string; fullName: string; photoUrl?: string | null };
+}
+
+export interface OfficeWallPresenceEntry {
+  id: string;
+  fullName: string;
+  photoUrl: string | null;
+  department: string | null;
+  designation: string | null;
 }

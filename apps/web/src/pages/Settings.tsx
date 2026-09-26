@@ -1,11 +1,12 @@
 import { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import LookupManager from '../components/LookupManager';
-import AdminManager from '../components/AdminManager';
 import LeaveTypeManager from '../components/LeaveTypeManager';
 import HolidayManager from '../components/HolidayManager';
 import TechnologyManager from '../components/TechnologyManager';
 import TrainingCatalogManager from '../components/TrainingCatalogManager';
 import MasterDataAssessmentsManager from '../components/MasterDataAssessmentsManager';
+import AppraisalCriteriaManager from '../components/AppraisalCriteriaManager';
 import AssetCategoryManager from '../components/AssetCategoryManager';
 import Tabs3D, { Tab3DItem } from '../components/Tabs3D';
 import {
@@ -18,7 +19,6 @@ import {
   GraduationCapIcon,
   MapPinIcon,
   SearchIcon,
-  ShieldIcon,
   TagIcon,
 } from '../components/icons';
 import {
@@ -62,24 +62,24 @@ import {
 type TabKey =
   | 'organization'
   | 'skills'
+  | 'appraisal-criteria'
   | 'technologies'
   | 'training-catalog'
   | 'assessments'
   | 'clients-hiring'
   | 'leave-policy'
-  | 'admins'
   | 'assets-docs'
   | 'locations';
 
 const TABS: Tab3DItem<TabKey>[] = [
   { key: 'organization', label: 'Organization', color: 'indigo', icon: BuildingIcon },
   { key: 'skills', label: 'Skills', color: 'emerald', icon: TagIcon },
+  { key: 'appraisal-criteria', label: 'Appraisal Criteria', color: 'amber', icon: AwardIcon },
   { key: 'technologies', label: 'Technologies', color: 'sky', icon: DatabaseIcon },
   { key: 'training-catalog', label: 'Training Catalog', color: 'fuchsia', icon: GraduationCapIcon },
   { key: 'assessments', label: 'Assessments', color: 'cyan', icon: AwardIcon },
   { key: 'clients-hiring', label: 'Clients & Hiring', color: 'lime', icon: BriefcaseIcon },
   { key: 'leave-policy', label: 'Leave Policy', color: 'amber', icon: CalendarCheckIcon },
-  { key: 'admins', label: 'Admins', color: 'rose', icon: ShieldIcon },
   { key: 'assets-docs', label: 'Assets & Docs', color: 'violet', icon: FolderIcon },
   { key: 'locations', label: 'Locations', color: 'slate', icon: MapPinIcon },
 ];
@@ -124,13 +124,33 @@ function updateCandidateSourceLookup(token: string, id: string, name: string) {
   return updateCandidateSource(token, id, { name });
 }
 
+const TAB_KEYS = new Set<TabKey>([
+  'organization',
+  'skills',
+  'appraisal-criteria',
+  'technologies',
+  'training-catalog',
+  'assessments',
+  'clients-hiring',
+  'leave-policy',
+  'assets-docs',
+  'locations',
+]);
+
 export default function Settings() {
-  const [tab, setTab] = useState<TabKey>('organization');
+  // Supports deep-linking straight to a tab -- falls back to Organization
+  // for an absent or unrecognized tab param. The Admins tab that used to
+  // live here moved to the standalone, Administrator-only Admin Center
+  // (see AppLayout's sidebar and App.tsx's /admin-center route).
+  const [searchParams] = useSearchParams();
+  const requestedTab = searchParams.get('tab');
+  const initialTab = requestedTab && TAB_KEYS.has(requestedTab as TabKey) ? (requestedTab as TabKey) : 'organization';
+  const [tab, setTab] = useState<TabKey>(initialTab);
   const [query, setQuery] = useState('');
 
   // A single search box that filters whichever tab is currently open —
-  // "quickly locate any technology, skill, department, or admin" without a
-  // separate index/lookup UI to maintain. Switch tabs and the same text
+  // "quickly locate any technology, skill, department, or location" without
+  // a separate index/lookup UI to maintain. Switch tabs and the same text
   // keeps filtering the new list.
   // Always a string (never undefined) once passed down — this is what lets
   // each manager tell "a parent search box controls me" (hide my own local
@@ -201,6 +221,8 @@ export default function Settings() {
 
       {tab === 'assessments' && <MasterDataAssessmentsManager searchQuery={q} />}
 
+      {tab === 'appraisal-criteria' && <AppraisalCriteriaManager searchQuery={q} />}
+
       {tab === 'clients-hiring' && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <LookupManager
@@ -226,14 +248,8 @@ export default function Settings() {
 
       {tab === 'leave-policy' && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <HolidayManager />
-          <LeaveTypeManager />
-        </div>
-      )}
-
-      {tab === 'admins' && (
-        <div className="max-w-3xl">
-          <AdminManager searchQuery={q} />
+          <HolidayManager searchQuery={q} />
+          <LeaveTypeManager searchQuery={q} />
         </div>
       )}
 

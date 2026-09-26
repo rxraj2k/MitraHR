@@ -18,7 +18,7 @@ export function toggle3dActive(gradient: string, glow = 'shadow-slate-500/40'): 
 }
 
 export const TOGGLE_3D_INACTIVE =
-  'bg-white text-slate-500 border border-slate-200 shadow-sm hover:bg-slate-50 hover:-translate-y-0.5 active:translate-y-0.5 transition-all duration-150 ease-out';
+  'bg-white text-slate-500 border border-slate-200 shadow-sm hover:bg-slate-50 hover:-translate-y-0.5 active:translate-y-0.5 transition-all duration-150 ease-out dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700 dark:hover:bg-slate-700';
 
 // Named gradients for the common category/status hues used across
 // Engagement, Recruitment stages, project categories, etc. — pick one and

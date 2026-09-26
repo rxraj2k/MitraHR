@@ -243,7 +243,10 @@ export class LeaveRequestsService {
     const updated = await this.prisma.leaveRequest.update({
       where: { id },
       data: { status, decidedById, decisionNote, decidedAt: new Date() },
-      include: { leaveType: true, employee: { select: { fullName: true, email: true } } },
+      include: {
+        leaveType: true,
+        employee: { select: { fullName: true, email: true, emailOnLeaveDecision: true } },
+      },
     });
     const verb = status === 'APPROVED' ? 'approved' : 'rejected';
     const dateRange = `${toISODate(updated.startDate)} → ${toISODate(updated.endDate)}`;
@@ -254,15 +257,17 @@ export class LeaveRequestsService {
       employeeLink: '/my-leave',
       staffLink: '/leave',
     });
-    this.mail
-      .sendMail({
-        to: updated.employee.email,
-        subject: `Your leave request has been ${verb}`,
-        text: `Hi ${updated.employee.fullName},\n\nYour ${updated.leaveType.name} request for ${dateRange} has been ${verb}.${
-          decisionNote ? `\n\nNote: ${decisionNote}` : ''
-        }\n\n— MitraHR`,
-      })
-      .catch(() => {});
+    if (updated.employee.emailOnLeaveDecision) {
+      this.mail
+        .sendMail({
+          to: updated.employee.email,
+          subject: `Your leave request has been ${verb}`,
+          text: `Hi ${updated.employee.fullName},\n\nYour ${updated.leaveType.name} request for ${dateRange} has been ${verb}.${
+            decisionNote ? `\n\nNote: ${decisionNote}` : ''
+          }\n\n— MitraHR`,
+        })
+        .catch(() => {});
+    }
     return updated;
   }
 

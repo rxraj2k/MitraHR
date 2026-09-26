@@ -53,14 +53,14 @@ export class AssetsController {
 
   @UseGuards(StaffOnlyGuard)
   @Patch(':id/assign')
-  assign(@Param('id') id: string, @Body() dto: AssignAssetDto) {
-    return this.assetsService.assign(id, dto);
+  assign(@Req() req: any, @Param('id') id: string, @Body() dto: AssignAssetDto) {
+    return this.assetsService.assign(id, dto, req.user);
   }
 
   @UseGuards(StaffOnlyGuard)
   @Patch(':id/return')
-  returnAsset(@Param('id') id: string, @Body() dto: ReturnAssetDto) {
-    return this.assetsService.return(id, dto);
+  returnAsset(@Req() req: any, @Param('id') id: string, @Body() dto: ReturnAssetDto) {
+    return this.assetsService.return(id, dto, req.user);
   }
 
   @UseGuards(StaffOnlyGuard)

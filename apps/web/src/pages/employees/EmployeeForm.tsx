@@ -30,6 +30,52 @@ import {
 } from '../../lib/documentCategories';
 import { DEPLOYMENT_STATUSES, DEPLOYMENT_STATUS_LABELS, EXPERIENCE_LEVELS, EXPERIENCE_LEVEL_LABELS } from '../../lib/talentDirectory';
 
+// Employee photos land straight in the header avatar (44px) and the
+// profile dropdown (64px) via <Avatar object-cover>, so a source photo
+// with an odd aspect ratio (a phone portrait shot, a wide screenshot)
+// gets center-cropped by the browser and can end up showing very few of
+// its pixels -- which reads as "blurry / stretched" even though nothing
+// is technically being upscaled. Cropping to a square client-side, at a
+// fixed high-quality target size, up front means every stored photo is
+// already framed correctly and never depends on whatever aspect ratio
+// the user happened to upload.
+const AVATAR_TARGET_PX = 480;
+const AVATAR_MIN_SOURCE_PX = 200;
+
+async function processPhotoFile(file: File): Promise<{ file: File; lowResWarning: boolean }> {
+  if (!file.type.startsWith('image/') || typeof createImageBitmap !== 'function') {
+    return { file, lowResWarning: false };
+  }
+  try {
+    const bitmap = await createImageBitmap(file);
+    const { width, height } = bitmap;
+    const side = Math.min(width, height);
+    const sx = (width - side) / 2;
+    // Portrait photos (phone selfies, mostly) tend to have the face in the
+    // upper half -- bias the crop up rather than dead-center so it isn't
+    // cut off in the square result.
+    const sy = height > width ? Math.max(0, (height - side) * 0.2) : (height - side) / 2;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = AVATAR_TARGET_PX;
+    canvas.height = AVATAR_TARGET_PX;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return { file, lowResWarning: false };
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(bitmap, sx, sy, side, side, 0, 0, AVATAR_TARGET_PX, AVATAR_TARGET_PX);
+
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.92));
+    if (!blob) return { file, lowResWarning: false };
+    const processed = new File([blob], file.name.replace(/\.[^.]+$/, '') + '.jpg', { type: 'image/jpeg' });
+    return { file: processed, lowResWarning: side < AVATAR_MIN_SOURCE_PX };
+  } catch {
+    // Any decode failure (unsupported format, corrupt file) -- fall back
+    // to uploading exactly what the user picked rather than blocking them.
+    return { file, lowResWarning: false };
+  }
+}
+
 const EMPTY: EmployeeInput = {
   fullName: '',
   email: '',
@@ -76,6 +122,7 @@ export default function EmployeeForm() {
   const [workLocations, setWorkLocations] = useState<LookupItem[]>([]);
   const [allEmployees, setAllEmployees] = useState<Employee[]>([]);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoLowRes, setPhotoLowRes] = useState(false);
   const [existingPhotoUrl, setExistingPhotoUrl] = useState<string | null>(null);
   const [skillRows, setSkillRows] = useState<EmployeeSkillEntry[]>([]);
   const [existingDocuments, setExistingDocuments] = useState<Employee['documents']>([]);
@@ -150,6 +197,17 @@ export default function EmployeeForm() {
 
   function update<K extends keyof EmployeeInput>(key: K, value: EmployeeInput[K]) {
     setForm((f) => ({ ...f, [key]: value }));
+  }
+
+  async function handlePhotoSelected(file: File | null) {
+    if (!file) {
+      setPhotoFile(null);
+      setPhotoLowRes(false);
+      return;
+    }
+    const { file: processed, lowResWarning } = await processPhotoFile(file);
+    setPhotoFile(processed);
+    setPhotoLowRes(lowResWarning);
   }
 
   function addSkillRow() {
@@ -269,7 +327,7 @@ export default function EmployeeForm() {
           <div className="flex items-center gap-4">
             <div className="h-16 w-16 rounded-full bg-slate-100 overflow-hidden flex items-center justify-center text-slate-400 text-xs">
               {previewUrl ? (
-                <img src={previewUrl} alt="Employee" className="h-full w-full object-cover" />
+                <img src={previewUrl} alt="Employee" className="h-full w-full object-cover" style={{ objectPosition: 'center 20%' }} />
               ) : (
                 'No photo'
               )}
@@ -279,9 +337,14 @@ export default function EmployeeForm() {
               <input
                 type="file"
                 accept="image/*"
-                onChange={(e) => setPhotoFile(e.target.files?.[0] || null)}
+                onChange={(e) => handlePhotoSelected(e.target.files?.[0] || null)}
                 className="text-sm"
               />
+              {photoLowRes && (
+                <p className="text-xs text-amber-600 mt-1">
+                  This photo is quite small -- for a crisp avatar, use one at least {AVATAR_MIN_SOURCE_PX}&times;{AVATAR_MIN_SOURCE_PX}px.
+                </p>
+              )}
             </div>
           </div>
 

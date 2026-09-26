@@ -12,6 +12,8 @@ import { LeaveModule } from './leave/leave.module';
 import { AttendanceModule } from './attendance/attendance.module';
 import { CompOffModule } from './comp-off/comp-off.module';
 import { ClientsModule } from './clients/clients.module';
+import { AppraisalsModule } from './appraisals/appraisals.module';
+import { SearchModule } from './search/search.module';
 import { ProjectsModule } from './projects/projects.module';
 import { TechnologiesModule } from './technologies/technologies.module';
 import { UtilizationModule } from './utilization/utilization.module';
@@ -36,6 +38,8 @@ import { DocumentTypesModule } from './document-types/document-types.module';
 import { QuizzesModule } from './quizzes/quizzes.module';
 import { ContractTypesModule } from './contract-types/contract-types.module';
 import { CandidateSourcesModule } from './candidate-sources/candidate-sources.module';
+import { AdminModule } from './admin/admin.module';
+import { OfficeWallModule } from './office-wall/office-wall.module';
 
 @Module({
   imports: [
@@ -53,6 +57,8 @@ import { CandidateSourcesModule } from './candidate-sources/candidate-sources.mo
     AttendanceModule,
     CompOffModule,
     ClientsModule,
+    AppraisalsModule,
+    SearchModule,
     ProjectsModule,
     TechnologiesModule,
     UtilizationModule,
@@ -76,6 +82,8 @@ import { CandidateSourcesModule } from './candidate-sources/candidate-sources.mo
     QuizzesModule,
     ContractTypesModule,
     CandidateSourcesModule,
+    AdminModule,
+    OfficeWallModule,
   ],
 })
 export class AppModule {}

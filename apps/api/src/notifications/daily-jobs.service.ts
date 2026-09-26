@@ -50,7 +50,7 @@ export class DailyJobsService {
     const today = new Date();
     const employees = await this.prisma.employee.findMany({
       where: { status: 'ACTIVE', dateOfBirth: { not: null } },
-      select: { id: true, fullName: true, email: true, dateOfBirth: true },
+      select: { id: true, fullName: true, email: true, dateOfBirth: true, emailOnBirthday: true },
     });
     const birthdayPeople = employees.filter((e) => {
       const dob = e.dateOfBirth as unknown as Date;
@@ -58,11 +58,15 @@ export class DailyJobsService {
     });
     for (const employee of birthdayPeople) {
       const firstName = employee.fullName.split(' ')[0];
-      await this.mail.sendMail({
-        to: employee.email,
-        subject: `Happy Birthday, ${firstName}! 🎂`,
-        text: `Hi ${firstName},\n\nWishing you a very happy birthday from everyone at Offshore Mitra. Have a wonderful day!\n\n— MitraHR`,
-      });
+      // The in-app "everyone sees the cake" bell notification always
+      // fires; only the personal birthday email respects their opt-out.
+      if (employee.emailOnBirthday) {
+        await this.mail.sendMail({
+          to: employee.email,
+          subject: `Happy Birthday, ${firstName}! 🎂`,
+          text: `Hi ${firstName},\n\nWishing you a very happy birthday from everyone at Offshore Mitra. Have a wonderful day!\n\n— MitraHR`,
+        });
+      }
       await this.notifications.notifyEmployee(employee.id, {
         type: 'BIRTHDAY',
         title: `🎂 Happy Birthday, ${firstName}!`,
@@ -77,6 +81,13 @@ export class DailyJobsService {
   }
 
   private async flagExpiringDocuments() {
+    // Admin Center > Automations toggle -- when off, this whole check is
+    // skipped (in-app notification only; there is no email flow for
+    // document expiry today -- see AdminSettings model comment). Missing
+    // settings row defaults to on, matching the field's own DB default.
+    const settings = await this.prisma.adminSettings.findUnique({ where: { id: 'default' } });
+    if (settings?.documentExpiryAlertEnabled === false) return;
+
     const today = new Date();
     const documents = await this.prisma.employeeDocument.findMany({
       where: { expiryDate: { not: null } },
