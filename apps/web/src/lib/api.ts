@@ -94,6 +94,7 @@ import {
   ConvertCandidateInput,
   ContractTypeItem,
   CandidateSourceItem,
+  RoleTrackItem,
   ReviewCycle,
   Goal,
   CheckIn,
@@ -764,6 +765,23 @@ export function updateCandidateSource(
 }
 export function deleteCandidateSource(token: string, id: string): Promise<void> {
   return authFetch(token, `/candidate-sources/${id}`, { method: 'DELETE' });
+}
+
+export function getRoleTracks(token: string): Promise<RoleTrackItem[]> {
+  return authFetch(token, '/role-tracks');
+}
+export function createRoleTrack(token: string, data: { name: string }): Promise<RoleTrackItem> {
+  return authFetch(token, '/role-tracks', { method: 'POST', body: JSON.stringify(data) });
+}
+export function updateRoleTrack(
+  token: string,
+  id: string,
+  data: { name: string; active?: boolean },
+): Promise<RoleTrackItem> {
+  return authFetch(token, `/role-tracks/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+}
+export function deleteRoleTrack(token: string, id: string): Promise<void> {
+  return authFetch(token, `/role-tracks/${id}`, { method: 'DELETE' });
 }
 
 // --- Master Data: Asset Categories & Vendors, Document Types (Assets & Docs tab) ---
@@ -1653,15 +1671,16 @@ export function getCandidate(token: string, id: string): Promise<Candidate> {
 // createClientContract.
 export async function createCandidate(
   token: string,
-  data: { jobOpeningId: string; fullName: string; email: string; phone?: string; source?: string },
+  data: { jobOpeningId: string; fullName: string; email?: string; phone?: string; source?: string; roleTrack?: string },
   resume?: File,
 ): Promise<Candidate> {
   const formData = new FormData();
   formData.append('jobOpeningId', data.jobOpeningId);
   formData.append('fullName', data.fullName);
-  formData.append('email', data.email);
+  if (data.email) formData.append('email', data.email);
   if (data.phone) formData.append('phone', data.phone);
   if (data.source) formData.append('source', data.source);
+  if (data.roleTrack) formData.append('roleTrack', data.roleTrack);
   if (resume) formData.append('resume', resume);
   const res = await fetch(`${API_BASE}/recruitment/candidates`, {
     method: 'POST',

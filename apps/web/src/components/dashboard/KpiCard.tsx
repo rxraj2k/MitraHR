@@ -1,4 +1,5 @@
 import { ReactNode } from 'react';
+import { Link } from 'react-router-dom';
 import MiniSparkline from './MiniSparkline';
 
 // Compact KPI tile for the Home dashboard's summary bar. Each metric type
@@ -9,7 +10,7 @@ import MiniSparkline from './MiniSparkline';
 // fabricated "+N% vs last month" -- the schema has no historical snapshot
 // of most of these numbers, so no trend badge invents one; `trend`, when
 // passed, is a genuine recent-history series (see below), never backfilled.
-export type KpiAccent = 'violet' | 'amber' | 'blue' | 'purple' | 'emerald' | 'red';
+export type KpiAccent = 'violet' | 'amber' | 'blue' | 'purple' | 'emerald' | 'red' | 'cyan';
 
 const ACCENTS: Record<KpiAccent, { cardBg: string; iconBg: string; sparkColor: string }> = {
   violet: { cardBg: 'bg-violet-50 dark:bg-violet-950/30', iconBg: 'bg-violet-500', sparkColor: '#8b5cf6' },
@@ -18,6 +19,7 @@ const ACCENTS: Record<KpiAccent, { cardBg: string; iconBg: string; sparkColor: s
   purple: { cardBg: 'bg-purple-50 dark:bg-purple-950/30', iconBg: 'bg-purple-500', sparkColor: '#a855f7' },
   emerald: { cardBg: 'bg-emerald-50 dark:bg-emerald-950/30', iconBg: 'bg-emerald-500', sparkColor: '#10b981' },
   red: { cardBg: 'bg-red-50 dark:bg-red-950/30', iconBg: 'bg-red-500', sparkColor: '#ef4444' },
+  cyan: { cardBg: 'bg-cyan-50 dark:bg-cyan-950/30', iconBg: 'bg-cyan-500', sparkColor: '#06b6d4' },
 };
 
 export default function KpiCard({
@@ -27,6 +29,7 @@ export default function KpiCard({
   sub,
   accent = 'violet',
   trend,
+  to,
 }: {
   icon: (props: { className?: string }) => JSX.Element;
   label: string;
@@ -38,11 +41,18 @@ export default function KpiCard({
   // unset for metrics the schema has no history for -- there is no
   // invented trend line filling that corner instead.
   trend?: number[];
+  // When set, the whole tile becomes a link to the module this number
+  // comes from -- so "Open Positions" goes straight to Recruitment,
+  // "Total Headcount" to the Employee list, etc. Omit for a metric with no
+  // single owning page rather than guessing a destination.
+  to?: string;
 }) {
   const a = ACCENTS[accent];
-  return (
+  const card = (
     <div
-      className={`h-24 rounded-xl border border-slate-200/60 dark:border-slate-800 ${a.cardBg} px-4 py-3 flex flex-col justify-between shadow-sm`}
+      className={`h-24 rounded-xl border border-slate-200/60 dark:border-slate-800 ${a.cardBg} px-4 py-3 flex flex-col justify-between shadow-sm ${
+        to ? 'transition-all duration-150 hover:-translate-y-0.5 hover:shadow-md cursor-pointer' : ''
+      }`}
     >
       <div className="flex items-center justify-between gap-2 min-w-0">
         <div className="flex items-center gap-2 min-w-0">
@@ -58,5 +68,12 @@ export default function KpiCard({
         {sub && <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-tight text-right">{sub}</p>}
       </div>
     </div>
+  );
+  return to ? (
+    <Link to={to} className="block">
+      {card}
+    </Link>
+  ) : (
+    card
   );
 }

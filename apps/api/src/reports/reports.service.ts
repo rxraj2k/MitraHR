@@ -45,7 +45,12 @@ const FUNNEL_STAGE_LABELS: Record<string, string> = {
   SCREENING_CALL: 'Screening',
   TECHNICAL_ROUND: 'L1 Technical',
   FINAL_ROUND: 'L2 Final Round',
-  OFFER_EXTENDED: 'HR/Offer',
+  // HR_ROUND was added alongside the imported historical interview tracker
+  // (a real, distinct round between the manager/client round and the
+  // offer) — OFFER_EXTENDED's label drops the old "HR/Offer" conflation
+  // now that HR has its own stage.
+  HR_ROUND: 'HR Round',
+  OFFER_EXTENDED: 'Offer',
   HIRED: 'Hired',
   REJECTED: 'Rejected',
 };
@@ -192,6 +197,10 @@ export class ReportsService {
       departmentRows,
       activeProjectRows,
       attendanceTrend,
+      openPositions,
+      activeCandidates,
+      hiresInPeriod,
+      candidatesByStageGroups,
     ] = await Promise.all([
       this.prisma.employee.count({ where: { status: 'ACTIVE' } }),
       this.prisma.employee.count({
@@ -236,6 +245,20 @@ export class ReportsService {
         orderBy: { name: 'asc' },
       }),
       this.attendanceTrend(periodStart, periodEnd, todayIso),
+      // Recruitment widget (Home dashboard) — same live-query-only rule as
+      // everything else here. "Active" candidates/positions deliberately
+      // excludes HIRED/REJECTED so a fast-moving pipeline of settled
+      // outcomes doesn't inflate what's actually still open.
+      this.prisma.jobOpening.count({ where: { status: 'OPEN' } }),
+      this.prisma.candidate.count({ where: { stage: { notIn: ['HIRED', 'REJECTED'] } } }),
+      this.prisma.candidate.count({
+        where: { stage: 'HIRED', hiredAt: { gte: periodStart, lte: periodEnd } },
+      }),
+      this.prisma.candidate.groupBy({
+        by: ['stage'],
+        where: { stage: { notIn: ['HIRED', 'REJECTED'] } },
+        _count: { _all: true },
+      }),
     ]);
 
     const trainingTotal = trainingGroups.reduce((sum, g) => sum + g._count._all, 0);
@@ -248,6 +271,10 @@ export class ReportsService {
     }
     const departmentBreakdown = Array.from(deptCounts.entries())
       .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count);
+
+    const candidatesByStage = candidatesByStageGroups
+      .map((g) => ({ name: FUNNEL_STAGE_LABELS[g.stage] ?? g.stage, count: g._count._all }))
       .sort((a, b) => b.count - a.count);
 
     const projectUtilization = activeProjectRows
@@ -275,6 +302,10 @@ export class ReportsService {
       departmentBreakdown,
       projectUtilization,
       attendanceTrend,
+      openPositions,
+      activeCandidates,
+      hiresThisMonth: hiresInPeriod,
+      candidatesByStage,
     };
   }
 
@@ -954,6 +985,7 @@ export class ReportsService {
       id: c.id,
       candidate: c.fullName,
       role: c.jobOpening.title,
+      roleTrack: c.roleTrack,
       source: c.source,
       appliedDate: toISODate(c.appliedAt),
       stage: FUNNEL_STAGE_LABELS[c.stage] ?? c.stage,

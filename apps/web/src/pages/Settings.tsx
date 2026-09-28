@@ -30,6 +30,7 @@ import {
   createWorkLocation,
   createContractType,
   createCandidateSource,
+  createRoleTrack,
   deleteDepartment,
   deleteDesignation,
   deleteSkill,
@@ -38,6 +39,7 @@ import {
   deleteWorkLocation,
   deleteContractType,
   deleteCandidateSource,
+  deleteRoleTrack,
   getDepartments,
   getDesignations,
   getSkills,
@@ -46,6 +48,7 @@ import {
   getWorkLocations,
   getContractTypes,
   getCandidateSources,
+  getRoleTracks,
   updateDepartment,
   updateDesignation,
   updateSkill,
@@ -54,6 +57,7 @@ import {
   updateWorkLocation,
   updateContractType,
   updateCandidateSource,
+  updateRoleTrack,
 } from '../lib/api';
 
 // Each tab owns one logical group of reference data. Skills and
@@ -122,6 +126,12 @@ function createCandidateSourceLookup(token: string, name: string) {
 }
 function updateCandidateSourceLookup(token: string, id: string, name: string) {
   return updateCandidateSource(token, id, { name });
+}
+function createRoleTrackLookup(token: string, name: string) {
+  return createRoleTrack(token, { name });
+}
+function updateRoleTrackLookup(token: string, id: string, name: string) {
+  return updateRoleTrack(token, id, { name });
 }
 
 const TAB_KEYS = new Set<TabKey>([
@@ -224,7 +234,7 @@ export default function Settings() {
       {tab === 'appraisal-criteria' && <AppraisalCriteriaManager searchQuery={q} />}
 
       {tab === 'clients-hiring' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
           <LookupManager
             title="Contract Types"
             getAll={getContractTypes}
@@ -242,6 +252,15 @@ export default function Settings() {
             remove={deleteCandidateSource}
             searchQuery={q}
             addPlaceholder="e.g. LinkedIn, Referral, Agency"
+          />
+          <LookupManager
+            title="Role Tracks"
+            getAll={getRoleTracks}
+            create={createRoleTrackLookup}
+            update={updateRoleTrackLookup}
+            remove={deleteRoleTrack}
+            searchQuery={q}
+            addPlaceholder="e.g. DevOps, IAM, Cyber Security"
           />
         </div>
       )}

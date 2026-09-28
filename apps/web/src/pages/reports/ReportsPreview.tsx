@@ -1428,6 +1428,7 @@ export default function ReportsPreview() {
   const [employmentTypeFilter, setEmploymentTypeFilter] = useState<string[]>([]);
   const [statusFilter, setStatusFilter] = useState<AttendanceStatus | 'All Statuses'>('All Statuses');
   const [stageFilter, setStageFilter] = useState<FunnelStage | 'All Stages'>('All Stages');
+  const [funnelRoleTrackFilter, setFunnelRoleTrackFilter] = useState('');
   const [exportOpen, setExportOpen] = useState(false);
   const [detail, setDetail] = useState<SelectedDetail | null>(null);
   const tableSectionRef = useRef<HTMLDivElement>(null);
@@ -1492,7 +1493,11 @@ export default function ReportsPreview() {
   const tenureRows = byEmploymentType(byDept(data.tenureMobility)).filter((r) => inDateRange(r.joinDate, dateBounds));
   const recruitmentRows = data.recruitmentFunnel
     .filter((r) => stageFilter === 'All Stages' || r.stage === stageFilter)
+    .filter((r) => !funnelRoleTrackFilter || r.roleTrack === funnelRoleTrackFilter)
     .filter((r) => inDateRange(r.appliedDate, dateBounds));
+  const funnelRoleTracks = Array.from(
+    new Set(data.recruitmentFunnel.map((r) => r.roleTrack).filter((t): t is string => !!t)),
+  ).sort();
   const complianceRows = byDept(data.complianceAssetRoster);
   const leaveRows = byDept(data.leaveUtilization.rows).filter((r) => inDateRange(r.startDate, dateBounds));
   const hoursRows = byDept(data.hoursOvertime.rows);
@@ -1793,6 +1798,20 @@ export default function ReportsPreview() {
                     </option>
                   ))}
                 </select>
+                {funnelRoleTracks.length > 0 && (
+                  <select
+                    value={funnelRoleTrackFilter}
+                    onChange={(e) => setFunnelRoleTrackFilter(e.target.value)}
+                    className="rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white"
+                  >
+                    <option value="">All Roles/Tracks</option>
+                    {funnelRoleTracks.map((t) => (
+                      <option key={t} value={t}>
+                        {t}
+                      </option>
+                    ))}
+                  </select>
+                )}
                 <span className="text-xs text-slate-500 whitespace-nowrap">
                   Showing {count} candidate{count === 1 ? '' : 's'}
                 </span>
@@ -1801,6 +1820,7 @@ export default function ReportsPreview() {
             columns={[
               { key: 'candidate', header: 'Candidate', sortValue: (r) => r.candidate },
               { key: 'role', header: 'Role' },
+              { key: 'roleTrack', header: 'Role / Track', render: (r) => r.roleTrack || '—' },
               { key: 'source', header: 'Source' },
               { key: 'appliedDate', header: 'Applied', sortValue: (r) => r.appliedDate },
               {
@@ -2028,6 +2048,7 @@ export default function ReportsPreview() {
         {detail?.kind === 'recruitment-funnel' && (
           <>
             <DetailRow label="Role" value={detail.row.role} />
+            <DetailRow label="Role / Track" value={detail.row.roleTrack || '—'} />
             <DetailRow label="Source" value={detail.row.source} />
             <DetailRow label="Applied Date" value={detail.row.appliedDate} />
             <DetailRow label="Current Stage" value={detail.row.stage} />

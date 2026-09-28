@@ -97,20 +97,24 @@ export class RecruitmentController {
   createCandidate(
     @Body('jobOpeningId') jobOpeningId: string,
     @Body('fullName') fullName: string,
-    @Body('email') email: string,
+    @Body('email') email: string | undefined,
     @Body('phone') phone: string | undefined,
     @Body('source') source: string | undefined,
+    @Body('roleTrack') roleTrack: string | undefined,
     @UploadedFile() file: Express.Multer.File | undefined,
   ) {
     if (!jobOpeningId) throw new BadRequestException('jobOpeningId is required');
     if (!fullName) throw new BadRequestException('fullName is required');
-    if (!email) throw new BadRequestException('email is required');
+    // email is optional -- sourcing often starts with just a name (a campus
+    // drive, an institute referral) with an email address coming later if
+    // at all. See the schema comment on Candidate.email.
     return this.service.createCandidate({
       jobOpeningId,
       fullName,
-      email,
+      email: email || undefined,
       phone: phone || undefined,
       source: source || undefined,
+      roleTrack: roleTrack || undefined,
       resumeFileName: file?.originalname,
       resumeUrl: file ? `/secure-uploads/candidate-resumes/${file.filename}` : undefined,
     });

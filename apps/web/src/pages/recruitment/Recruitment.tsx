@@ -11,6 +11,7 @@ import {
   updateCandidate,
   openCandidateResume,
   getCandidateSources,
+  getRoleTracks,
   getDepartments,
   getEmployees,
   getProjects,
@@ -28,6 +29,7 @@ import {
   EXPERIENCE_LEVELS,
   CANDIDATE_FORWARD_STAGES,
   LookupItem,
+  RoleTrackItem,
   Employee,
   Project,
   Technology,
@@ -53,6 +55,7 @@ export const STAGE_LABELS: Record<CandidateStage, string> = {
   SCREENING_CALL: 'Screening',
   TECHNICAL_ROUND: 'Technical Round',
   FINAL_ROUND: 'Client Round',
+  HR_ROUND: 'HR Round',
   OFFER_EXTENDED: 'Offer Extended',
   HIRED: 'Hired',
   REJECTED: 'Rejected',
@@ -63,6 +66,7 @@ const STAGE_BADGE_CLASSES: Record<CandidateStage, string> = {
   SCREENING_CALL: 'bg-sky-100 text-sky-700',
   TECHNICAL_ROUND: 'bg-indigo-100 text-indigo-700',
   FINAL_ROUND: 'bg-fuchsia-100 text-fuchsia-700',
+  HR_ROUND: 'bg-violet-100 text-violet-700',
   OFFER_EXTENDED: 'bg-amber-100 text-amber-700',
   HIRED: 'bg-emerald-100 text-emerald-700',
   REJECTED: 'bg-rose-100 text-rose-700',
@@ -94,7 +98,7 @@ const EXPERIENCE_LEVEL_LABELS: Record<ExperienceLevel, string> = {
   LEAD: 'Lead',
 };
 
-// The 6 forward-moving Kanban columns — REJECTED is intentionally excluded
+// The 7 forward-moving Kanban columns — REJECTED is intentionally excluded
 // (it can happen from any stage, so it isn't a column of its own); rejected
 // candidates remain visible via Table View.
 const KANBAN_COLUMNS: CandidateStage[] = CANDIDATE_FORWARD_STAGES;
@@ -114,7 +118,7 @@ function formatDate(d?: string | null) {
 }
 
 function candidateRatingAvg(c: Candidate): number | null {
-  const ratings = [c.screeningRating, c.technicalRating, c.finalRoundRating].filter(
+  const ratings = [c.screeningRating, c.technicalRating, c.finalRoundRating, c.hrRoundRating].filter(
     (r): r is number => typeof r === 'number',
   );
   if (ratings.length === 0) return null;
@@ -488,14 +492,17 @@ function AddCandidateModal({
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [source, setSource] = useState('');
+  const [roleTrack, setRoleTrack] = useState('');
   const [resume, setResume] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [candidateSources, setCandidateSources] = useState<LookupItem[]>([]);
+  const [roleTracks, setRoleTracks] = useState<RoleTrackItem[]>([]);
 
   useEffect(() => {
     if (!token) return;
     getCandidateSources(token).then(setCandidateSources).catch(() => {});
+    getRoleTracks(token).then(setRoleTracks).catch(() => {});
   }, [token]);
 
   async function handleSubmit(e: FormEvent) {
@@ -506,7 +513,7 @@ function AddCandidateModal({
     try {
       await createCandidate(
         token,
-        { jobOpeningId, fullName, email, phone: phone || undefined, source },
+        { jobOpeningId, fullName, email: email || undefined, phone: phone || undefined, source, roleTrack: roleTrack || undefined },
         resume || undefined,
       );
       onCreated();
@@ -550,9 +557,8 @@ function AddCandidateModal({
               />
             </div>
             <div>
-              <label className="block text-xs text-slate-500 mb-1">Email</label>
+              <label className="block text-xs text-slate-500 mb-1">Email (optional)</label>
               <input
-                required
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -584,6 +590,21 @@ function AddCandidateModal({
                 ))}
               </datalist>
             </div>
+          </div>
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Role / Track</label>
+            <input
+              value={roleTrack}
+              onChange={(e) => setRoleTrack(e.target.value)}
+              list="role-tracks-datalist"
+              placeholder="e.g. DevOps, IAM, Cyber Security, AI Intern"
+              className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm"
+            />
+            <datalist id="role-tracks-datalist">
+              {roleTracks.map((r) => (
+                <option key={r.id} value={r.name} />
+              ))}
+            </datalist>
           </div>
           <div>
             <label className="block text-xs text-slate-500 mb-1">Resume (optional)</label>
@@ -770,6 +791,11 @@ function CandidateKanbanCard({
         <div className="min-w-0">
           <div className="font-medium text-slate-700 text-sm truncate">{candidate.fullName}</div>
           <div className="text-xs text-slate-400 mt-0.5 truncate">{candidate.jobOpening?.title}</div>
+          {candidate.roleTrack && (
+            <span className="inline-block mt-1 rounded-full bg-indigo-50 text-indigo-600 px-1.5 py-0.5 text-[9px] font-medium truncate max-w-full">
+              {candidate.roleTrack}
+            </span>
+          )}
         </div>
         <CandidateQuickMenu
           candidate={candidate}
@@ -885,6 +911,8 @@ export default function Recruitment() {
   const [search, setSearch] = useState('');
   const [openingFilter, setOpeningFilter] = useState('');
   const [stageFilter, setStageFilter] = useState<CandidateStage | 'ALL'>('ALL');
+  const [roleTrackFilter, setRoleTrackFilter] = useState('');
+  const [roleTracks, setRoleTracks] = useState<RoleTrackItem[]>([]);
   const [showNewOpening, setShowNewOpening] = useState(false);
   const [showAddCandidate, setShowAddCandidate] = useState(false);
   const [openCandidateId, setOpenCandidateId] = useState<string | null>(null);
@@ -894,19 +922,21 @@ export default function Recruitment() {
     setLoading(true);
     setLoadError('');
     try {
-      const [op, cand, deps, emps, projs, techs] = await Promise.all([
+      const [op, cand, deps, emps, projs, techs, tracks] = await Promise.all([
         getJobOpenings(token),
         getCandidates(token),
         getDepartments(token),
         getEmployees(token),
         getProjects(token),
         getTechnologies(token),
+        getRoleTracks(token),
       ]);
       setOpenings(op);
       setCandidates(cand);
       setDepartments(deps);
       setEmployees(emps);
       setProjects(projs);
+      setRoleTracks(tracks);
       setTechnologies(techs);
     } catch (err: any) {
       setLoadError(err?.message || 'Failed to load recruitment data.');
@@ -989,6 +1019,7 @@ export default function Recruitment() {
 
   const kanbanFiltered = candidates.filter((c) => {
     if (openingFilter && c.jobOpeningId !== openingFilter) return false;
+    if (roleTrackFilter && c.roleTrack !== roleTrackFilter) return false;
     if (search && !c.fullName.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
   });
@@ -996,6 +1027,7 @@ export default function Recruitment() {
   const tableFiltered = candidates.filter((c) => {
     if (openingFilter && c.jobOpeningId !== openingFilter) return false;
     if (stageFilter !== 'ALL' && c.stage !== stageFilter) return false;
+    if (roleTrackFilter && c.roleTrack !== roleTrackFilter) return false;
     if (search && !c.fullName.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
   });
@@ -1127,12 +1159,34 @@ export default function Recruitment() {
               ))}
             </select>
           )}
+          {roleTracks.length > 0 && (
+            <select
+              value={roleTrackFilter}
+              onChange={(e) => setRoleTrackFilter(e.target.value)}
+              className="rounded-lg border border-slate-300 px-2 py-1.5 text-xs"
+            >
+              <option value="">All roles/tracks</option>
+              {roleTracks.map((r) => (
+                <option key={r.id} value={r.name}>
+                  {r.name}
+                </option>
+              ))}
+            </select>
+          )}
           {openingFilter && (
             <button
               onClick={() => setOpeningFilter('')}
               className="text-xs text-slate-500 bg-slate-100 hover:bg-slate-200 rounded-full px-2.5 py-1"
             >
               Filtered by: {selectedOpeningTitle} ✕
+            </button>
+          )}
+          {roleTrackFilter && (
+            <button
+              onClick={() => setRoleTrackFilter('')}
+              className="text-xs text-slate-500 bg-slate-100 hover:bg-slate-200 rounded-full px-2.5 py-1"
+            >
+              Filtered by: {roleTrackFilter} ✕
             </button>
           )}
         </div>

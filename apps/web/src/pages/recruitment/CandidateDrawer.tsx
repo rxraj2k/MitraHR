@@ -40,6 +40,7 @@ const STAGE_NOTES_FIELD: Partial<Record<CandidateStage, keyof Candidate>> = {
   SCREENING_CALL: 'screeningNotes',
   TECHNICAL_ROUND: 'technicalNotes',
   FINAL_ROUND: 'finalRoundNotes',
+  HR_ROUND: 'hrRoundNotes',
 };
 
 function StarRatingInput({ value, onChange }: { value: number; onChange: (v: number) => void }) {
@@ -72,7 +73,7 @@ function ConvertToEmployeeSection({
   const { token } = useAuth();
   const [open, setOpen] = useState(false);
   const [fullName, setFullName] = useState(candidate.fullName);
-  const [email, setEmail] = useState(candidate.email);
+  const [email, setEmail] = useState(candidate.email || '');
   const [phone, setPhone] = useState(candidate.phone || '');
   const [employmentType, setEmploymentType] = useState<JobOpeningEmploymentType>('FULL_TIME');
   const [departmentId, setDepartmentId] = useState(candidate.jobOpening?.departmentId || '');
@@ -236,9 +237,11 @@ export default function CandidateDrawer({
     screeningNotes: '',
     technicalNotes: '',
     finalRoundNotes: '',
+    hrRoundNotes: '',
     screeningRating: 0,
     technicalRating: 0,
     finalRoundRating: 0,
+    hrRoundRating: 0,
     nextInterviewAt: '',
   });
   const [savingNotes, setSavingNotes] = useState(false);
@@ -254,9 +257,11 @@ export default function CandidateDrawer({
       screeningNotes: data.screeningNotes || '',
       technicalNotes: data.technicalNotes || '',
       finalRoundNotes: data.finalRoundNotes || '',
+      hrRoundNotes: data.hrRoundNotes || '',
       screeningRating: data.screeningRating || 0,
       technicalRating: data.technicalRating || 0,
       finalRoundRating: data.finalRoundRating || 0,
+      hrRoundRating: data.hrRoundRating || 0,
       nextInterviewAt: toDatetimeLocal(data.nextInterviewAt),
     });
   }
@@ -308,10 +313,12 @@ export default function CandidateDrawer({
         screeningNotes: notesForm.screeningNotes,
         technicalNotes: notesForm.technicalNotes,
         finalRoundNotes: notesForm.finalRoundNotes,
+        hrRoundNotes: notesForm.hrRoundNotes,
       };
       if (notesForm.screeningRating > 0) payload.screeningRating = notesForm.screeningRating;
       if (notesForm.technicalRating > 0) payload.technicalRating = notesForm.technicalRating;
       if (notesForm.finalRoundRating > 0) payload.finalRoundRating = notesForm.finalRoundRating;
+      if (notesForm.hrRoundRating > 0) payload.hrRoundRating = notesForm.hrRoundRating;
       if (notesForm.nextInterviewAt) payload.nextInterviewAt = new Date(notesForm.nextInterviewAt).toISOString();
       await updateCandidate(token, candidate.id, payload);
       await refresh();
@@ -378,11 +385,16 @@ export default function CandidateDrawer({
                 <div>
                   <div className="font-semibold text-slate-800">{candidate.fullName}</div>
                   <div className="text-xs text-slate-500">
-                    {candidate.email}
+                    {candidate.email || <span className="italic text-slate-400">No email on file</span>}
                     {candidate.phone ? ` · ${candidate.phone}` : ''}
                   </div>
                   <div className="text-xs text-slate-400 mt-0.5">
                     Applied {formatDate(candidate.appliedAt)} for {candidate.jobOpening?.title || 'an opening'}
+                    {candidate.roleTrack ? (
+                      <span className="ml-2 inline-block rounded-full bg-indigo-50 text-indigo-600 px-2 py-0.5 text-[11px] font-medium">
+                        {candidate.roleTrack}
+                      </span>
+                    ) : null}
                   </div>
                 </div>
                 <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-sm">
@@ -485,6 +497,21 @@ export default function CandidateDrawer({
                   <textarea
                     value={notesForm.finalRoundNotes}
                     onChange={(e) => setNotesForm({ ...notesForm, finalRoundNotes: e.target.value })}
+                    rows={2}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm"
+                  />
+                </div>
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs text-slate-500">HR Round</label>
+                    <StarRatingInput
+                      value={notesForm.hrRoundRating}
+                      onChange={(v) => setNotesForm({ ...notesForm, hrRoundRating: v })}
+                    />
+                  </div>
+                  <textarea
+                    value={notesForm.hrRoundNotes}
+                    onChange={(e) => setNotesForm({ ...notesForm, hrRoundNotes: e.target.value })}
                     rows={2}
                     className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm"
                   />

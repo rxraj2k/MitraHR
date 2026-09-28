@@ -17,13 +17,17 @@ export type ExperienceLevel = (typeof EXPERIENCE_LEVELS)[number];
 // board's column order and the stage-stepper progression, mirroring the
 // real process: apply -> screening call -> technical round -> client round
 // (Sanjay's final 1-on-1, which for US client roles doubles as the client
-// interview) -> offer -> hired. REJECTED can happen from any stage, so it's
-// kept separate from the "forward" flow rather than positioned as a step.
+// interview) -> HR round -> offer -> hired. REJECTED can happen from any
+// stage, so it's kept separate from the "forward" flow rather than
+// positioned as a step. HR_ROUND was added alongside the imported Zoho
+// Sheet interview tracker, which tracked a real distinct HR round between
+// the manager/client round and the offer.
 export const CANDIDATE_STAGES = [
   'APPLIED',
   'SCREENING_CALL',
   'TECHNICAL_ROUND',
   'FINAL_ROUND',
+  'HR_ROUND',
   'OFFER_EXTENDED',
   'HIRED',
   'REJECTED',

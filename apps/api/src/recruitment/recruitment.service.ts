@@ -32,9 +32,10 @@ const EMPLOYEE_CODE_PAD = 4;
 export interface CreateCandidateInput {
   jobOpeningId: string;
   fullName: string;
-  email: string;
+  email?: string;
   phone?: string;
   source?: string;
+  roleTrack?: string;
   resumeFileName?: string;
   resumeUrl?: string;
 }
@@ -170,9 +171,10 @@ export class RecruitmentService {
       data: {
         jobOpeningId: input.jobOpeningId,
         fullName: input.fullName,
-        email: input.email,
+        email: input.email || undefined,
         phone: input.phone || undefined,
         source: input.source || undefined,
+        roleTrack: input.roleTrack || undefined,
         resumeFileName: input.resumeFileName,
         resumeUrl: input.resumeUrl,
       },
@@ -204,6 +206,7 @@ export class RecruitmentService {
         email: dto.email,
         phone: dto.phone,
         source: dto.source,
+        roleTrack: dto.roleTrack,
         stage: dto.stage,
         screeningNotes: dto.screeningNotes,
         screeningRating: dto.screeningRating,
@@ -211,6 +214,8 @@ export class RecruitmentService {
         technicalRating: dto.technicalRating,
         finalRoundNotes: dto.finalRoundNotes,
         finalRoundRating: dto.finalRoundRating,
+        hrRoundNotes: dto.hrRoundNotes,
+        hrRoundRating: dto.hrRoundRating,
         nextInterviewAt: dto.nextInterviewAt ? new Date(dto.nextInterviewAt) : undefined,
         rejectionReason,
         hiredAt,

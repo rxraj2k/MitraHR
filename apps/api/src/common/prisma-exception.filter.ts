@@ -50,6 +50,10 @@ export class PrismaExceptionFilter implements ExceptionFilter {
       default: {
         // Anything else stays a 500 — we don't know what it means, so a
         // vague "success" status would be worse than the current behavior.
+        // Logged here (not silently swallowed) because the client only ever
+        // sees the generic message below -- this is the one place the real
+        // Prisma code/meta survives to be read from the server console.
+        console.error('[PrismaExceptionFilter] Unhandled Prisma error:', exception.code, exception.message, exception.meta);
         const body = { statusCode: 500, message: 'An unexpected database error occurred.' };
         return response.status(500).json(body);
       }

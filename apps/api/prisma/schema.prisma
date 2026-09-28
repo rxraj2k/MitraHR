@@ -1107,16 +1107,28 @@ model JobOpening {
 }
 
 // source: NAUKRI, LINKEDIN, REFERRAL, OTHER
-// stage: APPLIED, SCREENING_CALL, TECHNICAL_ROUND, FINAL_ROUND,
+// stage: APPLIED, SCREENING_CALL, TECHNICAL_ROUND, FINAL_ROUND, HR_ROUND,
 //        OFFER_EXTENDED, HIRED, REJECTED (FINAL_ROUND / finalRoundNotes /
 //        finalRoundRating display as "Client Round" in the UI now that this
 //        doubles as the client-facing interview for US client roles — kept
 //        the same underlying value/field names rather than a disruptive
-//        rename + migration).
+//        rename + migration). HR_ROUND was added when importing the
+//        historical Zoho Sheet interview tracker, which tracked a real
+//        distinct HR round after the manager/client round and before an
+//        offer went out.
 // One free-text notes field + a 1-5 rating per real interview step
-// (screening call, technical round, client/final round) rather than a
-// separate multi-interviewer scorecard model — one rating per stage is
-// "usable" without the complexity of a full scorecard system.
+// (screening call, technical round, client/final round, HR round) rather
+// than a separate multi-interviewer scorecard model — one rating per stage
+// is "usable" without the complexity of a full scorecard system.
+// email is optional — sourcing (campus drives, institute referrals) often
+// starts with just a name and phone/institute, with an email coming later
+// if at all; nothing else in the app assumes it's present or unique.
+// roleTrack is a free-text discipline tag (DevOps, IAM, Cyber Security, AI
+// Intern, AI Engineer, ...) independent of jobOpeningId — it answers "which
+// kind of role is this person being considered for" even when several
+// candidates share one formal requisition (or when there isn't a 1:1
+// requisition per discipline yet). See the RoleTrack lookup below for the
+// managed suggestion list, same pattern as CandidateSource.
 // convertedEmployeeId is set by the "Offer & Convert to Employee" action —
 // it creates a real Employee record and links back here.
 model Candidate {
@@ -1124,9 +1136,10 @@ model Candidate {
   jobOpeningId        String
   jobOpening          JobOpening @relation(fields: [jobOpeningId], references: [id], onDelete: Cascade)
   fullName            String
-  email               String
+  email               String?
   phone               String?
   source              String     @default("OTHER")
+  roleTrack           String?
   stage               String     @default("APPLIED")
   screeningNotes      String?
   screeningRating     Int?
@@ -1134,6 +1147,8 @@ model Candidate {
   technicalRating     Int?
   finalRoundNotes     String?
   finalRoundRating    Int?
+  hrRoundNotes        String?
+  hrRoundRating       Int?
   nextInterviewAt     DateTime?
   rejectionReason     String?
   resumeFileName      String?
@@ -1144,6 +1159,20 @@ model Candidate {
   convertedEmployee   Employee?  @relation(fields: [convertedEmployeeId], references: [id])
   createdAt           DateTime   @default(now())
   updatedAt           DateTime   @updatedAt
+}
+
+// Managed suggestion list for Candidate.roleTrack (Master Data — Clients &
+// Hiring tab), same free-text-plus-lookup pattern as CandidateSource:
+// roleTrack itself stays a plain string on Candidate (no FK) so historical
+// values are never blocked by a rename, but this list gives recruiters a
+// consistent set of options to pick from instead of retyping "DevOps" a
+// different way each time.
+model RoleTrack {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // --- Sprint 14: Performance & Goal Management ----------------------------

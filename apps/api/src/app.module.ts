@@ -38,6 +38,7 @@ import { DocumentTypesModule } from './document-types/document-types.module';
 import { QuizzesModule } from './quizzes/quizzes.module';
 import { ContractTypesModule } from './contract-types/contract-types.module';
 import { CandidateSourcesModule } from './candidate-sources/candidate-sources.module';
+import { RoleTracksModule } from './role-tracks/role-tracks.module';
 import { AdminModule } from './admin/admin.module';
 import { OfficeWallModule } from './office-wall/office-wall.module';
 
@@ -82,6 +83,7 @@ import { OfficeWallModule } from './office-wall/office-wall.module';
     QuizzesModule,
     ContractTypesModule,
     CandidateSourcesModule,
+    RoleTracksModule,
     AdminModule,
     OfficeWallModule,
   ],

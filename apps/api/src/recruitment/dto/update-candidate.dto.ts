@@ -25,6 +25,10 @@ export class UpdateCandidateDto {
   source?: string;
 
   @IsOptional()
+  @IsString()
+  roleTrack?: string;
+
+  @IsOptional()
   @IsIn(CANDIDATE_STAGES)
   stage?: string;
 
@@ -57,6 +61,16 @@ export class UpdateCandidateDto {
   @Min(1)
   @Max(5)
   finalRoundRating?: number;
+
+  @IsOptional()
+  @IsString()
+  hrRoundNotes?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(5)
+  hrRoundRating?: number;
 
   @IsOptional()
   @IsDateString()

@@ -49,5 +49,5 @@ export const ATTENDANCE_STATUSES: AttendanceStatus[] = ['Early', 'On Time', 'Lat
 // stage vocabulary/order for the Kanban-style filter dropdown. Labels match
 // what Recruitment/ATS (Sprint 13) already calls these stages, including
 // its "Client Round" relabeling of the underlying FINAL_ROUND value.
-export type FunnelStage = 'Applied' | 'Screening' | 'L1 Technical' | 'L2 Final Round' | 'HR/Offer' | 'Hired' | 'Rejected';
-export const FUNNEL_STAGES: FunnelStage[] = ['Applied', 'Screening', 'L1 Technical', 'L2 Final Round', 'HR/Offer', 'Hired', 'Rejected'];
+export type FunnelStage = 'Applied' | 'Screening' | 'L1 Technical' | 'L2 Final Round' | 'HR Round' | 'Offer' | 'Hired' | 'Rejected';
+export const FUNNEL_STAGES: FunnelStage[] = ['Applied', 'Screening', 'L1 Technical', 'L2 Final Round', 'HR Round', 'Offer', 'Hired', 'Rejected'];

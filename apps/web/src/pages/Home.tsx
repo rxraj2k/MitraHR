@@ -54,6 +54,7 @@ import {
   CalendarCheckIcon,
   GaugeIcon,
   PackageIcon,
+  UserPlusIcon,
   UsersIcon,
 } from '../components/icons';
 import TabBar, { TabBarItem } from '../components/TabBar';
@@ -90,13 +91,14 @@ const STATUS_STYLES: Record<string, string> = {
   CANCELLED: 'bg-red-100 text-red-700',
 };
 
-type DashboardTab = 'overview' | 'workforce' | 'leave' | 'projects';
+type DashboardTab = 'overview' | 'workforce' | 'leave' | 'projects' | 'recruitment';
 
 const DASHBOARD_TABS: TabBarItem<DashboardTab>[] = [
   { key: 'overview', label: 'Overview', color: 'neutral' },
   { key: 'workforce', label: 'Workforce Analytics', color: 'neutral' },
   { key: 'leave', label: 'Leave & Attendance', color: 'neutral' },
   { key: 'projects', label: 'Project Allocation', color: 'neutral' },
+  { key: 'recruitment', label: 'Recruitment', color: 'neutral' },
 ];
 
 // One card in the widget grid every tab reuses -- same white/bordered
@@ -291,13 +293,14 @@ export default function Home() {
           {/* Compact KPI Summary Bar -- six sleek h-24 cards replacing the old
               oversized gradient tiles, each with a real supporting figure
               rather than an invented trend percentage. */}
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 mb-4">
             <KpiCard
               icon={UsersIcon}
               label="Total Headcount"
               value={dashboard.headcount}
               sub={dashboard.newJoinersThisMonth > 0 ? `+${dashboard.newJoinersThisMonth} new` : 'No new joiners'}
               accent="violet"
+              to="/employees"
             />
             <KpiCard
               icon={CalendarCheckIcon}
@@ -306,6 +309,7 @@ export default function Home() {
               sub={`of ${dashboard.headcount} active`}
               accent="amber"
               trend={onLeaveTrend}
+              to="/leave"
             />
             <KpiCard
               icon={BriefcaseIcon}
@@ -313,6 +317,7 @@ export default function Home() {
               value={dashboard.activeProjects}
               sub={`${dashboard.projectUtilization.length} staffed`}
               accent="blue"
+              to="/projects"
             />
             <KpiCard
               icon={GaugeIcon}
@@ -320,6 +325,7 @@ export default function Home() {
               value={`${benchPercent}%`}
               sub={`${dashboard.utilizationSummary.bench}/${dashboard.utilizationSummary.total} active`}
               accent="purple"
+              to="/utilization"
             />
             <KpiCard
               icon={PackageIcon}
@@ -327,6 +333,7 @@ export default function Home() {
               value={`${assetAllocationPercent}%`}
               sub={`${assetsAssigned}/${assetsTotal} assigned`}
               accent="emerald"
+              to="/assets"
             />
             <KpiCard
               icon={AwardIcon}
@@ -334,6 +341,15 @@ export default function Home() {
               value={`${dashboard.quizPassRatePercent}%`}
               sub={`${dashboard.quizAttemptsTotal} attempt${dashboard.quizAttemptsTotal === 1 ? '' : 's'}`}
               accent="red"
+              to="/training"
+            />
+            <KpiCard
+              icon={UserPlusIcon}
+              label="Open Positions"
+              value={dashboard.openPositions}
+              sub={`${dashboard.activeCandidates} active candidate${dashboard.activeCandidates === 1 ? '' : 's'}`}
+              accent="cyan"
+              to="/recruitment"
             />
           </div>
 
@@ -417,6 +433,35 @@ export default function Home() {
               <ProjectUtilizationBars data={dashboard.projectUtilization} height={340} />
             </ChartCard>
           )}
+
+          {dashboardTab === 'recruitment' && (
+            <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+              <div className="lg:col-span-3">
+                <ChartCard title="Candidate Pipeline by Stage">
+                  <DepartmentDonutChart data={dashboard.candidatesByStage} />
+                </ChartCard>
+              </div>
+              <div className="lg:col-span-2">
+                <ChartCard
+                  title="Recruitment Summary"
+                  action={
+                    <Link to="/recruitment" className="text-xs text-mitra-accentFrom hover:underline">
+                      Open Recruitment &rarr;
+                    </Link>
+                  }
+                >
+                  <div className="pt-1">
+                    <StatRow label="Open Positions" value={dashboard.openPositions} />
+                    <StatRow label="Active Candidates" value={dashboard.activeCandidates} />
+                    <StatRow
+                      label={`Hires (${RANGE_OPTIONS.find((o) => o.value === range)?.label})`}
+                      value={dashboard.hiresThisMonth}
+                    />
+                  </div>
+                </ChartCard>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -458,8 +503,11 @@ export default function Home() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {active.map((a, i) => {
                 const theme = lightThemeFor(i);
-                return (
-                  <div key={a.id} className={`rounded-xl border ${theme.border} ${theme.bg} p-4 flex flex-col`}>
+                const cardClass = `rounded-xl border ${theme.border} ${theme.bg} p-4 flex flex-col${
+                  isStaff ? ' hover:shadow-sm transition-shadow' : ''
+                }`;
+                const inner = (
+                  <>
                     <div className="flex items-start justify-between gap-2 mb-1.5">
                       <p className="text-sm font-semibold text-slate-800 truncate">{a.project.name}</p>
                       <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium flex-shrink-0 ${STATUS_STYLES[a.project.status]}`}>
@@ -480,6 +528,15 @@ export default function Home() {
                       <span>Since {shortDate(a.startDate)}</span>
                       {a.endDate && <span>Ends {shortDate(a.endDate)}</span>}
                     </div>
+                  </>
+                );
+                return isStaff ? (
+                  <Link key={a.id} to={`/projects/${a.project.id}`} className={cardClass}>
+                    {inner}
+                  </Link>
+                ) : (
+                  <div key={a.id} className={cardClass}>
+                    {inner}
                   </div>
                 );
               })}
@@ -498,8 +555,11 @@ export default function Home() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {currentAssets.map((a, i) => {
                 const theme = lightThemeFor(i);
-                return (
-                  <div key={a.id} className={`rounded-xl border ${theme.border} ${theme.bg} p-4 flex flex-col`}>
+                const cardClass = `rounded-xl border ${theme.border} ${theme.bg} p-4 flex flex-col${
+                  isStaff ? ' hover:shadow-sm transition-shadow' : ''
+                }`;
+                const inner = (
+                  <>
                     <div className="flex items-start justify-between gap-2 mb-1.5">
                       <p className="text-sm font-semibold text-slate-800 truncate">{a.asset?.name}</p>
                       {a.asset && (
@@ -520,6 +580,15 @@ export default function Home() {
                       <span>Since {shortDate(a.assignedAt)}</span>
                       {a.asset?.purchaseDate && <span>Purchased {shortDate(a.asset.purchaseDate)}</span>}
                     </div>
+                  </>
+                );
+                return isStaff ? (
+                  <Link key={a.id} to="/assets" className={cardClass}>
+                    {inner}
+                  </Link>
+                ) : (
+                  <div key={a.id} className={cardClass}>
+                    {inner}
                   </div>
                 );
               })}

@@ -460,6 +460,10 @@ export interface DashboardSummary {
   departmentBreakdown: DashboardDepartmentSlice[];
   projectUtilization: DashboardProjectUtilization[];
   attendanceTrend: DashboardAttendanceTrendPoint[];
+  openPositions: number;
+  activeCandidates: number;
+  hiresThisMonth: number;
+  candidatesByStage: DashboardDepartmentSlice[];
 }
 
 export interface AbsenteeismRow {
@@ -589,6 +593,7 @@ export interface ReportsPreviewFunnelRow {
   id: string;
   candidate: string;
   role: string;
+  roleTrack?: string | null;
   source: string;
   appliedDate: string;
   stage: string;
@@ -1426,11 +1431,14 @@ export const EXPERIENCE_LEVELS: ExperienceLevel[] = ['ENTRY', 'MID', 'SENIOR', '
 // sequence rather than positioned as a step within it. FINAL_ROUND displays
 // as "Client Round" in the UI (see STAGE_LABELS in Recruitment.tsx) now
 // that it doubles as the client-facing interview for US client roles.
+// HR_ROUND was added alongside the imported historical interview tracker —
+// a real, distinct round between the manager/client round and the offer.
 export type CandidateStage =
   | 'APPLIED'
   | 'SCREENING_CALL'
   | 'TECHNICAL_ROUND'
   | 'FINAL_ROUND'
+  | 'HR_ROUND'
   | 'OFFER_EXTENDED'
   | 'HIRED'
   | 'REJECTED';
@@ -1439,6 +1447,7 @@ export const CANDIDATE_FORWARD_STAGES: CandidateStage[] = [
   'SCREENING_CALL',
   'TECHNICAL_ROUND',
   'FINAL_ROUND',
+  'HR_ROUND',
   'OFFER_EXTENDED',
   'HIRED',
 ];
@@ -1479,11 +1488,18 @@ export interface Candidate {
   jobOpeningId: string;
   jobOpening?: JobOpeningRef;
   fullName: string;
-  email: string;
+  // Optional -- sourcing (campus drives, institute referrals) often starts
+  // with just a name, with an email coming later if at all.
+  email?: string | null;
   phone?: string | null;
   // Free text, powered by a Master Data lookup (Clients & Hiring tab) rather than a
   // closed enum -- see the schema comment on the CandidateSource model.
   source: string;
+  // Free text discipline tag (DevOps, IAM, Cyber Security, AI Intern, AI
+  // Engineer, ...), powered by a Master Data lookup (Clients & Hiring tab)
+  // -- see the schema comment on the RoleTrack model. Independent of which
+  // formal job opening the candidate is filed under.
+  roleTrack?: string | null;
   stage: CandidateStage;
   screeningNotes?: string | null;
   screeningRating?: number | null;
@@ -1491,6 +1507,8 @@ export interface Candidate {
   technicalRating?: number | null;
   finalRoundNotes?: string | null;
   finalRoundRating?: number | null;
+  hrRoundNotes?: string | null;
+  hrRoundRating?: number | null;
   nextInterviewAt?: string | null;
   rejectionReason?: string | null;
   resumeFileName?: string | null;
@@ -1962,6 +1980,14 @@ export interface ContractTypeItem {
 }
 
 export interface CandidateSourceItem {
+  id: string;
+  name: string;
+  active: boolean;
+  usageCount?: number;
+  usageLabel?: string;
+}
+
+export interface RoleTrackItem {
   id: string;
   name: string;
   active: boolean;
