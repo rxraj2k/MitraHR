@@ -1,6 +1,7 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { join } from 'path';
 import { MailService } from '../mail/mail.service';
+import { CliqService } from '../cliq/cliq.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpdateAnnouncementDto } from './dto/update-announcement.dto';
 
@@ -41,6 +42,7 @@ export class AnnouncementsService {
   constructor(
     private prisma: PrismaService,
     private mail: MailService,
+    private cliq: CliqService,
   ) {}
 
   async findOne(id: string) {
@@ -75,6 +77,16 @@ export class AnnouncementsService {
     // only the named employees for INDIVIDUALS -- an announcement aimed at
     // one department or a handful of people never blasts the whole company.
     this.emailAnnouncement(announcement, audienceDepartmentIds, audienceEmployeeIds).catch(() => {});
+    // Same fire-and-forget treatment as the email above -- a shared Cliq
+    // channel post, not gated by the per-employee emailOnAnnouncement
+    // opt-out (that flag is about their inbox specifically).
+    this.cliq
+      .postMessage(
+        `📣 *New Announcement: ${announcement.title}*\n${this.htmlToText(announcement.body)}\n_Posted by ${
+          announcement.createdBy.name
+        } on MitraHR_`,
+      )
+      .catch(() => {});
     return announcement;
   }
 

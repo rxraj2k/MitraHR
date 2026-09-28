@@ -2,6 +2,7 @@ import { BadRequestException, ForbiddenException, Injectable, NotFoundException 
 import { join } from 'path';
 import { PrismaService } from '../prisma/prisma.service';
 import { MailService } from '../mail/mail.service';
+import { CliqService } from '../cliq/cliq.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { countWorkingDays, monthsElapsedInYear, toISODate } from './leave-balance.util';
 
@@ -11,6 +12,7 @@ export class LeaveRequestsService {
     private prisma: PrismaService,
     private notifications: NotificationsService,
     private mail: MailService,
+    private cliq: CliqService,
   ) {}
 
   private async getHolidaySet(year: number): Promise<Set<string>> {
@@ -268,6 +270,14 @@ export class LeaveRequestsService {
         })
         .catch(() => {});
     }
+    const icon = status === 'APPROVED' ? '✅' : '❌';
+    this.cliq
+      .postMessage(
+        `${icon} *${updated.employee.fullName}*'s ${updated.leaveType.name} request (${dateRange}) was *${verb}*.${
+          decisionNote ? `\n_${decisionNote}_` : ''
+        }`,
+      )
+      .catch(() => {});
     return updated;
   }
 

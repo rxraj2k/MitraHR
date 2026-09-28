@@ -8,6 +8,7 @@ import { DepartmentsModule } from './departments/departments.module';
 import { DesignationsModule } from './designations/designations.module';
 import { SkillsModule } from './skills/skills.module';
 import { MailModule } from './mail/mail.module';
+import { CliqModule } from './cliq/cliq.module';
 import { LeaveModule } from './leave/leave.module';
 import { AttendanceModule } from './attendance/attendance.module';
 import { CompOffModule } from './comp-off/comp-off.module';
@@ -54,6 +55,7 @@ import { OfficeWallModule } from './office-wall/office-wall.module';
     DesignationsModule,
     SkillsModule,
     MailModule,
+    CliqModule,
     LeaveModule,
     AttendanceModule,
     CompOffModule,
