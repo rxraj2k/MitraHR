@@ -271,9 +271,12 @@ export class LeaveRequestsService {
         .catch(() => {});
     }
     const icon = status === 'APPROVED' ? '✅' : '❌';
+    // A direct message to just this employee, not the shared channel --
+    // a leave decision is personal, not company-wide activity.
     this.cliq
-      .postMessage(
-        `${icon} *${updated.employee.fullName}*'s ${updated.leaveType.name} request (${dateRange}) was *${verb}*.${
+      .postDirectMessage(
+        updated.employee.email,
+        `${icon} Your ${updated.leaveType.name} request (${dateRange}) was *${verb}*.${
           decisionNote ? `\n_${decisionNote}_` : ''
         }`,
       )

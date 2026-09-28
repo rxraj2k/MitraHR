@@ -81,7 +81,7 @@ export class AnnouncementsService {
     // channel post, not gated by the per-employee emailOnAnnouncement
     // opt-out (that flag is about their inbox specifically).
     this.cliq
-      .postMessage(
+      .postToChannel(
         `📣 *New Announcement: ${announcement.title}*\n${this.htmlToText(announcement.body)}\n_Posted by ${
           announcement.createdBy.name
         } on MitraHR_`,
