@@ -10,10 +10,16 @@ import { Injectable, Logger } from '@nestjs/common';
 //   everyone can just mute on their own end if they want to.
 // - postDirectMessage(): a private 1:1 message to one specific employee,
 //   by their email -- used so a leave decision reaches only that person,
-//   not the whole company channel. Zoho's docs note this only works if the
-//   recipient is an organization member (true for anyone with a Cliq seat
-//   in the same org) -- if an employee has no Cliq account, this silently
-//   no-ops (fire-and-forget, same as a bounced email would).
+//   not the whole company channel.
+//   KNOWN GAP: Zoho's simple Webhook Token (zapikey) is only accepted for
+//   channel/bot/extension endpoints -- confirmed by testing that the same
+//   token gets a 401 on Cliq's /buddies/{email}/message endpoint, which
+//   needs a real OAuth-authenticated request instead. Until a proper OAuth
+//   connection is set up, this deliberately does NOT attempt the doomed
+//   request -- it just logs an honest "not implemented yet" note so a
+//   leave decision never crashes or spams a 401 warning, it just quietly
+//   doesn't DM. Swap the early-return below for a real OAuth call once
+//   that's set up.
 //
 // Configure with:
 // - CLIQ_PROVIDER: "webhook" to actually post; anything else (or unset)
@@ -44,6 +50,12 @@ export class CliqService {
   }
 
   async postDirectMessage(email: string, text: string): Promise<void> {
+    if (this.provider === 'webhook') {
+      // See KNOWN GAP above -- a webhook token can't authenticate this
+      // endpoint, so skip the guaranteed-401 network call entirely.
+      this.logger.debug(`Cliq DM to ${email} skipped -- direct messages need OAuth, not yet set up.`);
+      return;
+    }
     await this.post(`/buddies/${encodeURIComponent(email)}/message`, text, `dm:${email}`);
   }
 
